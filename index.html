@@ -16,7 +16,6 @@
 <div id="toast"></div>
 <script>
 (() => {
-  // ===== UI utils =====
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha:false });
   const toastEl = document.getElementById('toast');
@@ -62,11 +61,10 @@
   let gold=6;
   let floorN=1, state='shop', result=null;
   const roster=[], enemies=[];
-  let shop=[], preview=null;     // unit in hand; preview._fromPickup boolean; preview._fromCell {x,y}
+  let shop=[], preview=null;     // preview._fromPickup + preview._fromCell for cancel
   const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0};
-  let flash = null;              // {x,y,t}
-  let hover = {x:-1,y:-1};      // finger pos
-  let dragging = false;
+  let flash = null;
+  let hover = {x:-1,y:-1};
 
   function refillShop(){
     const keys = Object.keys(UNIT);
@@ -105,17 +103,21 @@
     fill(gx+10, gy+L.cell-28, hpw, 6, C.hp);
   }
 
-  // ===== Targeting (frontline focus) =====
+  // ===== Targeting (FRONT FIRST) =====
   function frontlineTarget(attacker, targets) {
     if (!targets.length) return null;
+    // Player units are on columns 0–1 (left), enemies on 3–4 (right).
+    // => Enemies should hit our RIGHTMOST (max X) first.
+    // => Our units should hit their LEFTMOST (min X) first.
     let front;
-    if (attacker.team === 'enemy') { // enemy hits our lowest X (closest to them)
-      const minX = Math.min(...targets.map(t => t.cell.x));
-      front = targets.filter(t => t.cell.x === minX);
-    } else { // our units hit their highest X (closest to us)
+    if (attacker.team === 'enemy') {
       const maxX = Math.max(...targets.map(t => t.cell.x));
       front = targets.filter(t => t.cell.x === maxX);
+    } else {
+      const minX = Math.min(...targets.map(t => t.cell.x));
+      front = targets.filter(t => t.cell.x === minX);
     }
+    // Prefer same row, then lowest % HP to break ties.
     const sameRow = front.filter(t => t.cell.y === attacker.cell.y);
     if (sameRow.length) front = sameRow;
     front.sort((a,b) => (a.hp/a.maxhp) - (b.hp/b.maxhp));
@@ -169,8 +171,6 @@
   // ===== Render Loop =====
   function draw(dt){
     fill(0,0,innerWidth,innerHeight,C.bg);
-
-    // grid
     for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++)
       stroke(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, C.grid);
 
@@ -180,11 +180,10 @@
       text('Tip: Tap a unit on the left to move it.', L.originX, Math.max(16, L.originY-6), 12, C.hint);
     }
 
-    // units
     roster.forEach(drawUnit);
     enemies.forEach(drawUnit);
 
-    // ghost preview (snap to nearest grid)
+    // ghost
     if(state==='placing' && preview){
       let c = Math.round((hover.x - L.originX)/L.cell);
       let r = Math.round((hover.y - L.originY)/L.cell);
@@ -219,7 +218,6 @@
       text('Tap to continue', innerWidth/2-70, innerHeight/2+20, 16);
     }
 
-    // placement fail flash
     if (flash){
       const alpha = Math.max(0, 1 - flash.t/0.25);
       if (alpha > 0){
@@ -238,28 +236,15 @@
   // ===== Input & helpers =====
   const pointInRect=(x,y,r)=> x>=r.x && y>=r.y && y<=r.y+r.h && x<=r.x+r.w;
 
-  function cellAtFloor(px,py){ // floor for hit-tests
-    return {
-      x: Math.floor((px - L.originX)/L.cell),
-      y: Math.floor((py - L.originY)/L.cell),
-    };
-  }
-  function cellAtRound(px,py){ // round for snapping on drop
-    return {
-      x: Math.round((px - L.originX)/L.cell),
-      y: Math.round((py - L.originY)/L.cell),
-    };
-  }
-  function unitAtCell(c,r){
-    return roster.find(u => u.cell && u.cell.x===c && u.cell.y===r && u.alive) || null;
-  }
+  function cellAtFloor(px,py){ return { x: Math.floor((px - L.originX)/L.cell), y: Math.floor((py - L.originY)/L.cell) }; }
+  function cellAtRound(px,py){ return { x: Math.round((px - L.originX)/L.cell), y: Math.round((py - L.originY)/L.cell) }; }
+  function unitAtCell(c,r){ return roster.find(u => u.cell && u.cell.x===c && u.cell.y===r && u.alive) || null; }
   function inLeftCols(c,r){ return (c>=0 && c<=1 && r>=0 && r<ROWS); }
 
   function placeExactAt(c,r){
     const fc = Math.max(0, Math.min(1, c));
     const fr = Math.max(0, Math.min(ROWS-1, r));
     if (!inLeftCols(c,r)){
-      // cancel back to original if we tried to drop off-grid
       if (preview && preview._fromPickup && preview._fromCell){
         preview.cell = {...preview._fromCell};
         roster.push(preview);
@@ -285,34 +270,23 @@
     return true;
   }
 
-  // map event to canvas px (handles touchend.changedTouches)
   function clientToCanvas(e){
     const rect = canvas.getBoundingClientRect();
     let cx, cy;
-    if (e.changedTouches && e.changedTouches[0]) {
-      cx = e.changedTouches[0].clientX; cy = e.changedTouches[0].clientY;
-    } else if (e.touches && e.touches[0]) {
-      cx = e.touches[0].clientX; cy = e.touches[0].clientY;
-    } else {
-      cx = e.clientX; cy = e.clientY;
-    }
+    if (e.changedTouches && e.changedTouches[0]) { cx = e.changedTouches[0].clientX; cy = e.changedTouches[0].clientY; }
+    else if (e.touches && e.touches[0])           { cx = e.touches[0].clientX;        cy = e.touches[0].clientY; }
+    else                                           { cx = e.clientX;                   cy = e.clientY; }
     return { x: cx - rect.left, y: cy - rect.top };
   }
 
-  // ===== Pointer handlers =====
   function onPointerDown(e){
     const p = clientToCanvas(e);
     hover.x = p.x; hover.y = p.y;
 
-    // If placing, just start dragging (don't drop yet)
-    if (state==='placing' && preview){
-      dragging = true;
-      e.preventDefault();
-      return;
-    }
+    if (state==='placing' && preview){ e.preventDefault(); return; }
 
     if(state==='shop' && !preview){
-      // 1) PICKUP PRIORITY — check grid first
+      // PICKUP first
       const ccF = cellAtFloor(p.x,p.y);
       if (inLeftCols(ccF.x, ccF.y)){
         const u = unitAtCell(ccF.x, ccF.y);
@@ -321,15 +295,14 @@
           if (idx>=0) roster.splice(idx,1);
           preview = u;
           preview._fromPickup = true;
-          preview._fromCell = {x:ccF.x, y:ccF.y}; // for cancel
+          preview._fromCell = {x:ccF.x, y:ccF.y};
           state='placing';
-          dragging = true;
           toast(`Picked up ${u.name}`);
           e.preventDefault();
           return;
         }
       }
-      // 2) BUY
+      // BUY
       for(const r of buyAreas){
         if(pointInRect(p.x,p.y,r) && gold>=2){
           gold -= 2;
@@ -337,42 +310,31 @@
           preview._fromPickup = false;
           preview._fromCell = null;
           state='placing';
-          dragging = true;
           toast(`Bought ${shop[r.i]}`);
           e.preventDefault();
           return;
         }
       }
-      // 3) START
+      // START
       if(pointInRect(p.x,p.y,startArea) && roster.some(u=>u.alive && u.cell)){
         spawnEnemies(); state='battle'; e.preventDefault(); return;
       }
     }
   }
-
-  function onPointerMove(e){
-    const p = clientToCanvas(e);
-    hover.x = p.x; hover.y = p.y;
-  }
-
+  function onPointerMove(e){ const p = clientToCanvas(e); hover.x = p.x; hover.y = p.y; }
   function onPointerUp(e){
-    const p = clientToCanvas(e);
-    hover.x = p.x; hover.y = p.y;
-
+    const p = clientToCanvas(e); hover.x = p.x; hover.y = p.y;
     if(state==='placing' && preview){
-      // drop ONLY on release
       let c = cellAtRound(hover.x, hover.y).x;
       let r = cellAtRound(hover.x, hover.y).y;
       c = Math.max(0, Math.min(COLS-1, c));
       r = Math.max(0, Math.min(ROWS-1, r));
-      placeExactAt(c, r); // cancels back to origin if dropped off-grid
-      dragging = false;
+      placeExactAt(c, r);
       e.preventDefault();
       return;
     }
   }
 
-  // Attach listeners
   canvas.addEventListener('pointerdown', onPointerDown, {passive:false});
   canvas.addEventListener('pointermove', onPointerMove, {passive:false});
   canvas.addEventListener('pointerup',   onPointerUp,   {passive:false});
