@@ -28,7 +28,6 @@
   let W = 0, H = 0;
 
   function resize(){
-    // real pixels for crisp text
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     W = Math.floor(window.innerWidth * dpr);
     H = Math.floor(window.innerHeight * dpr);
@@ -41,7 +40,6 @@
   window.addEventListener('resize', resize, {passive:true});
   resize();
 
-  // === GAME ===
   const COLS=5, ROWS=3, UI_H=160;
   function layout(){
     const cell = Math.floor(Math.min(window.innerWidth/COLS, (window.innerHeight-UI_H)/ROWS));
@@ -51,7 +49,6 @@
     return {cell, gridW, gridH, originX, originY};
   }
   let L = layout();
-
   window.addEventListener('resize', ()=>{ L = layout(); });
 
   const COLORS = {
@@ -68,8 +65,8 @@
   };
 
   let gold=3, floorN=1, state='shop', result=null;
-  const roster=[]; // {name, team, cell:{x,y}, ...}
-  const enemies=[]; // same
+  const roster=[];
+  const enemies=[];
   let shop=[];
   let preview=null;
 
@@ -128,7 +125,6 @@
     const gx = L.originX + u.cell.x*L.cell;
     const gy = L.originY + u.cell.y*L.cell;
     drawRect(gx+8, gy+8, L.cell-16, L.cell-16, u.color);
-    // hp bar
     const w = L.cell-20;
     const hpw = Math.max(0, Math.floor(w * u.hp / u.maxhp));
     drawRect(gx+10, gy+L.cell-28, w, 6, COLORS.hpBack);
@@ -136,7 +132,6 @@
   }
 
   function battleTick(dt){
-    // players
     for(const u of playersAlive()){
       u.cool -= dt;
       if(u.cool <= 0){
@@ -160,7 +155,6 @@
         u.cool = 1/u.spd;
       }
     }
-    // enemies
     for(const e of enemiesAlive()){
       e.cool -= dt;
       if(e.cool <= 0){
@@ -172,27 +166,20 @@
         e.cool = 1/e.spd;
       }
     }
-    // outcome
     if(!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); }
     else if(!playersAlive().length){ state='result'; result='lose'; }
   }
 
   function draw(dt){
-    // bg
     drawRect(0,0,window.innerWidth, window.innerHeight, COLORS.bg);
-
-    // grid
     for(let c=0;c<COLS;c++){
       for(let r=0;r<ROWS;r++){
         drawRect(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, COLORS.grid, true);
       }
     }
-
-    // units
     roster.forEach(drawUnit);
     enemies.forEach(drawUnit);
 
-    // preview
     if(state==='placing' && preview){
       const c = hoverCell.x, r = hoverCell.y;
       if(c>=0 && c<COLS && r>=0 && r<ROWS && (c===0||c===1)){
@@ -200,11 +187,9 @@
       }
     }
 
-    // UI
     const y0 = L.originY + L.gridH + 8;
     drawRect(0, y0, window.innerWidth, UI_H, COLORS.ui);
 
-    // shop
     buyAreas.length = 0;
     for(let i=0;i<3;i++){
       const x = 8 + i*150, y = y0 + 8;
@@ -217,24 +202,19 @@
     drawText(`Gold: ${gold}`, 8, y0+110, 16);
     drawText(`Floor: ${floorN}`, 140, y0+110, 16);
 
-    // start button
     startArea = { x: window.innerWidth-160, y: y0+48, w:140, h:44 };
     drawRect(startArea.x, startArea.y, startArea.w, startArea.h, COLORS.start);
     drawText('START', startArea.x+26, startArea.y+30, 24);
 
-    // result overlay text
     if(state==='result'){
       const msg = (result==='win') ? 'Victory!' : 'Defeated.';
       drawText(msg, window.innerWidth/2 - 50, window.innerHeight/2 - 10, 28);
       drawText('Tap to continue', window.innerWidth/2 - 70, window.innerHeight/2 + 20, 16);
     }
 
-    // sim
     if(state==='battle') battleTick(dt);
   }
 
-  // input
-  let hoverCell = {x:-1,y:-1};
   function pageToCell(px,py){
     const c = Math.floor((px - L.originX)/L.cell);
     const r = Math.floor((py - L.originY)/L.cell);
@@ -246,6 +226,7 @@
 
   const buyAreas = [];
   let startArea = {x:0,y:0,w:0,h:0};
+  let hoverCell = {x:-1,y:-1};
 
   function tap(x,y){
     const y0 = L.originY + L.gridH + 8;
@@ -283,7 +264,6 @@
           return;
         }
       } else {
-        // cancel & refund
         gold += 2;
         preview = null;
         state='shop';
@@ -292,22 +272,43 @@
     }
   }
 
-  // pointer handlers
-  function handlePointer(e){
-    const t = e.touches ? e.touches[0] : e;
-    const x = t.clientX, y = t.clientY;
-    hoverCell = pageToCell(x,y);
+  // Fixed iPhone input mapping
+  function mapClientToCanvas(px, py) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (px - rect.left);
+    const y = (py - rect.top);
+    return { x, y };
   }
-  window.addEventListener('pointermove', handlePointer, {passive:true});
-  window.addEventListener('touchmove', handlePointer, {passive:true});
-  window.addEventListener('pointerdown', (e)=>{ handlePointer(e); tap(e.clientX, e.clientY); e.preventDefault(); }, {passive:false});
-  window.addEventListener('touchstart', (e)=>{ handlePointer(e); const t=e.touches[0]; tap(t.clientX, t.clientY); e.preventDefault(); }, {passive:false});
 
-  // boot
+  function handlePointer(e) {
+    const t = (e.touches && e.touches[0]) ? e.touches[0] : e;
+    const pos = mapClientToCanvas(t.clientX, t.clientY);
+    hoverCell = pageToCell(pos.x, pos.y);
+  }
+
+  window.addEventListener('pointermove', handlePointer, { passive: true });
+  window.addEventListener('touchmove', handlePointer, { passive: true });
+
+  window.addEventListener('pointerdown', (e) => {
+    const pos = mapClientToCanvas(e.clientX, e.clientY);
+    tap(pos.x, pos.y);
+    e.preventDefault();
+  }, { passive: false });
+
+  window.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    const pos = mapClientToCanvas(t.clientX, t.clientY);
+    tap(pos.x, pos.y);
+    e.preventDefault();
+  }, { passive: false });
+
+  window.addEventListener('click', (e) => {
+    const pos = mapClientToCanvas(e.clientX, e.clientY);
+    tap(pos.x, pos.y);
+  }, { passive: true });
+
   refillShop();
   requestAnimationFrame(loop);
-  // sanity text draw (shows for one frame if everything works)
-  // (If you keep seeing only black, the script didn’t run—double-check the file is saved as index.html (lowercase) in repo root)
 })();
 </script>
 </body>
