@@ -47,11 +47,11 @@
   const UNIT = {
     Brawler:{hp:120, atk:18, spd:1.0, range:1, color:C.b, role:"melee"},
     Archer:{hp:70,  atk:25, spd:0.8, range:3, color:C.a, role:"ranged"},
-    Cleric:{hp:80,  atk:8,  spd:1.0, range:3, color:C.c, role:"healer"}, // heals + light attack now
+    Cleric:{hp:80,  atk:8,  spd:1.0, range:3, color:C.c, role:"healer"}, // heals + light attack
   };
 
-  // ===== Game State (tuned for winnable Floor 1) =====
-  let gold=6;                 // was 3 → now 6 so you can buy 3 units
+  // ===== Game State (winnable Floor 1) =====
+  let gold=6;                 // start with 6 → buy 3 units
   let floorN=1, state='shop', result=null;
   const roster=[], enemies=[];
   let shop=[], preview=null;
@@ -66,13 +66,13 @@
     return { name, team, cell, alive:true, maxhp:d.hp, hp:d.hp, atk:d.atk, spd:d.spd, range:d.range, color:d.color, role:d.role, cool: Math.random()/d.spd };
   }
 
-  // Floor 1: only 2 enemies; later floors: 3 (or more if you want to scale up)
+  // Floor 1: 2 enemies; later: 3
   function spawnEnemies(){
     enemies.length=0;
     const count = (floorN===1)? 2 : 3;
     const cols=[4,3,4,3];
     for(let i=0;i<count;i++){
-      const hp = Math.floor(90 + floorN*8);   // slightly softer than before
+      const hp = Math.floor(90 + floorN*8);
       const atk = Math.floor(10 + floorN*3);
       enemies.push({name:'Enemy', team:'enemy', cell:{x:cols[i%cols.length], y:i%3}, alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:C.e, role:'melee', cool: Math.random()});
     }
@@ -106,7 +106,7 @@
       u.cool -= dt;
       if(u.cool<=0){
         let didAttack = false;
-        // Cleric now: heal lowest ally AND make a light poke (half damage) if an enemy exists
+        // Cleric: heal lowest ally + light poke
         if(u.role==='healer'){
           const allies=playersAlive();
           if(allies.length){
@@ -133,7 +133,7 @@
     for(const e of enemiesAlive()){
       e.cool -= dt;
       if(e.cool<=0){
-        const t = playersAlive().sort((a,b)=>a.cell.x-b.cell.x)[0] || null; // prefer front-most
+        const t = playersAlive().sort((a,b)=>a.cell.x-b.cell.x)[0] || null; // hit front-most
         if(t){ t.hp -= e.atk; if(t.hp<=0) t.alive=false; }
         e.cool = 1/e.spd;
       }
@@ -186,7 +186,7 @@
 
   function tap(px,py){
     if(state==='result'){
-      if(result==='win'){ floorN++; } else { roster.length=0; gold=6; floorN=1; } // reset still gives 6 gold
+      if(result==='win'){ floorN++; } else { roster.length=0; gold=6; floorN=1; } // reset gives 6 gold again
       result=null; state='shop'; refillShop(); return;
     }
 
