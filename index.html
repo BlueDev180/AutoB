@@ -61,7 +61,7 @@
   let gold=6;
   let floorN=1, state='shop', result=null;
   const roster=[], enemies=[];
-  let shop=[], preview=null;     // preview._fromPickup + preview._fromCell for cancel
+  let shop=[], preview=null;     // preview._fromPickup + preview._fromCell
   const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0};
   let flash = null;
   let hover = {x:-1,y:-1};
@@ -106,9 +106,7 @@
   // ===== Targeting (FRONT FIRST) =====
   function frontlineTarget(attacker, targets) {
     if (!targets.length) return null;
-    // Player units are on columns 0–1 (left), enemies on 3–4 (right).
-    // => Enemies should hit our RIGHTMOST (max X) first.
-    // => Our units should hit their LEFTMOST (min X) first.
+    // Our units (left) should hit enemy LEFTMOST (min X) first; enemies (right) hit our RIGHTMOST (max X).
     let front;
     if (attacker.team === 'enemy') {
       const maxX = Math.max(...targets.map(t => t.cell.x));
@@ -117,7 +115,6 @@
       const minX = Math.min(...targets.map(t => t.cell.x));
       front = targets.filter(t => t.cell.x === minX);
     }
-    // Prefer same row, then lowest % HP to break ties.
     const sameRow = front.filter(t => t.cell.y === attacker.cell.y);
     if (sameRow.length) front = sameRow;
     front.sort((a,b) => (a.hp/a.maxhp) - (b.hp/b.maxhp));
@@ -171,6 +168,8 @@
   // ===== Render Loop =====
   function draw(dt){
     fill(0,0,innerWidth,innerHeight,C.bg);
+
+    // grid
     for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++)
       stroke(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, C.grid);
 
@@ -178,8 +177,11 @@
       text('Drag & release to place. Tap outside grid to cancel.', L.originX, Math.max(16, L.originY-6), 12, C.hint);
     } else if (state==='shop'){
       text('Tip: Tap a unit on the left to move it.', L.originX, Math.max(16, L.originY-6), 12, C.hint);
+    } else if (state==='result'){
+      text('Tap anywhere to continue…', L.originX, Math.max(16, L.originY-6), 12, C.hint);
     }
 
+    // units
     roster.forEach(drawUnit);
     enemies.forEach(drawUnit);
 
@@ -282,6 +284,15 @@
   function onPointerDown(e){
     const p = clientToCanvas(e);
     hover.x = p.x; hover.y = p.y;
+
+    // NEW: allow continue on result
+    if (state==='result'){
+      if (result==='win'){ floorN++; toast(`Floor ${floorN}`); }
+      else { roster.length=0; enemies.length=0; gold=6; floorN=1; toast('Run reset'); }
+      result=null; state='shop'; enemies.length=0; refillShop();
+      e.preventDefault();
+      return;
+    }
 
     if (state==='placing' && preview){ e.preventDefault(); return; }
 
