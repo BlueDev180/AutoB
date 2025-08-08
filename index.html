@@ -16,6 +16,7 @@
 <div id="toast"></div>
 <script>
 (() => {
+  // ===== Utils / UI =====
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha:false });
   const toastEl = document.getElementById('toast');
@@ -54,18 +55,17 @@
   const UNIT = {
     Brawler:{hp:120, atk:18, spd:1.0, range:1, color:C.b, role:"melee"},
     Archer:{hp:70,  atk:25, spd:0.8, range:3, color:C.a, role:"ranged"},
-    Cleric:{hp:80,  atk:8,  spd:1.0, range:3, color:C.c, role:"healer"},
+    Cleric:{hp:80,  atk:8,  spd:1.0, range:3, color:C.c, role:"healer"}, // heals + light poke in battle logic
   };
 
   // ===== Game State =====
   let gold=6;
   let floorN=1, state='shop', result=null;
   const roster=[], enemies=[];
-  let shop=[], preview=null; // when moving: preview._fromPickup=true
+  let shop=[], preview=null;  // preview is the unit in hand when placing/moving; preview._fromPickup boolean
   const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0};
-  let flash = null;
-  // simple hover to draw ghost placement (optional)
-  let hover = {x:-1,y:-1};
+  let flash = null;           // {x,y,t} red flash for invalid placement
+  let hover = {x:-1,y:-1};   // ghost follow
 
   function refillShop(){
     const keys = Object.keys(UNIT);
@@ -76,6 +76,7 @@
     return { name, team, cell, alive:true, maxhp:d.hp, hp:d.hp, atk:d.atk, spd:d.spd, range:d.range, color:d.color, role:d.role, cool: Math.random()/d.spd };
   }
 
+  // ===== Enemies =====
   function spawnEnemies(){
     enemies.length=0;
     const count = (floorN===1)? 2 : 3;
@@ -103,7 +104,7 @@
     fill(gx+10, gy+L.cell-28, hpw, 6, C.hp);
   }
 
-  // ===== Targeting Helpers =====
+  // ===== Targeting Helpers (frontline focus) =====
   function frontlineTarget(attacker, targets) {
     if (!targets.length) return null;
     // enemy aims at lowest X (closest to them), player aims at highest X (closest to us)
@@ -123,6 +124,7 @@
 
   // ===== Battle Logic =====
   function battleTick(dt){
+    // players
     for(const u of playersAlive()){
       u.cool -= dt;
       if(u.cool<=0){
@@ -150,6 +152,7 @@
         u.cool = 1/u.spd;
       }
     }
+    // enemies
     for(const e of enemiesAlive()){
       e.cool -= dt;
       if(e.cool<=0){
@@ -158,6 +161,7 @@
         e.cool = 1/e.spd;
       }
     }
+    // outcome
     if(!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); }
     else if(!playersAlive().length){ state='result'; result='lose'; }
   }
@@ -174,12 +178,14 @@
     roster.forEach(drawUnit);
     enemies.forEach(drawUnit);
 
-    // ghost preview while placing
+    // ghost preview while placing (snaps to grid; only show within left two cols)
     if(state==='placing' && preview){
-      const c = Math.max(0, Math.min(1, hover.x));
-      const r = Math.max(0, Math.min(ROWS-1, hover.y));
-      const gx = L.originX + c*L.cell, gy = L.originY + r*L.cell;
-      fill(gx+4, gy+4, L.cell-8, L.cell-8, C.ghost);
+      let c = Math.floor((hover.x - L.originX)/L.cell);
+      let r = Math.floor((hover.y - L.originY)/L.cell);
+      if (c>=0 && c<=1 && r>=0 && r<ROWS){
+        const gx = L.originX + c*L.cell, gy = L.originY + r*L.cell;
+        fill(gx+4, gy+4, L.cell-8, L.cell-8, C.ghost);
+      }
     }
 
     // UI
@@ -199,7 +205,6 @@
     text(`Floor: ${floorN}`, 140, y0+110, 16);
 
     startArea = { x: innerWidth-160, y: y0+48, w:140, h:44 };
-    fill(startArea.x, startArea.y, startArea.w, C.start, C.start);
     fill(startArea.x, startArea.y, startArea.w, startArea.h, C.start);
     text('START', startArea.x+26, startArea.y+30, 24);
 
@@ -227,46 +232,38 @@
   // ===== Input & helpers =====
   const pointInRect=(x,y,r)=> x>=r.x && y>=r.y && x<=r.x+r.w && y<=r.y+r.h;
 
-  function findNextFreeCell(){
-    for (let c=0;c<=1;c++){
-      for (let r=0;r<ROWS;r++){
-        const occupied = roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
-        if (!occupied) return {x:c,y:r};
-      }
-    }
-    return null;
-  }
-
   function cellAt(px,py){
     return {
       x: Math.floor((px - L.originX)/L.cell),
       y: Math.floor((py - L.originY)/L.cell),
     };
   }
-
   function unitAtCell(c,r){
     return roster.find(u => u.cell && u.cell.x===c && u.cell.y===r && u.alive) || null;
   }
+  function validLeftGrid(c,r){
+    return (c>=0 && c<=1 && r>=0 && r<ROWS);
+  }
 
-  function placePreviewAt(c,r){
-    // clamp to left two columns
-    r = Math.max(0, Math.min(ROWS-1, r));
-    c = Math.max(0, Math.min(1, c));
-    let occupied = roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
+  function placePreviewExact(c,r){
+    // Only exact left-grid placement allowed; no auto-shift.
+    if (!validLeftGrid(c,r)){
+      flash = {x: Math.max(0, Math.min(1, c)), y: Math.max(0, Math.min(ROWS-1, r)), t:0};
+      toast('Place on the left two columns');
+      return false;
+    }
+    const occupied = !!unitAtCell(c,r);
     if (occupied){
-      const alt = findNextFreeCell();
-      if (alt){ c=alt.x; r=alt.y; occupied=false; }
-    }
-    if(!occupied){
-      preview.cell = {x:c,y:r};
-      roster.push(preview);
-      toast(`${preview._fromPickup ? 'Moved' : 'Placed'} ${preview.name} @ ${c},${r}`);
-      preview = null;
-      state='shop';
-    } else {
       flash = {x:c, y:r, t:0};
-      toast('No free slot');
+      toast('Cell occupied');
+      return false;
     }
+    preview.cell = {x:c,y:r};
+    roster.push(preview);
+    toast(`${preview._fromPickup ? 'Moved' : 'Placed'} ${preview.name} @ ${c},${r}`);
+    preview = null;
+    state='shop';
+    return true;
   }
 
   function tap(px,py){
@@ -276,7 +273,7 @@
     }
 
     if(state==='shop' && !preview){
-      // 1) Try buying
+      // 1) Buy if tapping shop card
       for(const r of buyAreas){
         if(pointInRect(px,py,r) && gold>=2){
           gold -= 2;
@@ -287,12 +284,11 @@
           return;
         }
       }
-      // 2) Try picking up an already placed unit
+      // 2) Pick up an already-placed unit (left 2 columns)
       const cc = cellAt(px,py);
-      if (cc.x>=0 && cc.x<2 && cc.y>=0 && cc.y<ROWS){
+      if (validLeftGrid(cc.x, cc.y)){
         const u = unitAtCell(cc.x, cc.y);
         if (u){
-          // remove from board & pickup
           const idx = roster.indexOf(u);
           if (idx>=0) roster.splice(idx,1);
           preview = u;
@@ -302,7 +298,7 @@
           return;
         }
       }
-      // 3) Try starting battle
+      // 3) Start battle
       if(pointInRect(px,py,startArea) && roster.some(u=>u.alive && u.cell)){
         spawnEnemies(); state='battle'; return;
       }
@@ -311,7 +307,7 @@
 
     if(state==='placing' && preview){
       const cc = cellAt(px,py);
-      placePreviewAt(cc.x, cc.y);
+      placePreviewExact(cc.x, cc.y);
       return;
     }
 
@@ -327,12 +323,8 @@
   }
   function onDown(e){ const p=clientToCanvas(e); tap(p.x,p.y); e.preventDefault(); }
   function onMove(e){
-    if(state==='placing' && preview){
-      const p = clientToCanvas(e);
-      const cc = cellAt(p.x,p.y);
-      hover.x = Math.max(0, Math.min(1, cc.x));
-      hover.y = Math.max(0, Math.min(ROWS-1, cc.y));
-    }
+    const p = clientToCanvas(e);
+    hover.x = p.x; hover.y = p.y;
   }
 
   canvas.addEventListener('pointerdown', onDown, {passive:false});
