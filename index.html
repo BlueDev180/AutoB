@@ -55,7 +55,7 @@
   const UNIT = {
     Brawler:{hp:120, atk:18, spd:1.0, range:1, color:C.b, role:"melee"},
     Archer:{hp:70,  atk:25, spd:0.8, range:3, color:C.a, role:"ranged"},
-    Cleric:{hp:80,  atk:8,  spd:1.0, range:3, color:C.c, role:"healer"}, // heals + light poke in battle logic
+    Cleric:{hp:80,  atk:8,  spd:1.0, range:3, color:C.c, role:"healer"},
   };
 
   // ===== Game State =====
@@ -174,13 +174,7 @@
     for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++)
       stroke(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, C.grid);
 
-    // hint box (allowed area outline)
-    for (let c=0;c<=1;c++){
-      for(let r=0;r<ROWS;r++){
-        ctx.strokeStyle = 'rgba(158,238,238,0.15)';
-        ctx.strokeRect(L.originX + c*L.cell + 2, L.originY + r*L.cell + 2, L.cell-4, L.cell-4);
-      }
-    }
+    // hint
     if (state==='placing'){
       text('Place in LEFT two columns (tap or release finger)', L.originX, Math.max(16, L.originY-6), 12, C.hint);
     }
@@ -189,7 +183,7 @@
     roster.forEach(drawUnit);
     enemies.forEach(drawUnit);
 
-    // ghost preview while placing (snaps to nearest grid cell; shows only within full grid)
+    // ghost preview (snap to nearest grid)
     if(state==='placing' && preview){
       let c = Math.round((hover.x - L.originX)/L.cell);
       let r = Math.round((hover.y - L.originY)/L.cell);
@@ -264,27 +258,20 @@
     return null;
   }
 
-  function tryPlaceAt(c,r, allowSnap=true){
-    // Snap or clamp to left two columns
-    if (allowSnap){
-      c = Math.max(0, Math.min(1, c));
-      r = Math.max(0, Math.min(ROWS-1, r));
-    }
+  function tryPlaceAt(c,r){
+    // Snap/clamp to left two columns
+    c = Math.max(0, Math.min(1, c));
+    r = Math.max(0, Math.min(ROWS-1, r));
     if (!inLeftCols(c,r)){
-      flash = {x: Math.max(0, Math.min(1, c)), y: Math.max(0, Math.min(ROWS-1, r)), t:0};
+      flash = {x:c, y:r, t:0};
       toast('Place in left two columns');
       return false;
     }
+    // if occupied, try next free
     if (unitAtCell(c,r)){
-      // try next free slot
       const alt = findNextFreeCell();
-      if (alt){
-        c = alt.x; r = alt.y;
-      } else {
-        flash = {x:c, y:r, t:0};
-        toast('No free slot');
-        return false;
-      }
+      if (alt){ c=alt.x; r=alt.y; }
+      else { flash = {x:c, y:r, t:0}; toast('No free slot'); return false; }
     }
     preview.cell = {x:c,y:r};
     roster.push(preview);
@@ -334,9 +321,8 @@
     }
 
     if(state==='placing' && preview){
-      // Tap to drop (snap to nearest left cell)
       const cc = cellAt(px,py);
-      tryPlaceAt(cc.x, cc.y, true);
+      tryPlaceAt(cc.x, cc.y);
       return;
     }
 
@@ -345,22 +331,27 @@
     }
   }
 
+  // *** FIXED: read changedTouches on touchend ***
   function clientToCanvas(e){
     const rect = canvas.getBoundingClientRect();
-    const t = (e.touches && e.touches[0]) ? e.touches[0] : e;
-    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    let cx, cy;
+    if (e.changedTouches && e.changedTouches[0]) {
+      cx = e.changedTouches[0].clientX; cy = e.changedTouches[0].clientY;
+    } else if (e.touches && e.touches[0]) {
+      cx = e.touches[0].clientX; cy = e.touches[0].clientY;
+    } else {
+      cx = e.clientX; cy = e.clientY;
+    }
+    return { x: cx - rect.left, y: cy - rect.top };
   }
+
   function onDown(e){ const p=clientToCanvas(e); tap(p.x,p.y); e.preventDefault(); }
-  function onMove(e){
-    const p = clientToCanvas(e);
-    hover.x = p.x; hover.y = p.y;
-  }
+  function onMove(e){ const p = clientToCanvas(e); hover.x = p.x; hover.y = p.y; }
   function onUp(e){
     if(state==='placing' && preview){
-      // Drop on release based on current hover pos
       const p = clientToCanvas(e);
       const cc = cellAt(p.x, p.y);
-      tryPlaceAt(cc.x, cc.y, true);
+      tryPlaceAt(cc.x, cc.y);
       e.preventDefault();
     }
   }
