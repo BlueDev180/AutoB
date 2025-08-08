@@ -1,25 +1,22 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>Diag Test</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
+<title>Auto Battler (Mobile)</title>
 <style>
-  html,body{margin:0;height:100%;background:#111;font-family:-apple-system,system-ui}
-  canvas{display:block;width:100vw;height:100vh;touch-action:manipulation}
-  #dbg{position:fixed;left:8px;bottom:8px;color:#9ee;font-size:12px;opacity:.9;pointer-events:none}
+  html,body{margin:0;padding:0;background:#121214;height:100%;font-family:-apple-system,system-ui,sans-serif;overscroll-behavior:none}
+  canvas{position:fixed;left:0;top:0;width:100vw;height:100vh;touch-action:manipulation;display:block}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="dbg">loading…</div>
 <script>
-(function(){
-  const dbg = document.getElementById('dbg');
+(() => {
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha:false });
 
-  // size for retina but draw in CSS pixels
+  // ===== DPI & sizing =====
   function resize(){
     const dpr = Math.max(1, devicePixelRatio||1);
     const w = innerWidth, h = innerHeight;
@@ -27,54 +24,217 @@
     canvas.height = Math.floor(h*dpr);
     canvas.style.width = w+'px';
     canvas.style.height = h+'px';
-    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.setTransform(dpr,0,0,dpr,0,0); // draw in CSS pixels
   }
-  addEventListener('resize', resize, {passive:true}); resize();
+  addEventListener('resize', resize, {passive:true});
+  resize();
 
-  // a test button in the center
-  const btn = {w:180, h:80, x:0, y:0, on:false};
+  // ===== Layout =====
+  const COLS=5, ROWS=3, UI_H=160;
   function layout(){
-    btn.x = Math.floor(innerWidth/2 - btn.w/2);
-    btn.y = Math.floor(innerHeight/2 - btn.h/2);
+    const cell = Math.floor(Math.min(innerWidth/COLS, (innerHeight-UI_H)/ROWS));
+    const gridW = COLS*cell, gridH = ROWS*cell;
+    const originX = Math.floor((innerWidth - gridW)/2);
+    const originY = 24;
+    return {cell, gridW, gridH, originX, originY};
   }
-  addEventListener('resize', layout, {passive:true}); layout();
+  let L = layout();
+  addEventListener('resize', ()=>{ L = layout(); });
 
-  function draw(){
-    ctx.fillStyle = '#121214'; ctx.fillRect(0,0,innerWidth,innerHeight);
-    ctx.fillStyle = '#eee';
-    ctx.font = '24px -apple-system,system-ui';
-    ctx.fillText('DIAGNOSTIC BUILD', 20, 40);
-    ctx.font = '16px -apple-system,system-ui';
-    ctx.fillText('Tap the box', 20, 68);
+  // ===== Colors & Units =====
+  const C = { bg:'#121214', grid:'#282828', ui:'#1e1e1e', hpBack:'#333', hp:'#e42828',
+              b:'#c8503c', a:'#50c85a', c:'#78b4dc', e:'#a0a0a0', t:'#eaeaea', td:'#d8c878', start:'#7a50a0' };
+  const UNIT = {
+    Brawler:{hp:120, atk:18, spd:1.0, range:1, color:C.b, role:"melee"},
+    Archer:{hp:70,  atk:25, spd:0.8, range:3, color:C.a, role:"ranged"},
+    Cleric:{hp:80,  atk:8,  spd:1.0, range:3, color:C.c, role:"healer"}, // heals + light attack now
+  };
 
-    ctx.fillStyle = btn.on ? '#4caf50' : '#7a50a0';
-    ctx.fillRect(btn.x, btn.y, btn.w, btn.h);
-    ctx.fillStyle = '#fff';
-    ctx.font = '20px -apple-system,system-ui';
-    ctx.fillText(btn.on?'ON':'OFF', btn.x+btn.w/2-18, btn.y+btn.h/2+7);
+  // ===== Game State (tuned for winnable Floor 1) =====
+  let gold=6;                 // was 3 → now 6 so you can buy 3 units
+  let floorN=1, state='shop', result=null;
+  const roster=[], enemies=[];
+  let shop=[], preview=null;
+  const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0};
+
+  function refillShop(){
+    const keys = Object.keys(UNIT);
+    shop = Array.from({length:3},()=>keys[Math.floor(Math.random()*keys.length)]);
+  }
+  function mkUnit(name, team, cell=null){
+    const d = UNIT[name];
+    return { name, team, cell, alive:true, maxhp:d.hp, hp:d.hp, atk:d.atk, spd:d.spd, range:d.range, color:d.color, role:d.role, cool: Math.random()/d.spd };
   }
 
-  function pointIn(px,py,r){ return px>=r.x && py>=r.y && px<=r.x+r.w && py<=r.y+r.h; }
+  // Floor 1: only 2 enemies; later floors: 3 (or more if you want to scale up)
+  function spawnEnemies(){
+    enemies.length=0;
+    const count = (floorN===1)? 2 : 3;
+    const cols=[4,3,4,3];
+    for(let i=0;i<count;i++){
+      const hp = Math.floor(90 + floorN*8);   // slightly softer than before
+      const atk = Math.floor(10 + floorN*3);
+      enemies.push({name:'Enemy', team:'enemy', cell:{x:cols[i%cols.length], y:i%3}, alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:C.e, role:'melee', cool: Math.random()});
+    }
+  }
+  const playersAlive=()=>roster.filter(u=>u.alive && u.cell);
+  const enemiesAlive=()=>enemies.filter(u=>u.alive);
+
+  // ===== Drawing =====
+  const fill=(x,y,w,h,c)=>{ ctx.fillStyle=c; ctx.fillRect(x,y,w,h); };
+  const stroke=(x,y,w,h,c)=>{ ctx.strokeStyle=c; ctx.strokeRect(x,y,w,h); };
+  const text=(t,x,y,s=16,c=C.t)=>{ ctx.fillStyle=c; ctx.font=`${s}px -apple-system,system-ui,sans-serif`; ctx.fillText(t,x,y); };
+  function drawUnit(u){
+    if(!u.alive || !u.cell) return;
+    const gx = L.originX + u.cell.x*L.cell, gy = L.originY + u.cell.y*L.cell;
+    fill(gx+8, gy+8, L.cell-16, L.cell-16, u.color);
+    const w=L.cell-20, hpw=Math.max(0, Math.floor(w*u.hp/u.maxhp));
+    fill(gx+10, gy+L.cell-28, w, 6, C.hpBack);
+    fill(gx+10, gy+L.cell-28, hpw, 6, C.hp);
+  }
+
+  // ===== Battle Logic =====
+  function findTarget(att, targets){
+    const inRange = targets.filter(t=>Math.abs(t.cell.x - att.cell.x) <= att.range);
+    const list = inRange.length ? inRange : targets;
+    if(!list.length) return null;
+    list.sort((a,b)=>Math.abs(a.cell.x-att.cell.x)-Math.abs(b.cell.x-att.cell.x));
+    return list[0];
+  }
+  function battleTick(dt){
+    for(const u of playersAlive()){
+      u.cool -= dt;
+      if(u.cool<=0){
+        let didAttack = false;
+        // Cleric now: heal lowest ally AND make a light poke (half damage) if an enemy exists
+        if(u.role==='healer'){
+          const allies=playersAlive();
+          if(allies.length){
+            allies.sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp));
+            allies[0].hp = Math.min(allies[0].maxhp, allies[0].hp+20);
+          }
+          const t=findTarget(u,enemiesAlive());
+          if(t){ t.hp -= Math.max(4, Math.floor(u.atk*0.5)); if(t.hp<=0) t.alive=false; didAttack = true; }
+        }
+        if(!didAttack && u.role!=='healer'){
+          const t=findTarget(u,enemiesAlive());
+          if(t){
+            t.hp -= u.atk;
+            if(u.name==='Brawler'){
+              const mates=enemiesAlive().filter(e=>e!==t && e.cell.y===t.cell.y);
+              if(mates[0]) mates[0].hp -= Math.floor(u.atk*0.5);
+            }
+            if(t.hp<=0) t.alive=false;
+          }
+        }
+        u.cool = 1/u.spd;
+      }
+    }
+    for(const e of enemiesAlive()){
+      e.cool -= dt;
+      if(e.cool<=0){
+        const t = playersAlive().sort((a,b)=>a.cell.x-b.cell.x)[0] || null; // prefer front-most
+        if(t){ t.hp -= e.atk; if(t.hp<=0) t.alive=false; }
+        e.cool = 1/e.spd;
+      }
+    }
+    if(!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); }
+    else if(!playersAlive().length){ state='result'; result='lose'; }
+  }
+
+  // ===== Render Loop =====
+  function draw(dt){
+    fill(0,0,innerWidth,innerHeight,C.bg);
+
+    // grid
+    for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++)
+      stroke(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, C.grid);
+
+    roster.forEach(drawUnit);
+    enemies.forEach(drawUnit);
+
+    // UI
+    const y0 = L.originY + L.gridH + 8;
+    fill(0,y0,innerWidth,160,C.ui);
+
+    buyAreas.length=0;
+    for(let i=0;i<3;i++){
+      const x=8+i*150, y=y0+8;
+      fill(x,y,140,80,'#3c3c3c');
+      text(shop[i], x+8, y+32, 20);
+      text('Buy 2', x+8, y+60, 16, C.td);
+      buyAreas.push({x,y,w:140,h:80,i});
+    }
+
+    text(`Gold: ${gold}`, 8, y0+110, 16);
+    text(`Floor: ${floorN}`, 140, y0+110, 16);
+
+    startArea = { x: innerWidth-160, y: y0+48, w:140, h:44 };
+    fill(startArea.x, startArea.y, startArea.w, startArea.h, C.start);
+    text('START', startArea.x+26, startArea.y+30, 24);
+
+    if(state==='result'){
+      text((result==='win')?'Victory!':'Defeated.', innerWidth/2-50, innerHeight/2-10, 28);
+      text('Tap to continue', innerWidth/2-70, innerHeight/2+20, 16);
+    }
+
+    if(state==='battle') battleTick(dt);
+  }
+
+  // ===== Input & hit test =====
+  const pointInRect=(x,y,r)=> x>=r.x && y>=r.y && x<=r.x+r.w && y<=r.y+r.h;
+
+  function tap(px,py){
+    if(state==='result'){
+      if(result==='win'){ floorN++; } else { roster.length=0; gold=6; floorN=1; } // reset still gives 6 gold
+      result=null; state='shop'; refillShop(); return;
+    }
+
+    if(state==='shop'){
+      for(const r of buyAreas){
+        if(pointInRect(px,py,r) && gold>=2){
+          gold -= 2;
+          preview = mkUnit(shop[r.i], 'player', null);
+          state='placing';
+          return;
+        }
+      }
+      if(pointInRect(px,py,startArea) && roster.some(u=>u.alive && u.cell)){
+        spawnEnemies(); state='battle'; return;
+      }
+    } else if(state==='placing' && preview){
+      // Snap to nearest left two columns
+      let c = Math.round((px - L.originX)/L.cell);
+      let r = Math.round((py - L.originY)/L.cell);
+      r = Math.max(0, Math.min(ROWS-1, r));
+      c = Math.max(0, Math.min(1, c));
+      const occupied = roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
+      if(!occupied){
+        preview.cell = {x:c,y:r};
+        roster.push(preview);
+        preview = null;
+        state='shop';
+        return;
+      }
+    }
+  }
+
   function clientToCanvas(e){
     const rect = canvas.getBoundingClientRect();
     const t = (e.touches && e.touches[0]) ? e.touches[0] : e;
     return { x: t.clientX - rect.left, y: t.clientY - rect.top };
   }
+  function onDown(e){ const p=clientToCanvas(e); tap(p.x,p.y); e.preventDefault(); }
 
-  function handleTap(e){
-    const p = clientToCanvas(e);
-    if (pointIn(p.x,p.y,btn)) { btn.on = !btn.on; }
-    dbg.textContent = `tap ${Math.round(p.x)},${Math.round(p.y)}  btn:${btn.on?'ON':'OFF'}`;
-    draw();
-    e.preventDefault();
-  }
+  canvas.addEventListener('pointerdown', onDown, {passive:false});
+  canvas.addEventListener('touchstart', onDown, {passive:false});
+  canvas.addEventListener('click', (e)=>{ const p=clientToCanvas(e); tap(p.x,p.y); }, {passive:true});
 
-  canvas.addEventListener('pointerdown', handleTap, {passive:false});
-  canvas.addEventListener('touchstart', handleTap, {passive:false});
-  canvas.addEventListener('click', handleTap, {passive:true});
-
-  draw();
-  dbg.textContent = 'ready';
+  // ===== Boot =====
+  refillShop();
+  let last = performance.now();
+  function loop(ts){ const dt = Math.min(0.05, (ts-last)/1000); last = ts; draw(dt); requestAnimationFrame(loop); }
+  requestAnimationFrame(loop);
 })();
 </script>
 </body>
