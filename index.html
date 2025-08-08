@@ -50,7 +50,7 @@
   // ===== Colors & Units =====
   const C = { bg:'#121214', grid:'#282828', ui:'#1e1e1e', hpBack:'#333', hp:'#e42828',
               b:'#c8503c', a:'#50c85a', c:'#78b4dc', e:'#a0a0a0', t:'#eaeaea', td:'#d8c878', start:'#7a50a0',
-              fail:'rgba(255,80,80,.35)' };
+              ghost:'rgba(255,255,255,.22)' , fail:'rgba(255,80,80,.35)' };
   const UNIT = {
     Brawler:{hp:120, atk:18, spd:1.0, range:1, color:C.b, role:"melee"},
     Archer:{hp:70,  atk:25, spd:0.8, range:3, color:C.a, role:"ranged"},
@@ -61,9 +61,11 @@
   let gold=6;
   let floorN=1, state='shop', result=null;
   const roster=[], enemies=[];
-  let shop=[], preview=null;
+  let shop=[], preview=null; // when moving: preview._fromPickup=true
   const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0};
   let flash = null;
+  // simple hover to draw ghost placement (optional)
+  let hover = {x:-1,y:-1};
 
   function refillShop(){
     const keys = Object.keys(UNIT);
@@ -104,6 +106,7 @@
   // ===== Targeting Helpers =====
   function frontlineTarget(attacker, targets) {
     if (!targets.length) return null;
+    // enemy aims at lowest X (closest to them), player aims at highest X (closest to us)
     let front;
     if (attacker.team === 'enemy') {
       const minX = Math.min(...targets.map(t => t.cell.x));
@@ -162,11 +165,24 @@
   // ===== Render Loop =====
   function draw(dt){
     fill(0,0,innerWidth,innerHeight,C.bg);
+
+    // grid
     for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++)
       stroke(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, C.grid);
+
+    // units
     roster.forEach(drawUnit);
     enemies.forEach(drawUnit);
 
+    // ghost preview while placing
+    if(state==='placing' && preview){
+      const c = Math.max(0, Math.min(1, hover.x));
+      const r = Math.max(0, Math.min(ROWS-1, hover.y));
+      const gx = L.originX + c*L.cell, gy = L.originY + r*L.cell;
+      fill(gx+4, gy+4, L.cell-8, L.cell-8, C.ghost);
+    }
+
+    // UI
     const y0 = L.originY + L.gridH + 8;
     fill(0,y0,innerWidth,160,C.ui);
 
@@ -183,6 +199,7 @@
     text(`Floor: ${floorN}`, 140, y0+110, 16);
 
     startArea = { x: innerWidth-160, y: y0+48, w:140, h:44 };
+    fill(startArea.x, startArea.y, startArea.w, C.start, C.start);
     fill(startArea.x, startArea.y, startArea.w, startArea.h, C.start);
     text('START', startArea.x+26, startArea.y+30, 24);
 
@@ -191,6 +208,7 @@
       text('Tap to continue', innerWidth/2-70, innerHeight/2+20, 16);
     }
 
+    // placement fail flash
     if (flash){
       const alpha = Math.max(0, 1 - flash.t/0.25);
       if (alpha > 0){
@@ -206,8 +224,9 @@
     if(state==='battle') battleTick(dt);
   }
 
-  // ===== Input =====
+  // ===== Input & helpers =====
   const pointInRect=(x,y,r)=> x>=r.x && y>=r.y && x<=r.x+r.w && y<=r.y+r.h;
+
   function findNextFreeCell(){
     for (let c=0;c<=1;c++){
       for (let r=0;r<ROWS;r++){
@@ -217,60 +236,110 @@
     }
     return null;
   }
+
+  function cellAt(px,py){
+    return {
+      x: Math.floor((px - L.originX)/L.cell),
+      y: Math.floor((py - L.originY)/L.cell),
+    };
+  }
+
+  function unitAtCell(c,r){
+    return roster.find(u => u.cell && u.cell.x===c && u.cell.y===r && u.alive) || null;
+  }
+
+  function placePreviewAt(c,r){
+    // clamp to left two columns
+    r = Math.max(0, Math.min(ROWS-1, r));
+    c = Math.max(0, Math.min(1, c));
+    let occupied = roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
+    if (occupied){
+      const alt = findNextFreeCell();
+      if (alt){ c=alt.x; r=alt.y; occupied=false; }
+    }
+    if(!occupied){
+      preview.cell = {x:c,y:r};
+      roster.push(preview);
+      toast(`${preview._fromPickup ? 'Moved' : 'Placed'} ${preview.name} @ ${c},${r}`);
+      preview = null;
+      state='shop';
+    } else {
+      flash = {x:c, y:r, t:0};
+      toast('No free slot');
+    }
+  }
+
   function tap(px,py){
     if(state==='result'){
       if(result==='win'){ floorN++; } else { roster.length=0; gold=6; floorN=1; }
       result=null; state='shop'; refillShop(); return;
     }
-    if(state==='shop'){
+
+    if(state==='shop' && !preview){
+      // 1) Try buying
       for(const r of buyAreas){
         if(pointInRect(px,py,r) && gold>=2){
           gold -= 2;
           preview = mkUnit(shop[r.i], 'player', null);
+          preview._fromPickup = false;
           state='placing';
           toast(`Bought ${shop[r.i]}`);
           return;
         }
       }
+      // 2) Try picking up an already placed unit
+      const cc = cellAt(px,py);
+      if (cc.x>=0 && cc.x<2 && cc.y>=0 && cc.y<ROWS){
+        const u = unitAtCell(cc.x, cc.y);
+        if (u){
+          // remove from board & pickup
+          const idx = roster.indexOf(u);
+          if (idx>=0) roster.splice(idx,1);
+          preview = u;
+          preview._fromPickup = true;
+          state='placing';
+          toast(`Picked up ${u.name}`);
+          return;
+        }
+      }
+      // 3) Try starting battle
       if(pointInRect(px,py,startArea) && roster.some(u=>u.alive && u.cell)){
         spawnEnemies(); state='battle'; return;
       }
-    } else if(state==='placing' && preview){
-      let c = Math.round((px - L.originX)/L.cell);
-      let r = Math.round((py - L.originY)/L.cell);
-      r = Math.max(0, Math.min(ROWS-1, r));
-      c = Math.max(0, Math.min(1, c));
-      let occupied = roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
-      if (occupied){
-        const alt = findNextFreeCell();
-        if (alt){
-          c = alt.x; r = alt.y;
-          occupied = false;
-        }
-      }
-      if(!occupied){
-        preview.cell = {x:c,y:r};
-        roster.push(preview);
-        toast(`Placed ${preview.name} @ ${c},${r}`);
-        preview = null;
-        state='shop';
-        return;
-      } else {
-        flash = {x:c, y:r, t:0};
-        toast('No free slot');
-        return;
-      }
+      return;
+    }
+
+    if(state==='placing' && preview){
+      const cc = cellAt(px,py);
+      placePreviewAt(cc.x, cc.y);
+      return;
+    }
+
+    if(state==='battle'){
+      toast('Can’t move during battle');
     }
   }
+
   function clientToCanvas(e){
     const rect = canvas.getBoundingClientRect();
     const t = (e.touches && e.touches[0]) ? e.touches[0] : e;
     return { x: t.clientX - rect.left, y: t.clientY - rect.top };
   }
   function onDown(e){ const p=clientToCanvas(e); tap(p.x,p.y); e.preventDefault(); }
+  function onMove(e){
+    if(state==='placing' && preview){
+      const p = clientToCanvas(e);
+      const cc = cellAt(p.x,p.y);
+      hover.x = Math.max(0, Math.min(1, cc.x));
+      hover.y = Math.max(0, Math.min(ROWS-1, cc.y));
+    }
+  }
+
   canvas.addEventListener('pointerdown', onDown, {passive:false});
   canvas.addEventListener('touchstart', onDown, {passive:false});
   canvas.addEventListener('click', (e)=>{ const p=clientToCanvas(e); tap(p.x,p.y); }, {passive:true});
+  canvas.addEventListener('pointermove', onMove, {passive:true});
+  canvas.addEventListener('touchmove', onMove, {passive:true});
 
   // ===== Boot =====
   refillShop();
