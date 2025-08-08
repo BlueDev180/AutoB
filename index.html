@@ -7,46 +7,32 @@
 <style>
   html,body{margin:0;padding:0;background:#121214;height:100%;font-family:-apple-system,system-ui,sans-serif;overscroll-behavior:none}
   canvas{display:block;width:100vw;height:100vh;touch-action:manipulation}
-  #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;color:#fff;text-align:center;padding:20px;background:rgba(0,0,0,.5);z-index:3}
-  #err.show{display:flex}
-  #dbg{position:fixed;left:8px;bottom:8px;color:#9ee;font-size:12px;opacity:.85;z-index:2;pointer-events:none}
-  /* safety: an invisible full-screen overlay that can also receive taps if canvas listeners fail */
-  #tapcatch{position:fixed;inset:0;z-index:1;background:transparent}
+  #dbg{position:fixed;left:8px;bottom:8px;color:#9ee;font-size:12px;opacity:.85;pointer-events:none}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="tapcatch"></div>
-<div id="err"><div><b>Script error</b><br><span id="e2"></span></div></div>
-<div id="dbg">boot…</div>
+<div id="dbg"></div>
 <script>
 (function(){
-  const errBox = document.getElementById('err');
-  const errMsg = document.getElementById('e2');
   const dbg = document.getElementById('dbg');
-  const tapcatch = document.getElementById('tapcatch');
-  window.onerror = (msg,src,line,col,err)=>{
-    errBox.classList.add('show');
-    errMsg.textContent = (err && err.stack) ? err.stack : (msg + " @" + line + ":" + col);
-  };
-
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
 
-  // === sizing / DPR ===
+  // DPI / sizing
   function resize(){
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-    const cssW = window.innerWidth, cssH = window.innerHeight;
-    canvas.width = Math.floor(cssW * dpr);
-    canvas.height = Math.floor(cssH * dpr);
-    canvas.style.width = cssW + "px";
-    canvas.style.height = cssH + "px";
-    ctx.setTransform(dpr,0,0,dpr,0,0); // draw in CSS pixels
+    const w = window.innerWidth, h = window.innerHeight;
+    canvas.width = Math.floor(w * dpr);
+    canvas.height = Math.floor(h * dpr);
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+    ctx.setTransform(dpr,0,0,dpr,0,0); // draw in CSS px
   }
   window.addEventListener('resize', resize, {passive:true});
   resize();
 
-  // === layout ===
+  // Layout
   const COLS=5, ROWS=3, UI_H=160;
   function layout(){
     const cell = Math.floor(Math.min(window.innerWidth/COLS, (window.innerHeight-UI_H)/ROWS));
@@ -58,34 +44,30 @@
   let L = layout();
   window.addEventListener('resize', ()=>{ L = layout(); });
 
-  // === colors / units ===
-  const COLORS = {
-    bg:'#121214', grid:'#282828', ui:'#1e1e1e',
-    hpBack:'#333', hp:'#e42828',
-    brawler:'#c8503c', archer:'#50c85a', cleric:'#78b4dc', enemy:'#a0a0a0',
-    text:'#eaeaea', textDim:'#d8c878', start:'#7a50a0'
-  };
-  const UNIT_DEFS = {
-    Brawler:{hp:120, atk:18, spd:1.0, range:1, color:COLORS.brawler, role:"melee"},
-    Archer:{hp:70,  atk:25, spd:0.8, range:3, color:COLORS.archer, role:"ranged"},
-    Cleric:{hp:80,  atk:8,  spd:1.0, range:3, color:COLORS.cleric, role:"healer"},
+  // Colors / Units
+  const C = { bg:'#121214', grid:'#282828', ui:'#1e1e1e', hpBack:'#333', hp:'#e42828',
+              b:'#c8503c', a:'#50c85a', c:'#78b4dc', e:'#a0a0a0', t:'#eaeaea', td:'#d8c878', start:'#7a50a0' };
+  const UNIT = {
+    Brawler:{hp:120, atk:18, spd:1.0, range:1, color:C.b, role:"melee"},
+    Archer:{hp:70,  atk:25, spd:0.8, range:3, color:C.a, role:"ranged"},
+    Cleric:{hp:80,  atk:8,  spd:1.0, range:3, color:C.c, role:"healer"},
   };
 
-  // === game state ===
+  // State
   let gold=3, floorN=1, state='shop', result=null;
   const roster=[], enemies=[];
   let shop=[], preview=null;
-  const buyAreas = []; // rebuilt each frame
-  let startArea = {x:0,y:0,w:0,h:0};
-  let hoverCell = {x:-1,y:-1};
+  const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0};
+  let hoverCell={x:-1,y:-1};
 
   function refillShop(){
-    const keys = Object.keys(UNIT_DEFS);
-    shop = [];
-    for(let i=0;i<3;i++) shop.push(keys[Math.floor(Math.random()*keys.length)]);
+    const keys = Object.keys(UNIT);
+    shop = [ keys[Math.floor(Math.random()*keys.length)],
+             keys[Math.floor(Math.random()*keys.length)],
+             keys[Math.floor(Math.random()*keys.length)] ];
   }
   function mkUnit(name, team, cell=null){
-    const d = UNIT_DEFS[name];
+    const d = UNIT[name];
     return { name, team, cell, alive:true, maxhp:d.hp, hp:d.hp, atk:d.atk, spd:d.spd, range:d.range, color:d.color, role:d.role, cool: Math.random()/d.spd };
   }
   function spawnEnemies(){
@@ -94,11 +76,11 @@
     for(let i=0;i<3;i++){
       const hp = Math.floor(100 + floorN*8);
       const atk = Math.floor(12 + floorN*3);
-      enemies.push({name:'Enemy', team:'enemy', cell:{x:cols[i%2], y:i%3}, alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:COLORS.enemy, role:'melee', cool: Math.random()});
+      enemies.push({name:'Enemy', team:'enemy', cell:{x:cols[i%2], y:i%3}, alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:C.e, role:'melee', cool: Math.random()});
     }
   }
-  function playersAlive(){ return roster.filter(u=>u.alive && u.cell); }
-  function enemiesAlive(){ return enemies.filter(u=>u.alive); }
+  const playersAlive=()=>roster.filter(u=>u.alive && u.cell);
+  const enemiesAlive=()=>enemies.filter(u=>u.alive);
   function findTarget(att, targets){
     const inRange = targets.filter(t=>Math.abs(t.cell.x - att.cell.x) <= att.range);
     const list = inRange.length ? inRange : targets;
@@ -107,22 +89,21 @@
     return list[0];
   }
 
-  // === draw helpers ===
-  function fill(x,y,w,h,c){ ctx.fillStyle=c; ctx.fillRect(x,y,w,h); }
-  function stroke(x,y,w,h,c){ ctx.strokeStyle=c; ctx.strokeRect(x,y,w,h); }
-  function text(t,x,y,s=16,c=COLORS.text){ ctx.fillStyle=c; ctx.font=`${s}px -apple-system,system-ui,sans-serif`; ctx.fillText(t,x,y); }
+  // Draw helpers
+  const fill=(x,y,w,h,c)=>{ ctx.fillStyle=c; ctx.fillRect(x,y,w,h); };
+  const stroke=(x,y,w,h,c)=>{ ctx.strokeStyle=c; ctx.strokeRect(x,y,w,h); };
+  const text=(t,x,y,s=16,c=C.t)=>{ ctx.fillStyle=c; ctx.font=`${s}px -apple-system,system-ui,sans-serif`; ctx.fillText(t,x,y); };
   function drawUnit(u){
     if(!u.alive || !u.cell) return;
     const gx = L.originX + u.cell.x*L.cell;
     const gy = L.originY + u.cell.y*L.cell;
     fill(gx+8, gy+8, L.cell-16, L.cell-16, u.color);
-    const w = L.cell-20;
-    const hpw = Math.max(0, Math.floor(w * u.hp / u.maxhp));
-    fill(gx+10, gy+L.cell-28, w, 6, COLORS.hpBack);
-    fill(gx+10, gy+L.cell-28, hpw, 6, COLORS.hp);
+    const w = L.cell-20, hpw = Math.max(0, Math.floor(w * u.hp / u.maxhp));
+    fill(gx+10, gy+L.cell-28, w, 6, C.hpBack);
+    fill(gx+10, gy+L.cell-28, hpw, 6, C.hp);
   }
 
-  // === battle ===
+  // Battle
   function battleTick(dt){
     for(const u of playersAlive()){
       u.cool -= dt;
@@ -162,36 +143,35 @@
     else if(!playersAlive().length){ state='result'; result='lose'; }
   }
 
-  // === render loop ===
+  // Render
   function draw(dt){
-    fill(0,0,window.innerWidth, window.innerHeight, COLORS.bg);
+    fill(0,0,window.innerWidth, window.innerHeight, C.bg);
 
     // grid
-    for(let c=0;c<COLS;c++){
-      for(let r=0;r<ROWS;r++){
-        stroke(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, COLORS.grid);
-      }
-    }
+    for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++)
+      stroke(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, C.grid);
 
     roster.forEach(drawUnit);
     enemies.forEach(drawUnit);
 
     if(state==='placing' && preview){
       const c = hoverCell.x, r = hoverCell.y;
-      if(c>=0 && c<COLS && r>=0 && r<ROWS && (c===0||c===1)){
-        fill(L.originX + c*L.cell + 4, L.originY + r*L.cell + 4, L.cell-8, L.cell-8, 'rgba(255,255,255,0.25)');
-      }
+      const cc = Math.max(0, Math.min(1, isFinite(c)?c:0)); // snap to left columns
+      const rr = Math.max(0, Math.min(ROWS-1, isFinite(r)?r:1));
+      fill(L.originX + cc*L.cell + 4, L.originY + rr*L.cell + 4, L.cell-8, L.cell-8, 'rgba(255,255,255,0.25)');
+      text('Tap LEFT grid to place', L.originX, L.originY - 6, 14, '#9ee');
     }
 
+    // UI
     const y0 = L.originY + L.gridH + 8;
-    fill(0, y0, window.innerWidth, 160, COLORS.ui);
+    fill(0, y0, window.innerWidth, 160, C.ui);
 
     buyAreas.length = 0;
     for(let i=0;i<3;i++){
       const x = 8 + i*150, y = y0 + 8;
       fill(x, y, 140, 80, '#3c3c3c');
       text(shop[i], x+8, y+32, 20);
-      text('Buy 2', x+8, y+60, 16, COLORS.textDim);
+      text('Buy 2', x+8, y+60, 16, C.td);
       buyAreas.push({x, y, w:140, h:80, i});
     }
 
@@ -199,34 +179,30 @@
     text(`Floor: ${floorN}`, 140, y0+110, 16);
 
     startArea = { x: window.innerWidth-160, y: y0+48, w:140, h:44 };
-    fill(startArea.x, startArea.y, startArea.w, startArea.h, COLORS.start);
+    fill(startArea.x, startArea.y, startArea.w, startArea.h, C.start);
     text('START', startArea.x+26, startArea.y+30, 24);
 
     if(state==='result'){
-      const msg = (result==='win') ? 'Victory!' : 'Defeated.';
-      text(msg, window.innerWidth/2 - 50, window.innerHeight/2 - 10, 28);
+      text((result==='win')?'Victory!':'Defeated.', window.innerWidth/2 - 50, window.innerHeight/2 - 10, 28);
       text('Tap to continue', window.innerWidth/2 - 70, window.innerHeight/2 + 20, 16);
     }
 
     if(state==='battle') battleTick(dt);
   }
 
-  // === hit testing ===
-  function pageToCell(px,py){
-    const c = Math.floor((px - L.originX)/L.cell);
-    const r = Math.floor((py - L.originY)/L.cell);
-    return {x:c,y:r};
-  }
-  function pointInRect(px,py,rect){
-    return px>=rect.x && py>=rect.y && px<=rect.x+rect.w && py<=rect.y+rect.h;
-  }
+  // Hit testing
+  const buyAreas=[];
+  let startArea={x:0,y:0,w:0,h:0};
+  const pointInRect=(x,y,r)=> x>=r.x && y>=r.y && x<=r.x+r.w && y<=r.y+r.h;
+  const pageToCell=(x,y)=>({ x: Math.floor((x - L.originX)/L.cell), y: Math.floor((y - L.originY)/L.cell) });
 
-  function tap(px,py, src=""){
-    dbg.textContent = `tap ${Math.round(px)},${Math.round(py)} state=${state} via:${src}`;
+  function tap(px,py){
+    dbg.textContent = `tap ${Math.round(px)},${Math.round(py)} state=${state}`;
     if(state==='result'){
       if(result==='win'){ floorN += 1; } else { roster.length=0; gold=3; floorN=1; }
       result=null; state='shop'; refillShop(); return;
     }
+
     if(state==='shop'){
       for(const r of buyAreas){
         if(pointInRect(px,py,r) && gold>=2){
@@ -242,63 +218,43 @@
         return;
       }
     } else if(state==='placing' && preview){
-      const c = Math.floor((px - L.originX)/L.cell);
-      const r = Math.floor((py - L.originY)/L.cell);
-      if(c>=0 && c<COLS && r>=0 && r<ROWS && (c===0 || c===1)){
-        const occupied = roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
-        if(!occupied){
-          preview.cell = {x:c,y:r};
-          roster.push(preview);
-          preview = null;
-          state='shop';
-          return;
-        }
+      // NEW: snap to nearest left-cell even if tap is off a bit
+      let c = Math.round((px - L.originX)/L.cell);
+      let r = Math.round((py - L.originY)/L.cell);
+      // clamp row into grid
+      r = Math.max(0, Math.min(ROWS-1, r));
+      // force to left two columns (0 or 1)
+      c = Math.max(0, Math.min(1, c));
+      const occupied = roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
+      if(!occupied){
+        preview.cell = {x:c,y:r};
+        roster.push(preview);
+        preview = null;
+        state='shop';
+        return;
       } else {
-        gold += 2; preview = null; state='shop'; return;
+        // tap same cell again to confirm overwrite? For now, do nothing.
+        return;
       }
     }
   }
 
-  // === input mapping ===
-  function clientToCanvasPos(px, py){
+  // Input mapping
+  function clientToCanvasPos(e){
     const rect = canvas.getBoundingClientRect();
-    return { x: px - rect.left, y: py - rect.top };
+    const t = (e.touches && e.touches[0]) ? e.touches[0] : e;
+    return { x: (t.clientX - rect.left), y: (t.clientY - rect.top) };
   }
+  function onMove(e){ const p=clientToCanvasPos(e); hoverCell = pageToCell(p.x, p.y); }
+  function onDown(e){ const p=clientToCanvasPos(e); tap(p.x, p.y); e.preventDefault(); }
 
-  // 1) Canvas listeners
-  canvas.addEventListener('pointermove', (e)=>{ const p=clientToCanvasPos(e.clientX,e.clientY); hoverCell = pageToCell(p.x,p.y); }, {passive:true});
-  canvas.addEventListener('touchmove', (e)=>{ const t=e.touches[0]; if(!t) return; const p=clientToCanvasPos(t.clientX,t.clientY); hoverCell = pageToCell(p.x,p.y); }, {passive:true});
-  canvas.addEventListener('pointerdown', (e)=>{ const p=clientToCanvasPos(e.clientX,e.clientY); tap(p.x,p.y,"canvas-pointer"); e.preventDefault(); }, {passive:false});
-  canvas.addEventListener('touchstart', (e)=>{ const t=e.touches[0]; if(!t) return; const p=clientToCanvasPos(t.clientX,t.clientY); tap(p.x,p.y,"canvas-touch"); e.preventDefault(); }, {passive:false});
-  canvas.addEventListener('click', (e)=>{ const p=clientToCanvasPos(e.clientX,e.clientY); tap(p.x,p.y,"canvas-click"); }, {passive:true});
+  canvas.addEventListener('pointermove', onMove, {passive:true});
+  canvas.addEventListener('touchmove', onMove, {passive:true});
+  canvas.addEventListener('pointerdown', onDown, {passive:false});
+  canvas.addEventListener('touchstart', onDown, {passive:false});
+  canvas.addEventListener('click', (e)=>{ const p=clientToCanvasPos(e); tap(p.x,p.y); }, {passive:true});
 
-  // 2) Full-screen transparent catcher (behind debug, above canvas)
-  function mapFromEvent(e){
-    const isTouch = e.touches && e.touches[0];
-    const cx = isTouch ? e.touches[0].clientX : (e.clientX ?? 0);
-    const cy = isTouch ? e.touches[0].clientY : (e.clientY ?? 0);
-    const rect = canvas.getBoundingClientRect();
-    return { x: cx - rect.left, y: cy - rect.top };
-  }
-  tapcatch.addEventListener('pointerdown', (e)=>{ const p=mapFromEvent(e); tap(p.x,p.y,"tapcatch-pointer"); e.preventDefault(); }, {passive:false});
-  tapcatch.addEventListener('touchstart', (e)=>{ const p=mapFromEvent(e); tap(p.x,p.y,"tapcatch-touch"); e.preventDefault(); }, {passive:false});
-  tapcatch.addEventListener('click', (e)=>{ const p=mapFromEvent(e); tap(p.x,p.y,"tapcatch-click"); }, {passive:true});
-  tapcatch.addEventListener('touchend', (e)=>{ const t=e.changedTouches && e.changedTouches[0]; if(!t) return; const p=mapFromEvent(e); tap(p.x,p.y,"tapcatch-touchend"); }, {passive:true});
-
-  // 3) Window/document fallbacks (some Safari configs only forward click here)
-  function winTap(e,label){
-    const rect = canvas.getBoundingClientRect();
-    const cx = e.clientX ?? (e.touches && e.touches[0] && e.touches[0].clientX) ?? 0;
-    const cy = e.clientY ?? (e.touches && e.touches[0] && e.touches[0].clientY) ?? 0;
-    const p = { x: cx - rect.left, y: cy - rect.top };
-    tap(p.x,p.y,label);
-  }
-  window.addEventListener('click', (e)=>winTap(e,"window-click"), {passive:true});
-  window.addEventListener('pointerdown', (e)=>winTap(e,"window-pointer"), {passive:true});
-  window.addEventListener('touchstart', (e)=>winTap(e,"window-touchstart"), {passive:true});
-  document.addEventListener('click', (e)=>winTap(e,"document-click"), {passive:true});
-
-  // boot
+  // Boot
   refillShop();
   let last = performance.now();
   function loop(ts){ const dt = Math.min(0.05, (ts-last)/1000); last=ts; draw(dt); requestAnimationFrame(loop); }
