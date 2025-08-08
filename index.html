@@ -51,7 +51,7 @@
   // ===== Colors & Units =====
   const C = { bg:'#121214', grid:'#282828', ui:'#1e1e1e', hpBack:'#333', hp:'#e42828',
               b:'#c8503c', a:'#50c85a', c:'#78b4dc', e:'#a0a0a0', t:'#eaeaea', td:'#d8c878', start:'#7a50a0',
-              ghost:'rgba(255,255,255,.22)' , fail:'rgba(255,80,80,.35)' };
+              ghost:'rgba(255,255,255,.22)' , fail:'rgba(255,80,80,.35)', hint:'#9ee' };
   const UNIT = {
     Brawler:{hp:120, atk:18, spd:1.0, range:1, color:C.b, role:"melee"},
     Archer:{hp:70,  atk:25, spd:0.8, range:3, color:C.a, role:"ranged"},
@@ -62,10 +62,10 @@
   let gold=6;
   let floorN=1, state='shop', result=null;
   const roster=[], enemies=[];
-  let shop=[], preview=null;  // preview is the unit in hand when placing/moving; preview._fromPickup boolean
+  let shop=[], preview=null;  // unit in hand; preview._fromPickup boolean
   const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0};
-  let flash = null;           // {x,y,t} red flash for invalid placement
-  let hover = {x:-1,y:-1};   // ghost follow
+  let flash = null;           // {x,y,t}
+  let hover = {x:-1,y:-1};   // for ghost
 
   function refillShop(){
     const keys = Object.keys(UNIT);
@@ -174,15 +174,26 @@
     for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++)
       stroke(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, C.grid);
 
+    // hint box (allowed area outline)
+    for (let c=0;c<=1;c++){
+      for(let r=0;r<ROWS;r++){
+        ctx.strokeStyle = 'rgba(158,238,238,0.15)';
+        ctx.strokeRect(L.originX + c*L.cell + 2, L.originY + r*L.cell + 2, L.cell-4, L.cell-4);
+      }
+    }
+    if (state==='placing'){
+      text('Place in LEFT two columns (tap or release finger)', L.originX, Math.max(16, L.originY-6), 12, C.hint);
+    }
+
     // units
     roster.forEach(drawUnit);
     enemies.forEach(drawUnit);
 
-    // ghost preview while placing (snaps to grid; only show within left two cols)
+    // ghost preview while placing (snaps to nearest grid cell; shows only within full grid)
     if(state==='placing' && preview){
-      let c = Math.floor((hover.x - L.originX)/L.cell);
-      let r = Math.floor((hover.y - L.originY)/L.cell);
-      if (c>=0 && c<=1 && r>=0 && r<ROWS){
+      let c = Math.round((hover.x - L.originX)/L.cell);
+      let r = Math.round((hover.y - L.originY)/L.cell);
+      if (c>=0 && c<COLS && r>=0 && r<ROWS){
         const gx = L.originX + c*L.cell, gy = L.originY + r*L.cell;
         fill(gx+4, gy+4, L.cell-8, L.cell-8, C.ghost);
       }
@@ -234,29 +245,46 @@
 
   function cellAt(px,py){
     return {
-      x: Math.floor((px - L.originX)/L.cell),
-      y: Math.floor((py - L.originY)/L.cell),
+      x: Math.round((px - L.originX)/L.cell),
+      y: Math.round((py - L.originY)/L.cell),
     };
   }
   function unitAtCell(c,r){
     return roster.find(u => u.cell && u.cell.x===c && u.cell.y===r && u.alive) || null;
   }
-  function validLeftGrid(c,r){
-    return (c>=0 && c<=1 && r>=0 && r<ROWS);
+  function inLeftCols(c,r){ return (c>=0 && c<=1 && r>=0 && r<ROWS); }
+
+  function findNextFreeCell(){
+    for (let c=0;c<=1;c++){
+      for (let r=0;r<ROWS;r++){
+        const occupied = roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
+        if (!occupied) return {x:c,y:r};
+      }
+    }
+    return null;
   }
 
-  function placePreviewExact(c,r){
-    // Only exact left-grid placement allowed; no auto-shift.
-    if (!validLeftGrid(c,r)){
+  function tryPlaceAt(c,r, allowSnap=true){
+    // Snap or clamp to left two columns
+    if (allowSnap){
+      c = Math.max(0, Math.min(1, c));
+      r = Math.max(0, Math.min(ROWS-1, r));
+    }
+    if (!inLeftCols(c,r)){
       flash = {x: Math.max(0, Math.min(1, c)), y: Math.max(0, Math.min(ROWS-1, r)), t:0};
-      toast('Place on the left two columns');
+      toast('Place in left two columns');
       return false;
     }
-    const occupied = !!unitAtCell(c,r);
-    if (occupied){
-      flash = {x:c, y:r, t:0};
-      toast('Cell occupied');
-      return false;
+    if (unitAtCell(c,r)){
+      // try next free slot
+      const alt = findNextFreeCell();
+      if (alt){
+        c = alt.x; r = alt.y;
+      } else {
+        flash = {x:c, y:r, t:0};
+        toast('No free slot');
+        return false;
+      }
     }
     preview.cell = {x:c,y:r};
     roster.push(preview);
@@ -286,7 +314,7 @@
       }
       // 2) Pick up an already-placed unit (left 2 columns)
       const cc = cellAt(px,py);
-      if (validLeftGrid(cc.x, cc.y)){
+      if (inLeftCols(cc.x, cc.y)){
         const u = unitAtCell(cc.x, cc.y);
         if (u){
           const idx = roster.indexOf(u);
@@ -306,8 +334,9 @@
     }
 
     if(state==='placing' && preview){
+      // Tap to drop (snap to nearest left cell)
       const cc = cellAt(px,py);
-      placePreviewExact(cc.x, cc.y);
+      tryPlaceAt(cc.x, cc.y, true);
       return;
     }
 
@@ -326,12 +355,23 @@
     const p = clientToCanvas(e);
     hover.x = p.x; hover.y = p.y;
   }
+  function onUp(e){
+    if(state==='placing' && preview){
+      // Drop on release based on current hover pos
+      const p = clientToCanvas(e);
+      const cc = cellAt(p.x, p.y);
+      tryPlaceAt(cc.x, cc.y, true);
+      e.preventDefault();
+    }
+  }
 
   canvas.addEventListener('pointerdown', onDown, {passive:false});
-  canvas.addEventListener('touchstart', onDown, {passive:false});
-  canvas.addEventListener('click', (e)=>{ const p=clientToCanvas(e); tap(p.x,p.y); }, {passive:true});
   canvas.addEventListener('pointermove', onMove, {passive:true});
-  canvas.addEventListener('touchmove', onMove, {passive:true});
+  canvas.addEventListener('pointerup', onUp,   {passive:false});
+  canvas.addEventListener('touchstart', onDown, {passive:false});
+  canvas.addEventListener('touchmove', onMove,  {passive:false});
+  canvas.addEventListener('touchend', onUp,     {passive:false});
+  canvas.addEventListener('click', (e)=>{ const p=clientToCanvas(e); tap(p.x,p.y); }, {passive:true});
 
   // ===== Boot =====
   refillShop();
