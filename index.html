@@ -7,14 +7,20 @@
 <style>
   html,body{margin:0;padding:0;background:#121214;height:100%;font-family:-apple-system,system-ui,sans-serif;overscroll-behavior:none}
   canvas{position:fixed;left:0;top:0;width:100vw;height:100vh;touch-action:manipulation;display:block}
+  #toast{position:fixed;top:10px;left:50%;transform:translateX(-50%);padding:8px 12px;background:#222;color:#eee;border-radius:8px;font-size:14px;opacity:0;transition:opacity .15s;pointer-events:none}
+  #toast.show{opacity:0.95}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="toast"></div>
 <script>
 (() => {
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha:false });
+  const toastEl = document.getElementById('toast');
+  let toastTimer = null;
+  function toast(msg){ toastEl.textContent = msg; toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>toastEl.classList.remove('show'),1200); }
 
   // ===== DPI & sizing =====
   function resize(){
@@ -43,19 +49,22 @@
 
   // ===== Colors & Units =====
   const C = { bg:'#121214', grid:'#282828', ui:'#1e1e1e', hpBack:'#333', hp:'#e42828',
-              b:'#c8503c', a:'#50c85a', c:'#78b4dc', e:'#a0a0a0', t:'#eaeaea', td:'#d8c878', start:'#7a50a0' };
+              b:'#c8503c', a:'#50c85a', c:'#78b4dc', e:'#a0a0a0', t:'#eaeaea', td:'#d8c878', start:'#7a50a0',
+              fail:'rgba(255,80,80,.35)' };
   const UNIT = {
     Brawler:{hp:120, atk:18, spd:1.0, range:1, color:C.b, role:"melee"},
     Archer:{hp:70,  atk:25, spd:0.8, range:3, color:C.a, role:"ranged"},
-    Cleric:{hp:80,  atk:8,  spd:1.0, range:3, color:C.c, role:"healer"}, // heals + light attack
+    Cleric:{hp:80,  atk:8,  spd:1.0, range:3, color:C.c, role:"healer"}, // heals + light poke
   };
 
-  // ===== Game State (winnable Floor 1) =====
+  // ===== Game State =====
   let gold=6;                 // start with 6 → buy 3 units
   let floorN=1, state='shop', result=null;
   const roster=[], enemies=[];
   let shop=[], preview=null;
   const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0};
+  // flash effect when placement fails
+  let flash = null; // {x,y,t}
 
   function refillShop(){
     const keys = Object.keys(UNIT);
@@ -76,6 +85,7 @@
       const atk = Math.floor(10 + floorN*3);
       enemies.push({name:'Enemy', team:'enemy', cell:{x:cols[i%cols.length], y:i%3}, alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:C.e, role:'melee', cool: Math.random()});
     }
+    toast(`Enemies spawned: ${count}`);
   }
   const playersAlive=()=>roster.filter(u=>u.alive && u.cell);
   const enemiesAlive=()=>enemies.filter(u=>u.alive);
@@ -178,42 +188,85 @@
       text('Tap to continue', innerWidth/2-70, innerHeight/2+20, 16);
     }
 
+    // placement fail flash
+    if (flash){
+      const alpha = Math.max(0, 1 - flash.t/0.25);
+      if (alpha > 0){
+        ctx.fillStyle = `rgba(255,80,80,${alpha*0.35})`;
+        const gx = L.originX + flash.x*L.cell;
+        const gy = L.originY + flash.y*L.cell;
+        ctx.fillRect(gx+2, gy+2, L.cell-4, L.cell-4);
+      } else {
+        flash = null;
+      }
+    }
+
     if(state==='battle') battleTick(dt);
   }
 
-  // ===== Input & hit test =====
+  // ===== Input & helpers =====
   const pointInRect=(x,y,r)=> x>=r.x && y>=r.y && x<=r.x+r.w && y<=r.y+r.h;
+
+  function findNextFreeCell(){
+    // scan left two columns top-to-bottom
+    for (let c=0;c<=1;c++){
+      for (let r=0;r<ROWS;r++){
+        const occupied = roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
+        if (!occupied) return {x:c,y:r};
+      }
+    }
+    return null;
+  }
 
   function tap(px,py){
     if(state==='result'){
-      if(result==='win'){ floorN++; } else { roster.length=0; gold=6; floorN=1; } // reset gives 6 gold again
+      if(result==='win'){ floorN++; } else { roster.length=0; gold=6; floorN=1; }
       result=null; state='shop'; refillShop(); return;
     }
 
     if(state==='shop'){
+      // buy cards
       for(const r of buyAreas){
         if(pointInRect(px,py,r) && gold>=2){
           gold -= 2;
           preview = mkUnit(shop[r.i], 'player', null);
           state='placing';
+          toast(`Bought ${shop[r.i]}`);
           return;
         }
       }
+      // start battle (requires at least 1 placed unit)
       if(pointInRect(px,py,startArea) && roster.some(u=>u.alive && u.cell)){
         spawnEnemies(); state='battle'; return;
       }
     } else if(state==='placing' && preview){
-      // Snap to nearest left two columns
+      // desired cell
       let c = Math.round((px - L.originX)/L.cell);
       let r = Math.round((py - L.originY)/L.cell);
       r = Math.max(0, Math.min(ROWS-1, r));
       c = Math.max(0, Math.min(1, c));
-      const occupied = roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
+
+      // if occupied, auto-find next free slot
+      let occupied = roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
+      if (occupied){
+        const alt = findNextFreeCell();
+        if (alt){
+          c = alt.x; r = alt.y;
+          occupied = false;
+        }
+      }
+
       if(!occupied){
         preview.cell = {x:c,y:r};
         roster.push(preview);
+        toast(`Placed ${preview.name} @ ${c},${r}`);
         preview = null;
         state='shop';
+        return;
+      } else {
+        // all slots full -> flash red
+        flash = {x:c, y:r, t:0};
+        toast('No free slot in left columns');
         return;
       }
     }
@@ -233,7 +286,12 @@
   // ===== Boot =====
   refillShop();
   let last = performance.now();
-  function loop(ts){ const dt = Math.min(0.05, (ts-last)/1000); last = ts; draw(dt); requestAnimationFrame(loop); }
+  function loop(ts){
+    const dt = Math.min(0.05, (ts-last)/1000); last = ts;
+    if (flash) flash.t += dt;
+    draw(dt);
+    requestAnimationFrame(loop);
+  }
   requestAnimationFrame(loop);
 })();
 </script>
