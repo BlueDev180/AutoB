@@ -5,29 +5,53 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <title>Auto Battler (Mobile)</title>
   <style>
-    html, body { margin:0; padding:0; background:#121214; height:100%; font-family: system-ui, -apple-system, sans-serif; }
-    #game { width:100vw; height:100vh; touch-action:none; }
+    html,body{margin:0;padding:0;background:#121214;height:100%;font-family:-apple-system,system-ui,sans-serif}
+    #game{width:100vw;height:100vh;touch-action:none}
+    #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;color:#fff;padding:20px}
+    #err.show{display:flex}
   </style>
 </head>
 <body>
   <div id="game"></div>
-  <script src="https://unpkg.com/kaboom@3000.1.17/dist/kaboom.js"></script>
-  <script>
-    kaboom({ global:true, width: window.innerWidth, height: window.innerHeight, canvas: document.createElement("canvas"), root: document.querySelector("#game"), background: [18,18,20], crisp:true, stretch:true, scale:1 });
+  <div id="err" class="">If you see this, the game’s script crashed.<br><small id="e2"></small></div>
 
+  <!-- Use a pinned, stable Kaboom version -->
+  <script src="https://unpkg.com/kaboom@2000.2.10/dist/kaboom.js"></script>
+
+  <script>
+  // Simple on-screen error catcher so you don't just see a black screen
+  window.onerror = (msg, src, line, col, err) => {
+    const box = document.getElementById('err');
+    const e2 = document.getElementById('e2');
+    box.classList.add('show');
+    e2.textContent = (err && err.stack) ? err.stack : (msg + " @" + line + ":" + col);
+  };
+
+  try {
+    kaboom({
+      global: true,
+      width: window.innerWidth,
+      height: window.innerHeight,
+      canvas: document.createElement("canvas"),
+      root: document.querySelector("#game"),
+      background: [18,18,20],
+      crisp: true,
+      stretch: true,
+      scale: 1,
+    });
+
+    // ====== Minimal scene to prove it renders ======
     const COLS=5, ROWS=3, UI_H=160;
     const CELL=Math.floor(Math.min(width()/COLS,(height()-UI_H)/ROWS));
     const GRID_W=COLS*CELL, GRID_H=ROWS*CELL;
     const GRID_ORIGIN=vec2((width()-GRID_W)/2, 24);
 
     const COLORS={ brawler:rgb(200,80,60), archer:rgb(80,200,90), cleric:rgb(120,180,220), enemy:rgb(160,160,160), ui:rgb(30,30,30) };
-    const UNIT_DEFS={
-      Brawler:{hp:120, atk:18, spd:1.0, range:1, color:COLORS.brawler, role:"melee"},
-      Archer:{hp:70, atk:25, spd:0.8, range:3, color:COLORS.archer, role:"ranged"},
-      Cleric:{hp:80, atk:8,  spd:1.0, range:3, color:COLORS.cleric, role:"healer"},
-    };
+    const UNIT_DEFS={ Brawler:{hp:120,atk:18,spd:1.0,range:1,color:COLORS.brawler,role:"melee"},
+                      Archer:{hp:70,atk:25,spd:0.8,range:3,color:COLORS.archer,role:"ranged"},
+                      Cleric:{hp:80,atk:8,spd:1.0,range:3,color:COLORS.cleric,role:"healer"} };
 
-    function cellToPos(c,r){ return GRID_ORIGIN.add(vec2(c*CELL, r*CELL)); }
+    function cellToPos(c,r){ return vec2((width()-GRID_W)/2 + c*CELL, 24 + r*CELL); }
     function rect2(x,y,w,h){ return {pos:vec2(x,y), width:w, height:h}; }
     function pointInRect(p,r){ return p.x>=r.pos.x && p.y>=r.pos.y && p.x<=r.pos.x+r.width && p.y<=r.pos.y+r.height; }
 
@@ -84,7 +108,7 @@
       enemies=[]; const cols=[4,3];
       for(let i=0;i<3;i++){
         const hp=Math.floor(100+floorN*8), atk=Math.floor(12+floorN*3);
-        enemies.push({name:"Enemy", team:"enemy", cell:vec2(cols[i%2], i%3), alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:COLORS.enemy, cool:rand(0,1)});
+        enemies.push({name:"Enemy", team:"enemy", cell:vec2(cols[i%2], i%3), alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:rgb(160,160,160), cool:rand(0,1)});
       }
     }
 
@@ -92,12 +116,14 @@
       refillShop();
 
       onUpdate((dt)=>{
+        // Grid
         for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++){
           const pos=cellToPos(c,r);
           drawRect({pos, width:CELL, height:CELL, outline:{width:1, color:rgb(40,40,40)}});
         }
         roster.forEach(drawUnit); enemies.forEach(drawUnit);
 
+        // Preview
         if(state==="placing" && preview){
           const m=mousePos();
           const c=clamp(Math.floor((m.x-GRID_ORIGIN.x)/CELL),0,COLS-1);
@@ -107,11 +133,14 @@
           }
         }
 
+        // Battle
         if(state==="battle") battleTick(dt);
 
-        const y0=GRID_ORIGIN.y+GRID_H+8;
-        drawRect({pos:vec2(0,y0), width:width(), height:160, color:COLORS.ui});
-        buyAreas.length=0;
+        // UI
+        const y0 = 24 + GRID_H + 8;
+        drawRect({pos:vec2(0,y0), width:width(), height:160, color:rgb(30,30,30)});
+        // Shop
+        window.buyAreas = [];
         for(let i=0;i<3;i++){
           const x=8+i*150, rect=rect2(x,y0+8,140,80);
           drawRect({pos:vec2(rect.pos.x,rect.pos.y), width:rect.width, height:rect.height, color:rgb(60,60,60)});
@@ -121,8 +150,8 @@
         }
         drawText({text:`Gold: ${gold}`, pos:vec2(8,y0+110)});
         drawText({text:`Floor: ${floorN}`, pos:vec2(140,y0+110)});
-
-        startArea=rect2(width()-160,y0+48,140,44);
+        // Start
+        window.startArea = rect2(width()-160,y0+48,140,44);
         drawRect({pos:vec2(startArea.pos.x,startArea.pos.y), width:startArea.width, height:startArea.height, color:rgb(120,80,160)});
         drawText({text:"START", size:24, pos:vec2(startArea.pos.x+26,startArea.pos.y+30)});
 
@@ -133,7 +162,7 @@
       });
 
       onClick((p)=>{
-        const y0=GRID_ORIGIN.y+GRID_H+8;
+        const y0 = 24 + GRID_H + 8;
 
         if(state==="result"){
           if(result==="win"){ floorN+=1; } else { roster=[]; gold=3; floorN=1; }
@@ -142,14 +171,15 @@
 
         if(state==="shop"){
           for(let i=0;i<buyAreas.length;i++){
-            if(pointInRect(p,buyAreas[i]) && gold>=2){
+            const r=buyAreas[i];
+            if(pointInRect(p,r) && gold>=2){
               gold-=2; preview=mkUnit(shop[i],"player",null); state="placing"; return;
             }
           }
           if(pointInRect(p,startArea) && roster.some(u=>u.alive && u.cell)){ spawnEnemies(); state="battle"; return; }
         } else if(state==="placing" && preview){
-          const c=Math.floor((p.x-GRID_ORIGIN.x)/CELL);
-          const r=Math.floor((p.y-GRID_ORIGIN.y)/CELL);
+          const c=Math.floor((p.x - ((width()-GRID_W)/2))/CELL);
+          const r=Math.floor((p.y - 24)/CELL);
           if(c>=0 && c<COLS && r>=0 && r<ROWS && [0,1].includes(c)){
             const occupied=roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
             if(!occupied){ preview.cell=vec2(c,r); roster.push(preview); preview=null; state="shop"; return; }
@@ -159,6 +189,13 @@
     });
 
     go("game");
+  } catch (e) {
+    // show error overlay
+    const box = document.getElementById('err');
+    const e2 = document.getElementById('e2');
+    box.classList.add('show');
+    e2.textContent = (e && e.stack) ? e.stack : String(e);
+  }
   </script>
 </body>
 </html>
