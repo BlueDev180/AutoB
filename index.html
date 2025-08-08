@@ -1,201 +1,314 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Auto Battler (Mobile)</title>
-  <style>
-    html,body{margin:0;padding:0;background:#121214;height:100%;font-family:-apple-system,system-ui,sans-serif}
-    #game{width:100vw;height:100vh;touch-action:none}
-    #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;color:#fff;padding:20px}
-    #err.show{display:flex}
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
+<title>Auto Battler (Mobile)</title>
+<style>
+  html,body{margin:0;padding:0;background:#121214;height:100%;touch-action:none;font-family:-apple-system,system-ui,sans-serif}
+  canvas{display:block;width:100vw;height:100vh}
+  #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;color:#fff;text-align:center;padding:20px;background:rgba(0,0,0,.5)}
+  #err.show{display:flex}
+</style>
 </head>
 <body>
-  <div id="game"></div>
-  <div id="err" class="">If you see this, the game’s script crashed.<br><small id="e2"></small></div>
-
-  <!-- Use a pinned, stable Kaboom version -->
-  <script src="https://unpkg.com/kaboom@2000.2.10/dist/kaboom.js"></script>
-
-  <script>
-  // Simple on-screen error catcher so you don't just see a black screen
-  window.onerror = (msg, src, line, col, err) => {
-    const box = document.getElementById('err');
-    const e2 = document.getElementById('e2');
-    box.classList.add('show');
-    e2.textContent = (err && err.stack) ? err.stack : (msg + " @" + line + ":" + col);
+<canvas id="c"></canvas>
+<div id="err"><div><b>Script error</b><br><span id="e2"></span></div></div>
+<script>
+(function(){
+  const errBox = document.getElementById('err');
+  const errMsg = document.getElementById('e2');
+  window.onerror = (msg,src,line,col,err)=>{
+    errBox.classList.add('show');
+    errMsg.textContent = (err && err.stack) ? err.stack : (msg + " @" + line + ":" + col);
   };
 
-  try {
-    kaboom({
-      global: true,
-      width: window.innerWidth,
-      height: window.innerHeight,
-      canvas: document.createElement("canvas"),
-      root: document.querySelector("#game"),
-      background: [18,18,20],
-      crisp: true,
-      stretch: true,
-      scale: 1,
-    });
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0;
 
-    // ====== Minimal scene to prove it renders ======
-    const COLS=5, ROWS=3, UI_H=160;
-    const CELL=Math.floor(Math.min(width()/COLS,(height()-UI_H)/ROWS));
-    const GRID_W=COLS*CELL, GRID_H=ROWS*CELL;
-    const GRID_ORIGIN=vec2((width()-GRID_W)/2, 24);
-
-    const COLORS={ brawler:rgb(200,80,60), archer:rgb(80,200,90), cleric:rgb(120,180,220), enemy:rgb(160,160,160), ui:rgb(30,30,30) };
-    const UNIT_DEFS={ Brawler:{hp:120,atk:18,spd:1.0,range:1,color:COLORS.brawler,role:"melee"},
-                      Archer:{hp:70,atk:25,spd:0.8,range:3,color:COLORS.archer,role:"ranged"},
-                      Cleric:{hp:80,atk:8,spd:1.0,range:3,color:COLORS.cleric,role:"healer"} };
-
-    function cellToPos(c,r){ return vec2((width()-GRID_W)/2 + c*CELL, 24 + r*CELL); }
-    function rect2(x,y,w,h){ return {pos:vec2(x,y), width:w, height:h}; }
-    function pointInRect(p,r){ return p.x>=r.pos.x && p.y>=r.pos.y && p.x<=r.pos.x+r.width && p.y<=r.pos.y+r.height; }
-
-    let gold=3, floorN=1, state="shop", roster=[], enemies=[], shop=[], buyAreas=[], startArea=null, preview=null, result=null;
-
-    function mkUnit(name, team, cell=null){
-      const d=UNIT_DEFS[name];
-      return { name, team, cell, alive:true, maxhp:d.hp, hp:d.hp, atk:d.atk, spd:d.spd, range:d.range, color:d.color, cool: rand(0,1/d.spd), role:d.role };
-    }
-    function drawUnit(u){
-      if(!u.alive||!u.cell) return;
-      const p=cellToPos(u.cell.x,u.cell.y).add(vec2(8,8));
-      drawRect({pos:p, width:CELL-16, height:CELL-16, color:u.color, outline:{width:1, color:rgba(0,0,0,0.6)}});
-      const w=CELL-20, hpw=Math.floor(w*u.hp/u.maxhp);
-      drawRect({pos:p.add(vec2(2,CELL-28)), width:w, height:6, color:rgb(40,40,40)});
-      drawRect({pos:p.add(vec2(2,CELL-28)), width:hpw, height:6, color:rgb(220,40,40)});
-    }
-    function enemiesAlive(){ return enemies.filter(e=>e.alive); }
-    function playersAlive(){ return roster.filter(u=>u.alive && u.cell); }
-    function findTarget(att, targets){
-      const inRange=targets.filter(t=>Math.abs(t.cell.x-att.cell.x)<=att.range);
-      const list=inRange.length?inRange:targets;
-      if(!list.length) return null;
-      list.sort((a,b)=>Math.abs(a.cell.x-att.cell.x)-Math.abs(b.cell.x-att.cell.x));
-      return list[0];
-    }
-    function battleTick(dt){
-      for(const u of playersAlive()){
-        u.cool-=dt;
-        if(u.cool<=0){
-          if(u.role==="healer"){
-            const allies=playersAlive();
-            if(allies.length){ allies.sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp)); allies[0].hp=Math.min(allies[0].maxhp, allies[0].hp+20); }
-          }else{
-            const t=findTarget(u,enemiesAlive());
-            if(t){ t.hp-=u.atk; if(u.name==="Brawler"){ const mates=enemiesAlive().filter(e=>e!==t && e.cell.y===t.cell.y); if(mates[0]) mates[0].hp-=Math.floor(u.atk*0.5); } if(t.hp<=0) t.alive=false; }
-          }
-          u.cool=1/u.spd;
-        }
-      }
-      for(const e of enemiesAlive()){
-        e.cool-=dt;
-        if(e.cool<=0){
-          const t=findTarget(e,playersAlive());
-          if(t){ t.hp-=e.atk; if(t.hp<=0) t.alive=false; }
-          e.cool=1/e.spd;
-        }
-      }
-      if(!enemiesAlive().length){ state="result"; result="win"; gold+=2+Math.floor(floorN/2); }
-      else if(!playersAlive().length){ state="result"; result="lose"; }
-    }
-    function refillShop(){ shop = choose(["Brawler","Archer","Cleric"], 3); }
-    function spawnEnemies(){
-      enemies=[]; const cols=[4,3];
-      for(let i=0;i<3;i++){
-        const hp=Math.floor(100+floorN*8), atk=Math.floor(12+floorN*3);
-        enemies.push({name:"Enemy", team:"enemy", cell:vec2(cols[i%2], i%3), alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:rgb(160,160,160), cool:rand(0,1)});
-      }
-    }
-
-    scene("game", ()=>{
-      refillShop();
-
-      onUpdate((dt)=>{
-        // Grid
-        for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++){
-          const pos=cellToPos(c,r);
-          drawRect({pos, width:CELL, height:CELL, outline:{width:1, color:rgb(40,40,40)}});
-        }
-        roster.forEach(drawUnit); enemies.forEach(drawUnit);
-
-        // Preview
-        if(state==="placing" && preview){
-          const m=mousePos();
-          const c=clamp(Math.floor((m.x-GRID_ORIGIN.x)/CELL),0,COLS-1);
-          const r=clamp(Math.floor((m.y-GRID_ORIGIN.y)/CELL),0,ROWS-1);
-          if([0,1].includes(c)){
-            drawRect({pos:cellToPos(c,r).add(vec2(4,4)), width:CELL-8, height:CELL-8, color:rgba(255,255,255,0.25)});
-          }
-        }
-
-        // Battle
-        if(state==="battle") battleTick(dt);
-
-        // UI
-        const y0 = 24 + GRID_H + 8;
-        drawRect({pos:vec2(0,y0), width:width(), height:160, color:rgb(30,30,30)});
-        // Shop
-        window.buyAreas = [];
-        for(let i=0;i<3;i++){
-          const x=8+i*150, rect=rect2(x,y0+8,140,80);
-          drawRect({pos:vec2(rect.pos.x,rect.pos.y), width:rect.width, height:rect.height, color:rgb(60,60,60)});
-          drawText({text:shop[i], size:20, pos:vec2(x+8,y0+34)});
-          drawText({text:"Buy 2", size:16, pos:vec2(x+8,y0+60), color:rgb(220,200,120)});
-          buyAreas.push(rect);
-        }
-        drawText({text:`Gold: ${gold}`, pos:vec2(8,y0+110)});
-        drawText({text:`Floor: ${floorN}`, pos:vec2(140,y0+110)});
-        // Start
-        window.startArea = rect2(width()-160,y0+48,140,44);
-        drawRect({pos:vec2(startArea.pos.x,startArea.pos.y), width:startArea.width, height:startArea.height, color:rgb(120,80,160)});
-        drawText({text:"START", size:24, pos:vec2(startArea.pos.x+26,startArea.pos.y+30)});
-
-        if(state==="result"){
-          drawText({text:(result==="win"?"Victory!":"Defeated."), size:28, pos:vec2(width()/2-80,height()/2-20)});
-          drawText({text:"Tap to continue", size:16, pos:vec2(width()/2-70,height()/2+10)});
-        }
-      });
-
-      onClick((p)=>{
-        const y0 = 24 + GRID_H + 8;
-
-        if(state==="result"){
-          if(result==="win"){ floorN+=1; } else { roster=[]; gold=3; floorN=1; }
-          result=null; state="shop"; refillShop(); return;
-        }
-
-        if(state==="shop"){
-          for(let i=0;i<buyAreas.length;i++){
-            const r=buyAreas[i];
-            if(pointInRect(p,r) && gold>=2){
-              gold-=2; preview=mkUnit(shop[i],"player",null); state="placing"; return;
-            }
-          }
-          if(pointInRect(p,startArea) && roster.some(u=>u.alive && u.cell)){ spawnEnemies(); state="battle"; return; }
-        } else if(state==="placing" && preview){
-          const c=Math.floor((p.x - ((width()-GRID_W)/2))/CELL);
-          const r=Math.floor((p.y - 24)/CELL);
-          if(c>=0 && c<COLS && r>=0 && r<ROWS && [0,1].includes(c)){
-            const occupied=roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
-            if(!occupied){ preview.cell=vec2(c,r); roster.push(preview); preview=null; state="shop"; return; }
-          } else { gold+=2; preview=null; state="shop"; return; }
-        }
-      });
-    });
-
-    go("game");
-  } catch (e) {
-    // show error overlay
-    const box = document.getElementById('err');
-    const e2 = document.getElementById('e2');
-    box.classList.add('show');
-    e2.textContent = (e && e.stack) ? e.stack : String(e);
+  function resize(){
+    // real pixels for crisp text
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    W = Math.floor(window.innerWidth * dpr);
+    H = Math.floor(window.innerHeight * dpr);
+    canvas.width = W; canvas.height = H;
+    canvas.style.width = window.innerWidth + "px";
+    canvas.style.height = window.innerHeight + "px";
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.scale(dpr, dpr);
   }
-  </script>
+  window.addEventListener('resize', resize, {passive:true});
+  resize();
+
+  // === GAME ===
+  const COLS=5, ROWS=3, UI_H=160;
+  function layout(){
+    const cell = Math.floor(Math.min(window.innerWidth/COLS, (window.innerHeight-UI_H)/ROWS));
+    const gridW = COLS*cell, gridH = ROWS*cell;
+    const originX = Math.floor((window.innerWidth - gridW)/2);
+    const originY = 24;
+    return {cell, gridW, gridH, originX, originY};
+  }
+  let L = layout();
+
+  window.addEventListener('resize', ()=>{ L = layout(); });
+
+  const COLORS = {
+    bg: '#121214', grid:'#282828', ui:'#1e1e1e',
+    hpBack:'#333', hp:'#e42828',
+    brawler:'#c8503c', archer:'#50c85a', cleric:'#78b4dc', enemy:'#a0a0a0',
+    text:'#eaeaea', textDim:'#d8c878', start:'#7a50a0'
+  };
+
+  const UNIT_DEFS = {
+    Brawler:{hp:120, atk:18, spd:1.0, range:1, color:COLORS.brawler, role:"melee"},
+    Archer:{hp:70,  atk:25, spd:0.8, range:3, color:COLORS.archer, role:"ranged"},
+    Cleric:{hp:80,  atk:8,  spd:1.0, range:3, color:COLORS.cleric, role:"healer"},
+  };
+
+  let gold=3, floorN=1, state='shop', result=null;
+  const roster=[]; // {name, team, cell:{x,y}, ...}
+  const enemies=[]; // same
+  let shop=[];
+  let preview=null;
+
+  function refillShop(){
+    const keys = Object.keys(UNIT_DEFS);
+    shop = [];
+    for(let i=0;i<3;i++) shop.push(keys[Math.floor(Math.random()*keys.length)]);
+  }
+
+  function mkUnit(name, team, cell=null){
+    const d = UNIT_DEFS[name];
+    return { name, team, cell, alive:true, maxhp:d.hp, hp:d.hp, atk:d.atk, spd:d.spd, range:d.range, color:d.color, role:d.role, cool: Math.random()/d.spd };
+  }
+
+  function spawnEnemies(){
+    enemies.length = 0;
+    const cols=[4,3];
+    for(let i=0;i<3;i++){
+      const hp = Math.floor(100 + floorN*8);
+      const atk = Math.floor(12 + floorN*3);
+      enemies.push({name:'Enemy', team:'enemy', cell:{x:cols[i%2], y:i%3}, alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:COLORS.enemy, role:'melee', cool: Math.random()});
+    }
+  }
+
+  function playersAlive(){ return roster.filter(u=>u.alive && u.cell); }
+  function enemiesAlive(){ return enemies.filter(u=>u.alive); }
+
+  function findTarget(att, targets){
+    const inRange = targets.filter(t=>Math.abs(t.cell.x - att.cell.x) <= att.range);
+    const list = inRange.length ? inRange : targets;
+    if(!list.length) return null;
+    list.sort((a,b)=>Math.abs(a.cell.x-att.cell.x)-Math.abs(b.cell.x-att.cell.x));
+    return list[0];
+  }
+
+  let last = performance.now();
+  function loop(ts){
+    const dt = Math.min(0.05, (ts-last)/1000); last = ts;
+    draw(dt);
+    requestAnimationFrame(loop);
+  }
+
+  function drawRect(x,y,w,h,color,stroke=false){
+    if(stroke){
+      ctx.strokeStyle = color; ctx.strokeRect(x,y,w,h);
+    } else {
+      ctx.fillStyle = color; ctx.fillRect(x,y,w,h);
+    }
+  }
+  function drawText(txt,x,y,size=16,color=COLORS.text){
+    ctx.fillStyle=color; ctx.font=`${size}px -apple-system,system-ui,sans-serif`; ctx.fillText(txt,x,y);
+  }
+
+  function drawUnit(u){
+    if(!u.alive || !u.cell) return;
+    const gx = L.originX + u.cell.x*L.cell;
+    const gy = L.originY + u.cell.y*L.cell;
+    drawRect(gx+8, gy+8, L.cell-16, L.cell-16, u.color);
+    // hp bar
+    const w = L.cell-20;
+    const hpw = Math.max(0, Math.floor(w * u.hp / u.maxhp));
+    drawRect(gx+10, gy+L.cell-28, w, 6, COLORS.hpBack);
+    drawRect(gx+10, gy+L.cell-28, hpw, 6, COLORS.hp);
+  }
+
+  function battleTick(dt){
+    // players
+    for(const u of playersAlive()){
+      u.cool -= dt;
+      if(u.cool <= 0){
+        if(u.role === 'healer'){
+          const allies = playersAlive();
+          if(allies.length){
+            allies.sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp));
+            allies[0].hp = Math.min(allies[0].maxhp, allies[0].hp+20);
+          }
+        } else {
+          const t = findTarget(u, enemiesAlive());
+          if(t){
+            t.hp -= u.atk;
+            if(u.name === 'Brawler'){
+              const mates = enemiesAlive().filter(e=>e!==t && e.cell.y===t.cell.y);
+              if(mates[0]) mates[0].hp -= Math.floor(u.atk*0.5);
+            }
+            if(t.hp <= 0) t.alive = false;
+          }
+        }
+        u.cool = 1/u.spd;
+      }
+    }
+    // enemies
+    for(const e of enemiesAlive()){
+      e.cool -= dt;
+      if(e.cool <= 0){
+        const t = findTarget(e, playersAlive());
+        if(t){
+          t.hp -= e.atk;
+          if(t.hp <= 0) t.alive = false;
+        }
+        e.cool = 1/e.spd;
+      }
+    }
+    // outcome
+    if(!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); }
+    else if(!playersAlive().length){ state='result'; result='lose'; }
+  }
+
+  function draw(dt){
+    // bg
+    drawRect(0,0,window.innerWidth, window.innerHeight, COLORS.bg);
+
+    // grid
+    for(let c=0;c<COLS;c++){
+      for(let r=0;r<ROWS;r++){
+        drawRect(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, COLORS.grid, true);
+      }
+    }
+
+    // units
+    roster.forEach(drawUnit);
+    enemies.forEach(drawUnit);
+
+    // preview
+    if(state==='placing' && preview){
+      const c = hoverCell.x, r = hoverCell.y;
+      if(c>=0 && c<COLS && r>=0 && r<ROWS && (c===0||c===1)){
+        drawRect(L.originX + c*L.cell + 4, L.originY + r*L.cell + 4, L.cell-8, L.cell-8, 'rgba(255,255,255,0.25)');
+      }
+    }
+
+    // UI
+    const y0 = L.originY + L.gridH + 8;
+    drawRect(0, y0, window.innerWidth, UI_H, COLORS.ui);
+
+    // shop
+    buyAreas.length = 0;
+    for(let i=0;i<3;i++){
+      const x = 8 + i*150, y = y0 + 8;
+      drawRect(x, y, 140, 80, '#3c3c3c');
+      drawText(shop[i], x+8, y+32, 20);
+      drawText('Buy 2', x+8, y+60, 16, COLORS.textDim);
+      buyAreas.push({x, y, w:140, h:80, i});
+    }
+
+    drawText(`Gold: ${gold}`, 8, y0+110, 16);
+    drawText(`Floor: ${floorN}`, 140, y0+110, 16);
+
+    // start button
+    startArea = { x: window.innerWidth-160, y: y0+48, w:140, h:44 };
+    drawRect(startArea.x, startArea.y, startArea.w, startArea.h, COLORS.start);
+    drawText('START', startArea.x+26, startArea.y+30, 24);
+
+    // result overlay text
+    if(state==='result'){
+      const msg = (result==='win') ? 'Victory!' : 'Defeated.';
+      drawText(msg, window.innerWidth/2 - 50, window.innerHeight/2 - 10, 28);
+      drawText('Tap to continue', window.innerWidth/2 - 70, window.innerHeight/2 + 20, 16);
+    }
+
+    // sim
+    if(state==='battle') battleTick(dt);
+  }
+
+  // input
+  let hoverCell = {x:-1,y:-1};
+  function pageToCell(px,py){
+    const c = Math.floor((px - L.originX)/L.cell);
+    const r = Math.floor((py - L.originY)/L.cell);
+    return {x:c,y:r};
+  }
+  function pointInRect(px,py,rect){
+    return px>=rect.x && py>=rect.y && px<=rect.x+rect.w && py<=rect.y+rect.h;
+  }
+
+  const buyAreas = [];
+  let startArea = {x:0,y:0,w:0,h:0};
+
+  function tap(x,y){
+    const y0 = L.originY + L.gridH + 8;
+
+    if(state==='result'){
+      if(result==='win'){ floorN += 1; }
+      else { roster.length=0; gold=3; floorN=1; }
+      result=null; state='shop'; refillShop(); return;
+    }
+
+    if(state==='shop'){
+      for(const r of buyAreas){
+        if(pointInRect(x,y,r) && gold>=2){
+          gold -= 2;
+          preview = mkUnit(shop[r.i], 'player', null);
+          state='placing';
+          return;
+        }
+      }
+      if(pointInRect(x,y,startArea) && roster.some(u=>u.alive && u.cell)){
+        spawnEnemies();
+        state='battle';
+        return;
+      }
+    } else if(state==='placing' && preview){
+      const c = Math.floor((x - L.originX)/L.cell);
+      const r = Math.floor((y - L.originY)/L.cell);
+      if(c>=0 && c<COLS && r>=0 && r<ROWS && (c===0 || c===1)){
+        const occupied = roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
+        if(!occupied){
+          preview.cell = {x:c,y:r};
+          roster.push(preview);
+          preview = null;
+          state='shop';
+          return;
+        }
+      } else {
+        // cancel & refund
+        gold += 2;
+        preview = null;
+        state='shop';
+        return;
+      }
+    }
+  }
+
+  // pointer handlers
+  function handlePointer(e){
+    const t = e.touches ? e.touches[0] : e;
+    const x = t.clientX, y = t.clientY;
+    hoverCell = pageToCell(x,y);
+  }
+  window.addEventListener('pointermove', handlePointer, {passive:true});
+  window.addEventListener('touchmove', handlePointer, {passive:true});
+  window.addEventListener('pointerdown', (e)=>{ handlePointer(e); tap(e.clientX, e.clientY); e.preventDefault(); }, {passive:false});
+  window.addEventListener('touchstart', (e)=>{ handlePointer(e); const t=e.touches[0]; tap(t.clientX, t.clientY); e.preventDefault(); }, {passive:false});
+
+  // boot
+  refillShop();
+  requestAnimationFrame(loop);
+  // sanity text draw (shows for one frame if everything works)
+  // (If you keep seeing only black, the script didn’t run—double-check the file is saved as index.html (lowercase) in repo root)
+})();
+</script>
 </body>
 </html>
