@@ -102,17 +102,16 @@
   }
 
   // ===== Targeting Helpers =====
-  function findTarget(att, targets){
-    const inRange = targets.filter(t=>Math.abs(t.cell.x - att.cell.x) <= att.range);
-    const list = inRange.length ? inRange : targets;
-    if(!list.length) return null;
-    list.sort((a,b)=>Math.abs(a.cell.x-att.cell.x)-Math.abs(b.cell.x-att.cell.x));
-    return list[0];
-  }
   function frontlineTarget(attacker, targets) {
     if (!targets.length) return null;
-    const maxX = Math.max(...targets.map(t => t.cell.x));
-    let front = targets.filter(t => t.cell.x === maxX);
+    let front;
+    if (attacker.team === 'enemy') {
+      const minX = Math.min(...targets.map(t => t.cell.x));
+      front = targets.filter(t => t.cell.x === minX);
+    } else {
+      const maxX = Math.max(...targets.map(t => t.cell.x));
+      front = targets.filter(t => t.cell.x === maxX);
+    }
     const sameRow = front.filter(t => t.cell.y === attacker.cell.y);
     if (sameRow.length) front = sameRow;
     front.sort((a,b) => (a.hp/a.maxhp) - (b.hp/b.maxhp));
@@ -131,11 +130,11 @@
             allies.sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp));
             allies[0].hp = Math.min(allies[0].maxhp, allies[0].hp+20);
           }
-          const t=findTarget(u,enemiesAlive());
+          const t=frontlineTarget(u,enemiesAlive());
           if(t){ t.hp -= Math.max(4, Math.floor(u.atk*0.5)); if(t.hp<=0) t.alive=false; didAttack = true; }
         }
         if(!didAttack && u.role!=='healer'){
-          const t=findTarget(u,enemiesAlive());
+          const t=frontlineTarget(u,enemiesAlive());
           if(t){
             t.hp -= u.atk;
             if(u.name==='Brawler'){
