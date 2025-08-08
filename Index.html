@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Auto Battler (Mobile)</title>
+  <style>
+    html, body { margin:0; padding:0; background:#121214; height:100%; font-family: system-ui, -apple-system, sans-serif; }
+    #game { width:100vw; height:100vh; touch-action:none; }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <script src="https://unpkg.com/kaboom@3000.1.17/dist/kaboom.js"></script>
+  <script>
+    kaboom({ global:true, width: window.innerWidth, height: window.innerHeight, canvas: document.createElement("canvas"), root: document.querySelector("#game"), background: [18,18,20], crisp:true, stretch:true, scale:1 });
+
+    const COLS=5, ROWS=3, UI_H=160;
+    const CELL=Math.floor(Math.min(width()/COLS,(height()-UI_H)/ROWS));
+    const GRID_W=COLS*CELL, GRID_H=ROWS*CELL;
+    const GRID_ORIGIN=vec2((width()-GRID_W)/2, 24);
+
+    const COLORS={ brawler:rgb(200,80,60), archer:rgb(80,200,90), cleric:rgb(120,180,220), enemy:rgb(160,160,160), ui:rgb(30,30,30) };
+    const UNIT_DEFS={
+      Brawler:{hp:120, atk:18, spd:1.0, range:1, color:COLORS.brawler, role:"melee"},
+      Archer:{hp:70, atk:25, spd:0.8, range:3, color:COLORS.archer, role:"ranged"},
+      Cleric:{hp:80, atk:8,  spd:1.0, range:3, color:COLORS.cleric, role:"healer"},
+    };
+
+    function cellToPos(c,r){ return GRID_ORIGIN.add(vec2(c*CELL, r*CELL)); }
+    function rect2(x,y,w,h){ return {pos:vec2(x,y), width:w, height:h}; }
+    function pointInRect(p,r){ return p.x>=r.pos.x && p.y>=r.pos.y && p.x<=r.pos.x+r.width && p.y<=r.pos.y+r.height; }
+
+    let gold=3, floorN=1, state="shop", roster=[], enemies=[], shop=[], buyAreas=[], startArea=null, preview=null, result=null;
+
+    function mkUnit(name, team, cell=null){
+      const d=UNIT_DEFS[name];
+      return { name, team, cell, alive:true, maxhp:d.hp, hp:d.hp, atk:d.atk, spd:d.spd, range:d.range, color:d.color, cool: rand(0,1/d.spd), role:d.role };
+    }
+    function drawUnit(u){
+      if(!u.alive||!u.cell) return;
+      const p=cellToPos(u.cell.x,u.cell.y).add(vec2(8,8));
+      drawRect({pos:p, width:CELL-16, height:CELL-16, color:u.color, outline:{width:1, color:rgba(0,0,0,0.6)}});
+      const w=CELL-20, hpw=Math.floor(w*u.hp/u.maxhp);
+      drawRect({pos:p.add(vec2(2,CELL-28)), width:w, height:6, color:rgb(40,40,40)});
+      drawRect({pos:p.add(vec2(2,CELL-28)), width:hpw, height:6, color:rgb(220,40,40)});
+    }
+    function enemiesAlive(){ return enemies.filter(e=>e.alive); }
+    function playersAlive(){ return roster.filter(u=>u.alive && u.cell); }
+    function findTarget(att, targets){
+      const inRange=targets.filter(t=>Math.abs(t.cell.x-att.cell.x)<=att.range);
+      const list=inRange.length?inRange:targets;
+      if(!list.length) return null;
+      list.sort((a,b)=>Math.abs(a.cell.x-att.cell.x)-Math.abs(b.cell.x-att.cell.x));
+      return list[0];
+    }
+    function battleTick(dt){
+      for(const u of playersAlive()){
+        u.cool-=dt;
+        if(u.cool<=0){
+          if(u.role==="healer"){
+            const allies=playersAlive();
+            if(allies.length){ allies.sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp)); allies[0].hp=Math.min(allies[0].maxhp, allies[0].hp+20); }
+          }else{
+            const t=findTarget(u,enemiesAlive());
+            if(t){ t.hp-=u.atk; if(u.name==="Brawler"){ const mates=enemiesAlive().filter(e=>e!==t && e.cell.y===t.cell.y); if(mates[0]) mates[0].hp-=Math.floor(u.atk*0.5); } if(t.hp<=0) t.alive=false; }
+          }
+          u.cool=1/u.spd;
+        }
+      }
+      for(const e of enemiesAlive()){
+        e.cool-=dt;
+        if(e.cool<=0){
+          const t=findTarget(e,playersAlive());
+          if(t){ t.hp-=e.atk; if(t.hp<=0) t.alive=false; }
+          e.cool=1/e.spd;
+        }
+      }
+      if(!enemiesAlive().length){ state="result"; result="win"; gold+=2+Math.floor(floorN/2); }
+      else if(!playersAlive().length){ state="result"; result="lose"; }
+    }
+    function refillShop(){ shop = choose(["Brawler","Archer","Cleric"], 3); }
+    function spawnEnemies(){
+      enemies=[]; const cols=[4,3];
+      for(let i=0;i<3;i++){
+        const hp=Math.floor(100+floorN*8), atk=Math.floor(12+floorN*3);
+        enemies.push({name:"Enemy", team:"enemy", cell:vec2(cols[i%2], i%3), alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:COLORS.enemy, cool:rand(0,1)});
+      }
+    }
+
+    scene("game", ()=>{
+      refillShop();
+
+      onUpdate((dt)=>{
+        for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++){
+          const pos=cellToPos(c,r);
+          drawRect({pos, width:CELL, height:CELL, outline:{width:1, color:rgb(40,40,40)}});
+        }
+        roster.forEach(drawUnit); enemies.forEach(drawUnit);
+
+        if(state==="placing" && preview){
+          const m=mousePos();
+          const c=clamp(Math.floor((m.x-GRID_ORIGIN.x)/CELL),0,COLS-1);
+          const r=clamp(Math.floor((m.y-GRID_ORIGIN.y)/CELL),0,ROWS-1);
+          if([0,1].includes(c)){
+            drawRect({pos:cellToPos(c,r).add(vec2(4,4)), width:CELL-8, height:CELL-8, color:rgba(255,255,255,0.25)});
+          }
+        }
+
+        if(state==="battle") battleTick(dt);
+
+        const y0=GRID_ORIGIN.y+GRID_H+8;
+        drawRect({pos:vec2(0,y0), width:width(), height:160, color:COLORS.ui});
+        buyAreas.length=0;
+        for(let i=0;i<3;i++){
+          const x=8+i*150, rect=rect2(x,y0+8,140,80);
+          drawRect({pos:vec2(rect.pos.x,rect.pos.y), width:rect.width, height:rect.height, color:rgb(60,60,60)});
+          drawText({text:shop[i], size:20, pos:vec2(x+8,y0+34)});
+          drawText({text:"Buy 2", size:16, pos:vec2(x+8,y0+60), color:rgb(220,200,120)});
+          buyAreas.push(rect);
+        }
+        drawText({text:`Gold: ${gold}`, pos:vec2(8,y0+110)});
+        drawText({text:`Floor: ${floorN}`, pos:vec2(140,y0+110)});
+
+        startArea=rect2(width()-160,y0+48,140,44);
+        drawRect({pos:vec2(startArea.pos.x,startArea.pos.y), width:startArea.width, height:startArea.height, color:rgb(120,80,160)});
+        drawText({text:"START", size:24, pos:vec2(startArea.pos.x+26,startArea.pos.y+30)});
+
+        if(state==="result"){
+          drawText({text:(result==="win"?"Victory!":"Defeated."), size:28, pos:vec2(width()/2-80,height()/2-20)});
+          drawText({text:"Tap to continue", size:16, pos:vec2(width()/2-70,height()/2+10)});
+        }
+      });
+
+      onClick((p)=>{
+        const y0=GRID_ORIGIN.y+GRID_H+8;
+
+        if(state==="result"){
+          if(result==="win"){ floorN+=1; } else { roster=[]; gold=3; floorN=1; }
+          result=null; state="shop"; refillShop(); return;
+        }
+
+        if(state==="shop"){
+          for(let i=0;i<buyAreas.length;i++){
+            if(pointInRect(p,buyAreas[i]) && gold>=2){
+              gold-=2; preview=mkUnit(shop[i],"player",null); state="placing"; return;
+            }
+          }
+          if(pointInRect(p,startArea) && roster.some(u=>u.alive && u.cell)){ spawnEnemies(); state="battle"; return; }
+        } else if(state==="placing" && preview){
+          const c=Math.floor((p.x-GRID_ORIGIN.x)/CELL);
+          const r=Math.floor((p.y-GRID_ORIGIN.y)/CELL);
+          if(c>=0 && c<COLS && r>=0 && r<ROWS && [0,1].includes(c)){
+            const occupied=roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
+            if(!occupied){ preview.cell=vec2(c,r); roster.push(preview); preview=null; state="shop"; return; }
+          } else { gold+=2; preview=null; state="shop"; return; }
+        }
+      });
+    });
+
+    go("game");
+  </script>
+</body>
+</html>
