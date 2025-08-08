@@ -5,19 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
 <title>Auto Battler (Mobile)</title>
 <style>
-  html,body{margin:0;padding:0;background:#121214;height:100%;touch-action:none;font-family:-apple-system,system-ui,sans-serif}
-  canvas{display:block;width:100vw;height:100vh}
+  html,body{margin:0;padding:0;background:#121214;height:100%;font-family:-apple-system,system-ui,sans-serif}
+  canvas{display:block;width:100vw;height:100vh;touch-action:none}
   #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;color:#fff;text-align:center;padding:20px;background:rgba(0,0,0,.5)}
   #err.show{display:flex}
+  #dbg{position:fixed;left:8px;bottom:8px;color:#9ee;font-size:12px;opacity:.7}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="err"><div><b>Script error</b><br><span id="e2"></span></div></div>
+<div id="dbg"></div>
 <script>
 (function(){
   const errBox = document.getElementById('err');
   const errMsg = document.getElementById('e2');
+  const dbg = document.getElementById('dbg');
   window.onerror = (msg,src,line,col,err)=>{
     errBox.classList.add('show');
     errMsg.textContent = (err && err.stack) ? err.stack : (msg + " @" + line + ":" + col);
@@ -25,21 +28,21 @@
 
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
-  let W = 0, H = 0;
 
+  // --- sizing / DPR ---
   function resize(){
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-    W = Math.floor(window.innerWidth * dpr);
-    H = Math.floor(window.innerHeight * dpr);
-    canvas.width = W; canvas.height = H;
-    canvas.style.width = window.innerWidth + "px";
-    canvas.style.height = window.innerHeight + "px";
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.scale(dpr, dpr);
+    const cssW = window.innerWidth, cssH = window.innerHeight;
+    canvas.width = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+    canvas.style.width = cssW + "px";
+    canvas.style.height = cssH + "px";
+    ctx.setTransform(dpr,0,0,dpr,0,0); // draw in CSS pixels
   }
   window.addEventListener('resize', resize, {passive:true});
   resize();
 
+  // --- layout ---
   const COLS=5, ROWS=3, UI_H=160;
   function layout(){
     const cell = Math.floor(Math.min(window.innerWidth/COLS, (window.innerHeight-UI_H)/ROWS));
@@ -51,36 +54,36 @@
   let L = layout();
   window.addEventListener('resize', ()=>{ L = layout(); });
 
+  // --- colors & units ---
   const COLORS = {
-    bg: '#121214', grid:'#282828', ui:'#1e1e1e',
+    bg:'#121214', grid:'#282828', ui:'#1e1e1e',
     hpBack:'#333', hp:'#e42828',
     brawler:'#c8503c', archer:'#50c85a', cleric:'#78b4dc', enemy:'#a0a0a0',
     text:'#eaeaea', textDim:'#d8c878', start:'#7a50a0'
   };
-
   const UNIT_DEFS = {
     Brawler:{hp:120, atk:18, spd:1.0, range:1, color:COLORS.brawler, role:"melee"},
     Archer:{hp:70,  atk:25, spd:0.8, range:3, color:COLORS.archer, role:"ranged"},
     Cleric:{hp:80,  atk:8,  spd:1.0, range:3, color:COLORS.cleric, role:"healer"},
   };
 
+  // --- game state ---
   let gold=3, floorN=1, state='shop', result=null;
-  const roster=[];
-  const enemies=[];
-  let shop=[];
-  let preview=null;
+  const roster=[], enemies=[];
+  let shop=[], preview=null;
+  const buyAreas = []; // rebuilt every frame
+  let startArea = {x:0,y:0,w:0,h:0};
+  let hoverCell = {x:-1,y:-1};
 
   function refillShop(){
     const keys = Object.keys(UNIT_DEFS);
     shop = [];
     for(let i=0;i<3;i++) shop.push(keys[Math.floor(Math.random()*keys.length)]);
   }
-
   function mkUnit(name, team, cell=null){
     const d = UNIT_DEFS[name];
     return { name, team, cell, alive:true, maxhp:d.hp, hp:d.hp, atk:d.atk, spd:d.spd, range:d.range, color:d.color, role:d.role, cool: Math.random()/d.spd };
   }
-
   function spawnEnemies(){
     enemies.length = 0;
     const cols=[4,3];
@@ -90,10 +93,8 @@
       enemies.push({name:'Enemy', team:'enemy', cell:{x:cols[i%2], y:i%3}, alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:COLORS.enemy, role:'melee', cool: Math.random()});
     }
   }
-
   function playersAlive(){ return roster.filter(u=>u.alive && u.cell); }
   function enemiesAlive(){ return enemies.filter(u=>u.alive); }
-
   function findTarget(att, targets){
     const inRange = targets.filter(t=>Math.abs(t.cell.x - att.cell.x) <= att.range);
     const list = inRange.length ? inRange : targets;
@@ -102,35 +103,22 @@
     return list[0];
   }
 
-  let last = performance.now();
-  function loop(ts){
-    const dt = Math.min(0.05, (ts-last)/1000); last = ts;
-    draw(dt);
-    requestAnimationFrame(loop);
-  }
-
-  function drawRect(x,y,w,h,color,stroke=false){
-    if(stroke){
-      ctx.strokeStyle = color; ctx.strokeRect(x,y,w,h);
-    } else {
-      ctx.fillStyle = color; ctx.fillRect(x,y,w,h);
-    }
-  }
-  function drawText(txt,x,y,size=16,color=COLORS.text){
-    ctx.fillStyle=color; ctx.font=`${size}px -apple-system,system-ui,sans-serif`; ctx.fillText(txt,x,y);
-  }
-
+  // --- draw helpers ---
+  function fill(x,y,w,h,c){ ctx.fillStyle=c; ctx.fillRect(x,y,w,h); }
+  function stroke(x,y,w,h,c){ ctx.strokeStyle=c; ctx.strokeRect(x,y,w,h); }
+  function text(t,x,y,s=16,c=COLORS.text){ ctx.fillStyle=c; ctx.font=`${s}px -apple-system,system-ui,sans-serif`; ctx.fillText(t,x,y); }
   function drawUnit(u){
     if(!u.alive || !u.cell) return;
     const gx = L.originX + u.cell.x*L.cell;
     const gy = L.originY + u.cell.y*L.cell;
-    drawRect(gx+8, gy+8, L.cell-16, L.cell-16, u.color);
+    fill(gx+8, gy+8, L.cell-16, L.cell-16, u.color);
     const w = L.cell-20;
     const hpw = Math.max(0, Math.floor(w * u.hp / u.maxhp));
-    drawRect(gx+10, gy+L.cell-28, w, 6, COLORS.hpBack);
-    drawRect(gx+10, gy+L.cell-28, hpw, 6, COLORS.hp);
+    fill(gx+10, gy+L.cell-28, w, 6, COLORS.hpBack);
+    fill(gx+10, gy+L.cell-28, hpw, 6, COLORS.hp);
   }
 
+  // --- battle ---
   function battleTick(dt){
     for(const u of playersAlive()){
       u.cool -= dt;
@@ -170,51 +158,59 @@
     else if(!playersAlive().length){ state='result'; result='lose'; }
   }
 
+  // --- render loop ---
   function draw(dt){
-    drawRect(0,0,window.innerWidth, window.innerHeight, COLORS.bg);
+    fill(0,0,window.innerWidth, window.innerHeight, COLORS.bg);
+
+    // grid
     for(let c=0;c<COLS;c++){
       for(let r=0;r<ROWS;r++){
-        drawRect(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, COLORS.grid, true);
+        stroke(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, COLORS.grid);
       }
     }
+
+    // units
     roster.forEach(drawUnit);
     enemies.forEach(drawUnit);
 
+    // placement preview
     if(state==='placing' && preview){
       const c = hoverCell.x, r = hoverCell.y;
       if(c>=0 && c<COLS && r>=0 && r<ROWS && (c===0||c===1)){
-        drawRect(L.originX + c*L.cell + 4, L.originY + r*L.cell + 4, L.cell-8, L.cell-8, 'rgba(255,255,255,0.25)');
+        fill(L.originX + c*L.cell + 4, L.originY + r*L.cell + 4, L.cell-8, L.cell-8, 'rgba(255,255,255,0.25)');
       }
     }
 
+    // UI
     const y0 = L.originY + L.gridH + 8;
-    drawRect(0, y0, window.innerWidth, UI_H, COLORS.ui);
+    fill(0, y0, window.innerWidth, 160, COLORS.ui);
 
     buyAreas.length = 0;
     for(let i=0;i<3;i++){
       const x = 8 + i*150, y = y0 + 8;
-      drawRect(x, y, 140, 80, '#3c3c3c');
-      drawText(shop[i], x+8, y+32, 20);
-      drawText('Buy 2', x+8, y+60, 16, COLORS.textDim);
+      fill(x, y, 140, 80, '#3c3c3c');
+      text(shop[i], x+8, y+32, 20);
+      text('Buy 2', x+8, y+60, 16, COLORS.textDim);
       buyAreas.push({x, y, w:140, h:80, i});
     }
 
-    drawText(`Gold: ${gold}`, 8, y0+110, 16);
-    drawText(`Floor: ${floorN}`, 140, y0+110, 16);
+    text(`Gold: ${gold}`, 8, y0+110, 16);
+    text(`Floor: ${floorN}`, 140, y0+110, 16);
 
     startArea = { x: window.innerWidth-160, y: y0+48, w:140, h:44 };
-    drawRect(startArea.x, startArea.y, startArea.w, startArea.h, COLORS.start);
-    drawText('START', startArea.x+26, startArea.y+30, 24);
+    fill(startArea.x, startArea.y, startArea.w, startArea.h, COLORS.start);
+    text('START', startArea.x+26, startArea.y+30, 24);
 
     if(state==='result'){
       const msg = (result==='win') ? 'Victory!' : 'Defeated.';
-      drawText(msg, window.innerWidth/2 - 50, window.innerHeight/2 - 10, 28);
-      drawText('Tap to continue', window.innerWidth/2 - 70, window.innerHeight/2 + 20, 16);
+      text(msg, window.innerWidth/2 - 50, window.innerHeight/2 - 10, 28);
+      text('Tap to continue', window.innerWidth/2 - 70, window.innerHeight/2 + 20, 16);
     }
 
     if(state==='battle') battleTick(dt);
   }
 
+  // --- input / hit testing ---
   function pageToCell(px,py){
     const c = Math.floor((px - L.originX)/L.cell);
     const r = Math.floor((py - L.originY)/L.cell);
@@ -224,36 +220,29 @@
     return px>=rect.x && py>=rect.y && px<=rect.x+rect.w && py<=rect.y+rect.h;
   }
 
-  const buyAreas = [];
-  let startArea = {x:0,y:0,w:0,h:0};
-  let hoverCell = {x:-1,y:-1};
-
-  function tap(x,y){
-    const y0 = L.originY + L.gridH + 8;
-
+  function tap(px,py){
+    dbg.textContent = `tap ${Math.round(px)},${Math.round(py)} state=${state}`;
     if(state==='result'){
-      if(result==='win'){ floorN += 1; }
-      else { roster.length=0; gold=3; floorN=1; }
+      if(result==='win'){ floorN += 1; } else { roster.length=0; gold=3; floorN=1; }
       result=null; state='shop'; refillShop(); return;
     }
-
     if(state==='shop'){
       for(const r of buyAreas){
-        if(pointInRect(x,y,r) && gold>=2){
+        if(pointInRect(px,py,r) && gold>=2){
           gold -= 2;
           preview = mkUnit(shop[r.i], 'player', null);
           state='placing';
           return;
         }
       }
-      if(pointInRect(x,y,startArea) && roster.some(u=>u.alive && u.cell)){
+      if(pointInRect(px,py,startArea) && roster.some(u=>u.alive && u.cell)){
         spawnEnemies();
         state='battle';
         return;
       }
     } else if(state==='placing' && preview){
-      const c = Math.floor((x - L.originX)/L.cell);
-      const r = Math.floor((y - L.originY)/L.cell);
+      const c = Math.floor((px - L.originX)/L.cell);
+      const r = Math.floor((py - L.originY)/L.cell);
       if(c>=0 && c<COLS && r>=0 && r<ROWS && (c===0 || c===1)){
         const occupied = roster.some(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive);
         if(!occupied){
@@ -264,50 +253,32 @@
           return;
         }
       } else {
-        gold += 2;
-        preview = null;
-        state='shop';
-        return;
+        gold += 2; preview = null; state='shop'; return;
       }
     }
   }
 
-  // Fixed iPhone input mapping
-  function mapClientToCanvas(px, py) {
+  // Map client coords to canvas CSS space (handles iPhone)
+  function clientToCanvas(e){
     const rect = canvas.getBoundingClientRect();
-    const x = (px - rect.left);
-    const y = (py - rect.top);
-    return { x, y };
+    const isTouch = e.touches && e.touches[0];
+    const cx = isTouch ? e.touches[0].clientX : (e.clientX ?? 0);
+    const cy = isTouch ? e.touches[0].clientY : (e.clientY ?? 0);
+    return { x: cx - rect.left, y: cy - rect.top };
   }
 
-  function handlePointer(e) {
-    const t = (e.touches && e.touches[0]) ? e.touches[0] : e;
-    const pos = mapClientToCanvas(t.clientX, t.clientY);
-    hoverCell = pageToCell(pos.x, pos.y);
-  }
+  // Attach listeners directly to the canvas (most reliable on iOS)
+  canvas.addEventListener('pointermove', (e)=>{ const p=clientToCanvas(e); hoverCell = pageToCell(p.x,p.y); }, {passive:true});
+  canvas.addEventListener('touchmove', (e)=>{ const p=clientToCanvas(e); hoverCell = pageToCell(p.x,p.y); }, {passive:true});
+  canvas.addEventListener('pointerdown', (e)=>{ const p=clientToCanvas(e); tap(p.x,p.y); e.preventDefault(); }, {passive:false});
+  canvas.addEventListener('touchstart', (e)=>{ const p=clientToCanvas(e); tap(p.x,p.y); e.preventDefault(); }, {passive:false});
+  // click fallback
+  canvas.addEventListener('click', (e)=>{ const p=clientToCanvas(e); tap(p.x,p.y); }, {passive:true});
 
-  window.addEventListener('pointermove', handlePointer, { passive: true });
-  window.addEventListener('touchmove', handlePointer, { passive: true });
-
-  window.addEventListener('pointerdown', (e) => {
-    const pos = mapClientToCanvas(e.clientX, e.clientY);
-    tap(pos.x, pos.y);
-    e.preventDefault();
-  }, { passive: false });
-
-  window.addEventListener('touchstart', (e) => {
-    const t = e.touches[0];
-    const pos = mapClientToCanvas(t.clientX, t.clientY);
-    tap(pos.x, pos.y);
-    e.preventDefault();
-  }, { passive: false });
-
-  window.addEventListener('click', (e) => {
-    const pos = mapClientToCanvas(e.clientX, e.clientY);
-    tap(pos.x, pos.y);
-  }, { passive: true });
-
+  // --- boot ---
   refillShop();
+  let last = performance.now();
+  function loop(ts){ const dt = Math.min(0.05, (ts-last)/1000); last=ts; draw(dt); requestAnimationFrame(loop); }
   requestAnimationFrame(loop);
 })();
 </script>
