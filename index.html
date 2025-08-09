@@ -54,8 +54,8 @@
 
   const UNIT = {
     Brawler:{hp:120, atk:18, spd:1.0, range:1, color:C.b, role:"melee"},
-    Archer:{hp:70,  atk:25, spd:0.8, range:3, color:C.a, role:"ranged"},
-    Cleric:{hp:80,  atk:8,  spd:1.0, range:3, color:C.c, role:"healer"},
+    Archer:{hp:70,  atk:25, spd:0.8, range:5, color:C.a, role:"ranged"}, // bumped to 5
+    Cleric:{hp:80,  atk:8,  spd:1.0, range:5, color:C.c, role:"healer"}, // bumped to 5
   };
 
   // ===== Game State =====
@@ -207,7 +207,7 @@
     return false;
   }
 
-  // ===== Projectiles (NO JITTER) =====
+  // ===== Projectiles (no jitter) =====
   // type: 'dmg' or 'heal'
   const projectiles = []; // {x,y,targetRef,team,amt,speed,color,alive,ttl,type}
   const PROJ_SPEED = 420;    // px/sec
@@ -231,20 +231,17 @@
       if (p.ttl<=0){ p.alive=false; continue; }
       if (!t || !t.alive || !t.cell){ p.alive=false; continue; }
 
-      // where to aim this frame
       const tc = cellCenter(t.cell.x, t.cell.y);
       const dx = tc.x - p.x, dy = tc.y - p.y;
       const dist = Math.hypot(dx,dy);
 
-      // If close enough or would overshoot this frame, snap & resolve.
       const step = p.speed * dt;
       const nx = p.x + (dx/dist) * step;
       const ny = p.y + (dy/dist) * step;
       const afterDx = tc.x - nx, afterDy = tc.y - ny;
-      const overshoot = (dx*afterDx + dy*afterDy) <= 0; // dot <= 0 means we've passed or hit
+      const overshoot = (dx*afterDx + dy*afterDy) <= 0;
 
       if (dist <= HIT_RADIUS || overshoot){
-        // snap to target and apply
         p.x = tc.x; p.y = tc.y;
         if (p.type==='dmg'){
           t.hp -= p.amt;
@@ -259,14 +256,12 @@
         continue;
       }
 
-      // otherwise fly toward updated aim point
       p.x = nx; p.y = ny;
     }
-    // cull
     for (let i=projectiles.length-1;i>=0;i--) if (!projectiles[i].alive) projectiles.splice(i,1);
   }
 
-  // ===== FX: Hits & Heals =====
+  // ===== FX: hits, heals, sword slashes =====
   const hitSparks = []; // {x,y,t}
   function updateHitSparks(dt){
     for (const s of hitSparks){ s.t += dt; }
@@ -301,6 +296,41 @@
       ctx.fillStyle = '#a6f5c7';
       ctx.font = '14px -apple-system,system-ui,sans-serif';
       ctx.fillText(s.txt, s.x-8, s.y - 12 - s.t*16);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // sword slash: {x,y,dir,t}
+  const slashes = [];
+  function spawnSlash(atCell, dir){
+    const c = cellCenter(atCell.x, atCell.y);
+    slashes.push({x:c.x, y:c.y, dir, t:0});
+  }
+  function updateSlashes(dt){
+    for (const s of slashes){ s.t += dt; }
+    for (let i=slashes.length-1;i>=0;i--) if (slashes[i].t>0.18) slashes.splice(i,1);
+  }
+  function drawSlashes(){
+    for (const s of slashes){
+      const a = Math.max(0, 1 - s.t/0.18);
+      const ang = s.dir==='right'?0 : s.dir==='left'?Math.PI : s.dir==='up'? -Math.PI/2 : Math.PI/2;
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(ang);
+      ctx.globalAlpha = a;
+      // white outer arc
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(0, 0, 18 + s.t*12, -0.6, 0.6);
+      ctx.stroke();
+      // yellow core arc
+      ctx.strokeStyle = '#ffe9a6';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, 18 + s.t*12, -0.6, 0.6);
+      ctx.stroke();
+      ctx.restore();
       ctx.globalAlpha = 1;
     }
   }
@@ -350,7 +380,6 @@
           let did = false;
 
           if(u.role==='healer'){
-            // heal lowest HP ally
             const allies=playersAlive();
             if(allies.length){
               allies.sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp));
@@ -360,7 +389,6 @@
                 did = true;
               }
             }
-            // poke enemy if in range
             const t=frontlineTarget(u,enemiesAlive());
             if(inRange(u,t)){
               spawnProjectile({shooter:u, target:t, amt:Math.max(4, Math.floor(u.atk*0.5)), color:'#8fd0ff', type:'dmg'});
@@ -372,6 +400,9 @@
             const t=frontlineTarget(u,enemiesAlive());
             if(u.role==='melee' ? isAdjCross(u,t) : inRange(u,t)){
               if (u.role==='melee'){
+                // Brawler hit + sword slash visual
+                const dir = (t.cell.x > u.cell.x)?'right' : (t.cell.x < u.cell.x)?'left' : (t.cell.y>u.cell.y)?'down':'up';
+                spawnSlash(t.cell, dir);
                 t.hp -= u.atk;
                 if(u.name==='Brawler'){
                   const mates=enemiesAlive().filter(e=>e!==t && e.cell.y===t.cell.y && Math.abs(e.cell.x - t.cell.x)===1);
@@ -407,6 +438,8 @@
           const t = frontlineTarget(e, playersAlive());
           if(e.role==='melee' ? isAdjCross(e,t) : inRange(e,t)){
             if (e.role==='melee'){
+              const dir = (t.cell.x > e.cell.x)?'right' : (t.cell.x < e.cell.x)?'left' : (t.cell.y>e.cell.y)?'down':'up';
+              spawnSlash(t.cell, dir);
               t.hp -= e.atk; if(t.hp<=0) t.alive=false;
             } else {
               spawnProjectile({shooter:e, target:t, amt:e.atk, color:'#cfcfcf', type:'dmg'});
@@ -421,6 +454,7 @@
     updateProjectiles(dt);
     updateHitSparks(dt);
     updateHealSparks(dt);
+    updateSlashes(dt);
   }
 
   // ===== Render =====
@@ -445,6 +479,7 @@
     drawProjectiles();
     drawHitSparks();
     drawHealSparks();
+    drawSlashes();
 
     // UI
     const y0 = L.originY + L.gridH + 8;
