@@ -5,9 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
 <title>Auto Battler (Mobile)</title>
 <style>
-  html,body{margin:0;padding:0;background:#121214;height:100%;font-family:-apple-system,system-ui,sans-serif;overscroll-behavior:none}
-  canvas{position:fixed;left:0;top:0;width:100vw;height:100vh;touch-action:manipulation;display:block}
-  #toast{position:fixed;top:10px;left:50%;transform:translateX(-50%);padding:8px 12px;background:#222;color:#eee;border-radius:8px;font-size:14px;opacity:0;transition:opacity .15s;pointer-events:none}
+  :root {
+    /* iOS notch / home bar padding if we ever need it */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+  }
+  html,body{
+    margin:0;padding:0;background:#121214;height:100dvh;
+    font-family:-apple-system,system-ui,sans-serif;overscroll-behavior:none;
+  }
+  canvas{position:fixed;left:0;top:0;width:100vw;height:100dvh;touch-action:manipulation;display:block}
+  #toast{position:fixed;top:calc(10px + var(--safe-top));left:50%;transform:translateX(-50%);
+    padding:8px 12px;background:#222;color:#eee;border-radius:8px;font-size:14px;opacity:0;transition:opacity .15s;pointer-events:none}
   #toast.show{opacity:0.95}
 </style>
 </head>
@@ -16,11 +27,11 @@
 <div id="toast"></div>
 <script>
 (() => {
-  // ===== Shop visibility must be defined BEFORE resize/layout is called =====
-  let SHOW_SHOP = true;               // toggled
-  const UI_H_SHOP = 196;              // when shop visible
-  const UI_H_COMPACT = 96;            // when shop hidden (bigger battlefield)
-  function currentUIH(){ return (typeof SHOW_SHOP==='boolean' && SHOW_SHOP) ? UI_H_SHOP : UI_H_COMPACT; }
+  // ===== Shop visibility must be defined BEFORE any layout =====
+  let SHOW_SHOP = true;
+  const UI_H_SHOP = 196;
+  const UI_H_COMPACT = 96;
+  function currentUIH(){ return SHOW_SHOP ? UI_H_SHOP : UI_H_COMPACT; }
 
   // ===== Canvas / UI =====
   const canvas = document.getElementById('c');
@@ -29,31 +40,51 @@
   let toastTimer = null;
   function toast(msg){ toastEl.textContent = msg; toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>toastEl.classList.remove('show'),1400); }
 
-  function isPortrait(){ return innerHeight > innerWidth; }
+  function isPortrait(){ return getViewport().h > getViewport().w; }
 
-  // ===== Layout =====
-  const COLS=5, ROWS=3;
-  function layout(){
-    const cell = Math.floor(Math.min(innerWidth/COLS, (innerHeight-currentUIH())/ROWS));
-    const gridW = COLS*cell, gridH = ROWS*cell;
-    const originX = Math.floor((innerWidth - gridW)/2);
-    const originY = 24;
-    return {cell, gridW, gridH, originX, originY};
+  // Reliable viewport size (accounts for iOS Safari toolbars)
+  function getViewport(){
+    if (window.visualViewport){
+      // Use the *visual* viewport so when the address bar shows/hides, we adapt instantly
+      return { w: Math.floor(window.visualViewport.width), h: Math.floor(window.visualViewport.height) };
+    }
+    return { w: window.innerWidth, h: window.innerHeight };
   }
-  let L = layout();
 
-  function resize(){
+  function setCanvasSize(){
     const dpr = Math.max(1, devicePixelRatio||1);
-    const w = innerWidth, h = innerHeight;
+    const { w, h } = getViewport();
     canvas.width = Math.floor(w*dpr);
     canvas.height = Math.floor(h*dpr);
     canvas.style.width = w+'px';
     canvas.style.height = h+'px';
     ctx.setTransform(dpr,0,0,dpr,0,0);
-    L = layout(); // recompute on any resize
   }
+
+  // ===== Layout =====
+  const COLS=5, ROWS=3;
+  function layout(){
+    const { w, h } = getViewport();
+    const cell = Math.floor(Math.min(w/COLS, (h-currentUIH())/ROWS));
+    const gridW = COLS*cell, gridH = ROWS*cell;
+    const originX = Math.floor((w - gridW)/2);
+    const originY = Math.max(12, 24); // little breathing room
+    return {cell, gridW, gridH, originX, originY, vw:w, vh:h};
+  }
+  let L = layout();
+
+  function resize(){
+    setCanvasSize();
+    L = layout(); // recompute on any viewport change
+  }
+
+  // React to everything that can move iOS toolbars
   addEventListener('resize', resize, {passive:true});
   addEventListener('orientationchange', resize, {passive:true});
+  if (window.visualViewport){
+    window.visualViewport.addEventListener('resize', resize, {passive:true});
+    window.visualViewport.addEventListener('scroll', resize, {passive:true});
+  }
   resize();
 
   // ===== Colors & Units =====
@@ -69,7 +100,13 @@
 
   const REROLL_COST = 2;
   const BUY_COST = 2;
-  const SELL_REFUND = 2;
+
+  // Dynamic SELL refund by star
+  function refundFor(u){
+    // ★ = 2g, ★★ = 6g, ★★★ = 18g
+    if (!u) return BUY_COST;
+    return (u.star===1) ? 2 : (u.star===2) ? 6 : 18;
+  }
 
   // Shop fade while placing
   let shopOpacity = 1;
@@ -400,6 +437,7 @@
         }
       }
     }
+
     if (!playersAlive().length){ state='result'; result='lose'; return; }
     if (!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
 
@@ -420,7 +458,6 @@
       }
     }
 
-    // FX last
     updateProjectiles(dt);
     updateHitSparks(dt);
     updateHealSparks(dt);
@@ -432,7 +469,7 @@
   // ===== Render =====
   function draw(dt){
     const portrait = isPortrait();
-    ctx.fillStyle=C.bg; ctx.fillRect(0,0,innerWidth,innerHeight);
+    ctx.fillStyle=C.bg; ctx.fillRect(0,0,L.vw,L.vh);
 
     for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++)
       stroke(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, C.grid);
@@ -456,32 +493,38 @@
 
     const UI_H = currentUIH();
     const y0 = L.originY + L.gridH + 8;
-    fill(0,y0,innerWidth,UI_H,C.ui);
+    fill(0,y0,L.vw,UI_H,C.ui);
 
+    // Shop toggle
     shopBtnArea = { x: 8, y: y0+8, w: 150, h: 44 };
     fill(shopBtnArea.x, shopBtnArea.y, shopBtnArea.w, shopBtnArea.h, '#2d2d2d');
     text(SHOW_SHOP ? 'HIDE SHOP' : 'SHOW SHOP', shopBtnArea.x+10, shopBtnArea.y+28, 16, '#ffd45a');
 
-    sellArea = { x: innerWidth-160, y: y0+ (SHOW_SHOP? 60:8), w:140, h:64 };
+    // SELL tray (shows dynamic refund while holding)
+    const sellingAmt = preview ? refundFor(preview) : 2;
+    sellArea = { x: L.vw-160, y: y0+ (SHOW_SHOP? 60:8), w:140, h:64 };
     fill(sellArea.x, sellArea.y, sellArea.w, sellArea.h, '#3a2222');
-    text(`SELL (${SELL_REFUND}g)`, sellArea.x+18, sellArea.y+38, 18, '#ff9a9a');
+    text(`SELL (${sellingAmt}g)`, sellArea.x+18, sellArea.y+38, 18, '#ff9a9a');
 
+    // Reroll (visible only if shop shown)
     if (SHOW_SHOP){
-      rerollArea = { x: innerWidth-320, y: y0+8, w:140, h:44 };
+      rerollArea = { x: L.vw-320, y: y0+8, w:140, h:44 };
       fill(rerollArea.x, rerollArea.y, rerollArea.w, rerollArea.h, '#2d2d2d');
       text(`REROLL (${REROLL_COST}g)`, rerollArea.x+10, rerollArea.y+28, 16, '#ffd45a');
     } else {
       rerollArea = {x:0,y:0,w:0,h:0};
     }
 
-    startArea = { x: innerWidth-160, y: y0+8, w:140, h:44 };
+    // Start
+    startArea = { x: L.vw-160, y: y0+8, w:140, h:44 };
     fill(startArea.x, startArea.y, startArea.w, startArea.h, C.start);
     text('START', startArea.x+34, startArea.y+28, 20);
 
+    // Shop panel
     if (SHOW_SHOP){
       ctx.save(); ctx.globalAlpha = shopOpacity;
       buyAreas.length=0;
-      const cardW = Math.min(200, innerWidth/3 - 12);
+      const cardW = Math.min(200, L.vw/3 - 12);
       const cardH = 126;
       for(let i=0;i<3;i++){
         const x=8+i*(cardW+6), y=y0+60, w=cardW, h=cardH;
@@ -504,20 +547,20 @@
       ctx.restore();
     } else { buyAreas.length=0; }
 
-    // Portrait lock overlay
+    // Portrait lock overlay (landscape only gameplay)
     if (portrait){
       ctx.fillStyle = 'rgba(0,0,0,0.85)';
-      ctx.fillRect(0,0,innerWidth,innerHeight);
+      ctx.fillRect(0,0,L.vw,L.vh);
       ctx.fillStyle = '#eaeaea';
       ctx.font = '20px -apple-system,system-ui,sans-serif';
       const msg = 'Rotate your device to landscape to play';
       const tw = ctx.measureText(msg).width;
-      ctx.fillText(msg, (innerWidth - tw)/2, innerHeight/2);
+      ctx.fillText(msg, (L.vw - tw)/2, L.vh/2);
     }
 
     if(state==='result'){
-      text((result==='win')?'Victory!':'Defeated.', innerWidth/2-50, innerHeight/2-10, 28);
-      text('Tap to continue', innerWidth/2-70, innerHeight/2+20, 16);
+      text((result==='win')?'Victory!':'Defeated.', L.vw/2-50, L.vh/2-10, 28);
+      text('Tap to continue', L.vw/2-70, L.vh/2+20, 16);
     }
 
     if(!isPortrait() && state==='battle') battleTick(dt);
@@ -555,7 +598,7 @@
   }
 
   function onPointerDown(e){
-    if (isPortrait()){ e.preventDefault(); return; } // block input in portrait
+    if (isPortrait()){ e.preventDefault(); return; }
     const p = clientToCanvas(e); hover.x = p.x; hover.y = p.y;
 
     if (state==='result'){
@@ -615,9 +658,12 @@
     if (isPortrait()){ e.preventDefault(); return; }
     const p = clientToCanvas(e); hover.x = p.x; hover.y = p.y;
 
-    // Selling while placing
+    // Selling while placing (dynamic refund)
     if(state==='placing' && preview && pointInRect(p.x,p.y,sellArea)){
-      toast(`Sold ${preview.name} for ${SELL_REFUND}g`); gold += SELL_REFUND; preview = null; state='shop'; shopOpacity=1;
+      const amt = refundFor(preview);
+      toast(`Sold ${preview.name} ${'★'.repeat(preview.star||1)} for ${amt}g`);
+      gold += amt;
+      preview = null; state='shop'; shopOpacity=1;
       e.preventDefault(); return;
     }
 
