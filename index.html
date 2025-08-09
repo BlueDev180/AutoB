@@ -45,7 +45,7 @@
   const currentUIH = () => SHOW_SHOP ? UI_H_SHOP : UI_H_COMPACT;
   const isPortrait = () => getViewport().h > getViewport().w;
 
-  // robust viewport (avoid pinned toolbar issues)
+  // robust viewport
   function getViewport(){
     const vv = window.visualViewport;
     const w = Math.min(
@@ -60,7 +60,6 @@
     );
     return { w: Math.floor(w), h: Math.floor(h) };
   }
-
   function setCanvasSize(){
     const dpr = Math.max(1, devicePixelRatio||1);
     const { w, h } = getViewport();
@@ -75,14 +74,13 @@
   const COLS=5, ROWS=3;
   function layout(){
     const { w, h } = getViewport();
-    const TOP_PAD = 20;          // space for hint text
-    const BTM_BUF = 2;           // tiny safety buffer to avoid rounding overflow
+    const TOP_PAD = 20;
+    const BTM_BUF = 2;
     const availH = h - currentUIH() - TOP_PAD - BTM_BUF;
     const byHeight = Math.floor(availH / ROWS);
     const byWidth  = Math.floor(w / COLS);
-    const cell = Math.max(12, Math.min(byHeight, byWidth)); // never smaller than 12px
+    const cell = Math.max(12, Math.min(byHeight, byWidth));
     const gridW = COLS*cell, gridH = ROWS*cell;
-    // center grid vertically between top pad and start of UI
     const gridAreaH = h - currentUIH() - BTM_BUF;
     const originY = Math.max(12, Math.floor((gridAreaH - gridH)/2));
     const originX = Math.floor((w - gridW)/2);
@@ -91,10 +89,7 @@
   }
   let L = layout();
 
-  function resize(){
-    setCanvasSize();
-    L = layout();
-  }
+  function resize(){ setCanvasSize(); L = layout(); }
   addEventListener('resize', resize, {passive:true});
   addEventListener('orientationchange', resize, {passive:true});
   if (window.visualViewport){
@@ -134,8 +129,8 @@
 
   const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0}, rerollArea={x:0,y:0,w:0,h:0}, sellArea={x:0,y:0,w:0,h:0};
   let shopOpacity = 1;
-  // Floating top-left Shop button (never clipped)
-  let shopTopBtn={x:0,y:0,w:0,h:0};
+  // Floating & bottom Shop buttons
+  let shopTopBtn={x:0,y:0,w:0,h:0}, shopBottomBtn={x:0,y:0,w:0,h:0};
 
   function refillShop(){ const keys=Object.keys(BASE); shop = Array.from({length:3},()=>keys[(Math.random()*keys.length)|0]); }
   function mkUnit(name, team, cell=null, star=1){ const s=scaledStats(BASE[name],star); return { name,team,cell,star,alive:true,maxhp:s.hp,hp:s.hp,atk:s.atk,spd:s.spd,range:s.range,color:s.color,role:s.role,crit:s.crit,critMult:s.critMult,armor:s.armor,resist:s.resist,dodge:s.dodge,lifesteal:s.lifesteal,cool:Math.random()/s.spd,stepCool:0,lastPos:null,shield:0,shieldT:0 }; }
@@ -331,17 +326,21 @@
 
     roster.forEach(drawUnit); enemies.forEach(drawUnit);
 
-    // FX + damage text
-    // (FX arrays updated in battleTick)
+    // FX & damage numbers
     for(const s of slashes){ const a=Math.max(0,1-s.t/.18); ctx.save(); ctx.globalAlpha=a; ctx.translate(s.sx,s.sy); ctx.rotate(s.ang);
       ctx.strokeStyle='#ffffff'; ctx.lineWidth=6; ctx.beginPath(); ctx.arc(0,0,18+s.t*14,-0.6,0.2); ctx.stroke();
       ctx.strokeStyle='#ffe9a6'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,18+s.t*14,-0.6,0.2); ctx.stroke(); ctx.restore(); }
     for(const p of projectiles){ ctx.fillStyle='#ffffff'; ctx.beginPath(); if(p.type==='heal'){ ctx.ellipse(p.x,p.y,8,8,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#59e08a'; ctx.beginPath(); ctx.ellipse(p.x,p.y,6,6,0,0,Math.PI*2); ctx.fill(); } else { ctx.ellipse(p.x,p.y,7,3,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#ffe9a6'; ctx.beginPath(); ctx.ellipse(p.x,p.y,5,2,0,0,Math.PI*2); ctx.fill(); } }
     drawDmg();
 
-    // bottom UI anchored from bottom up (never clipped)
+    // bottom UI anchored from bottom up
     const UI_H=currentUIH(), y0=L.yUI;
     fill(0,y0,L.vw,UI_H,C.ui);
+
+    // bottom SHOP toggle (new)
+    shopBottomBtn = { x: 8, y: y0+8, w: 140, h: 52 };
+    fill(shopBottomBtn.x, shopBottomBtn.y, shopBottomBtn.w, shopBottomBtn.h, '#2d2d2d');
+    text(SHOW_SHOP ? 'HIDE SHOP' : 'SHOW SHOP', shopBottomBtn.x+12, shopBottomBtn.y+32, 18, '#ffd45a');
 
     // SELL tray (dynamic refund)
     const sellingAmt = preview ? refundFor(preview) : 2;
@@ -360,6 +359,17 @@
     startArea={ x:L.vw-168, y:y0+8, w:160, h:52 };
     fill(startArea.x,startArea.y,startArea.w,startArea.h,'#7a50a0');
     text('START', startArea.x+48, startArea.y+32, 20, '#fff');
+
+    // GOLD readout
+    if (SHOW_SHOP){
+      // big gold label above cards
+      text(`GOLD: ${gold}g`, 8, y0+52, 18, '#ffd45a');
+    } else {
+      // compact badge near START when shop hidden
+      const gx = startArea.x - 120, gy = y0+8;
+      fill(gx, gy, 110, 52, '#2d2d2d');
+      text(`GOLD: ${gold}g`, gx+10, gy+32, 18, '#ffd45a');
+    }
 
     // SHOP PANEL (cards)
     if (SHOW_SHOP){
@@ -380,7 +390,7 @@
       ctx.restore();
     } else buyAreas.length=0;
 
-    // Floating SHOP toggle (top-left, always visible)
+    // Floating SHOP toggle (top-left, always visible on non-battle screens)
     const topPad = 8 + (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-top'))||0);
     shopTopBtn = { x: 8, y: topPad, w: 120, h: 40 };
     fill(shopTopBtn.x, shopTopBtn.y, shopTopBtn.w, shopTopBtn.h, '#2d2d2d');
@@ -427,19 +437,28 @@
     return { x: t.clientX - rect.left, y: t.clientY - rect.top };
   }
 
+  function handleShopToggle(px,py){
+    if (pointInRect(px,py,shopTopBtn) || pointInRect(px,py,shopBottomBtn)) {
+      SHOW_SHOP = !SHOW_SHOP; L = layout(); return true;
+    }
+    return false;
+  }
+
   function onPointerDown(e){
     if(isPortrait()){ e.preventDefault(); return; }
     const p=clientToCanvas(e); hover=p;
 
-    // Floating shop toggle works in shop/placing (before anything else)
-    if(state!=='battle' && state!=='result' && pointInRect(p.x,p.y,shopTopBtn)){
-      SHOW_SHOP = !SHOW_SHOP; L = layout(); e.preventDefault(); return;
+    // Shop toggle works in shop/placing/result screens (not during battle to avoid accidental taps)
+    if(state!=='battle'){
+      if(handleShopToggle(p.x,p.y)){ e.preventDefault(); return; }
     }
 
     if(state==='result'){
       if(result==='win'){ floorN++; toast(`Floor ${floorN}`); }
       else { roster.length=0; enemies.length=0; gold=6; floorN=1; toast('Run reset'); }
-      result=null; state='shop'; enemies.length=0; refillShop(); e.preventDefault(); return;
+      result=null; state='shop'; enemies.length=0; refillShop();
+      SHOW_SHOP = true; // always visible when returning to shop
+      e.preventDefault(); return;
     }
 
     if (state==='placing' && preview){ e.preventDefault(); return; }
@@ -502,7 +521,8 @@
   canvas.addEventListener('touchend',    onPointerUp,   {passive:false});
 
   // ===== Boot =====
-  refillShop();
+  function bootToShop(){ state='shop'; SHOW_SHOP=true; refillShop(); }
+  bootToShop();
   let last=performance.now();
   function loop(ts){ const dt=Math.min(.05,(ts-last)/1000); last=ts; if(!isPortrait() && state==='battle') battleTick(dt); draw(dt); requestAnimationFrame(loop); }
   requestAnimationFrame(loop);
