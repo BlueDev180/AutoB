@@ -134,7 +134,7 @@
     const dx = Math.abs(target.cell.x - attacker.cell.x);
     const dy = Math.abs(target.cell.y - attacker.cell.y);
     if (attacker.role === 'melee') return (dx+dy)===1; // cross-adjacent only
-    // ranged/healer: Manhattan range (looks/feels better on this grid)
+    // ranged/healer: Manhattan range
     return (dx + dy) <= Math.max(1, attacker.range);
   }
 
@@ -208,8 +208,9 @@
   }
 
   // ===== Projectiles =====
-  const projectiles = []; // {x,y, targetRef, team, dmg, speed, color, alive}
-  const PROJ_SPEED = 680; // px/sec
+  const projectiles = []; // {x,y, targetRef, team, dmg, speed, color, alive, ttl}
+  const PROJ_SPEED = 420; // px/sec (slower so you can see it)
+  const PROJ_MIN_FLIGHT = 0.12; // seconds (force at least a short flight)
 
   function spawnProjectile(shooter, target, dmg, color){
     if (!target || !target.alive || !target.cell) return;
@@ -218,27 +219,31 @@
       x:start.x, y:start.y,
       team: shooter.team,
       targetRef: target,
-      dmg,
-      speed: PROJ_SPEED,
-      color,
-      alive: true
+      dmg, speed: PROJ_SPEED, color,
+      alive: true, ttl: 2.0 // safety cull
     });
   }
 
   function updateProjectiles(dt){
     for (const p of projectiles){
       if (!p.alive) continue;
+      p.ttl -= dt;
       const t = p.targetRef;
+      if (p.ttl<=0){ p.alive=false; continue; }
       if (!t || !t.alive || !t.cell){ p.alive=false; continue; }
+
       const tc = cellCenter(t.cell.x, t.cell.y);
       const dx = tc.x - p.x, dy = tc.y - p.y;
       const dist = Math.hypot(dx,dy);
-      const step = p.speed * dt;
-      if (dist <= step + 2){
-        // impact
+      const step = Math.min(p.speed * dt, Math.max(40, dist - 6)); // never complete the whole trip in one frame
+
+      if (dist <= 6){
+        // impact: apply damage and spawn a tiny spark
         t.hp -= p.dmg;
         if (t.hp<=0) t.alive=false;
         p.alive = false;
+        // spark effect
+        hitSparks.push({x:tc.x, y:tc.y, t:0});
       } else {
         p.x += (dx/dist) * step;
         p.y += (dy/dist) * step;
@@ -248,16 +253,35 @@
     for (let i=projectiles.length-1;i>=0;i--) if (!projectiles[i].alive) projectiles.splice(i,1);
   }
 
+  // ===== Hit sparks =====
+  const hitSparks = []; // {x,y,t}
+  function updateSparks(dt){
+    for (const s of hitSparks){ s.t += dt; }
+    for (let i=hitSparks.length-1;i>=0;i--) if (hitSparks[i].t>0.2) hitSparks.splice(i,1);
+  }
+  function drawSparks(){
+    for (const s of hitSparks){
+      const a = Math.max(0, 1 - s.t/0.2);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#fff3b0';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 6, 0, Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
   function drawProjectiles(){
     for (const p of projectiles){
-      ctx.fillStyle = p.color;
-      // simple arrowhead-ish diamond
+      // white outline for visibility
+      ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.moveTo(p.x, p.y-3);
-      ctx.lineTo(p.x+4, p.y);
-      ctx.lineTo(p.x, p.y+3);
-      ctx.lineTo(p.x-4, p.y);
-      ctx.closePath();
+      ctx.ellipse(p.x, p.y, 7, 3, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, 5, 2, 0, 0, Math.PI*2);
       ctx.fill();
     }
   }
@@ -282,7 +306,6 @@
         if(u.cool<=0){
           let did = false;
           if(u.role==='healer'){
-            // heal first (instant)
             const allies=playersAlive();
             if(allies.length){
               allies.sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp));
@@ -290,8 +313,7 @@
             }
             const t=frontlineTarget(u,enemiesAlive());
             if(inRange(u,t)){
-              // cleric poke: small blue bolt
-              spawnProjectile(u, t, Math.max(4, Math.floor(u.atk*0.5)), '#8fd0ff');
+              spawnProjectile(u, t, Math.max(4, Math.floor(u.atk*0.5)), '#8fd0ff'); // blue bolt
               did = true;
             }
           }
@@ -299,7 +321,6 @@
             const t=frontlineTarget(u,enemiesAlive());
             if(u.role==='melee' ? isAdjCross(u,t) : inRange(u,t)){
               if (u.role==='melee'){
-                // instant melee damage
                 t.hp -= u.atk;
                 if(u.name==='Brawler'){
                   const mates=enemiesAlive().filter(e=>e!==t && e.cell.y===t.cell.y && Math.abs(e.cell.x - t.cell.x)===1);
@@ -307,8 +328,7 @@
                 }
                 if(t.hp<=0) t.alive=false;
               } else {
-                // ranged: fire arrow projectile (yellow-white)
-                spawnProjectile(u, t, u.atk, '#ffe9a6');
+                spawnProjectile(u, t, u.atk, '#ffe9a6'); // archer arrow
               }
             }
           }
@@ -338,7 +358,7 @@
             if (e.role==='melee'){
               t.hp -= e.atk; if(t.hp<=0) t.alive=false;
             } else {
-              // enemy ranged (if we add one later): gray bolt
+              // (if we add ranged enemies later)
               spawnProjectile(e, t, e.atk, '#cfcfcf');
             }
           }
@@ -347,8 +367,9 @@
       }
     }
 
-    // projectiles after actions
+    // FX last
     updateProjectiles(dt);
+    updateSparks(dt);
   }
 
   // ===== Render =====
@@ -365,10 +386,13 @@
       text('Tap anywhere to continue…', L.originX, Math.max(16, L.originY-6), 12, C.hint);
     }
 
-    // Units under projectiles so arrows draw on top
+    // Units
     roster.forEach(drawUnit);
     enemies.forEach(drawUnit);
+
+    // FX on top
     drawProjectiles();
+    drawSparks();
 
     // UI
     const y0 = L.originY + L.gridH + 8;
