@@ -95,7 +95,7 @@
   const playersAlive=()=>roster.filter(u=>u.alive && u.cell);
   const enemiesAlive=()=>enemies.filter(u=>u.alive);
 
-  // ===== Drawing helpers =====
+  // ===== Draw helpers =====
   const fill=(x,y,w,h,c)=>{ ctx.fillStyle=c; ctx.fillRect(x,y,w,h); };
   const stroke=(x,y,w,h,c)=>{ ctx.strokeStyle=c; ctx.strokeRect(x,y,w,h); };
   const text=(t,x,y,s=16,c=C.t)=>{ ctx.fillStyle=c; ctx.font=`${s}px -apple-system,system-ui,sans-serif`; ctx.fillText(t,x,y); };
@@ -208,19 +208,21 @@
   }
 
   // ===== Projectiles =====
-  const projectiles = []; // {x,y, targetRef, team, dmg, speed, color, alive, ttl}
-  const PROJ_SPEED = 420; // px/sec (slower so you can see it)
-  const PROJ_MIN_FLIGHT = 0.12; // seconds (force at least a short flight)
+  // type: 'dmg' or 'heal'
+  const projectiles = []; // {x,y, targetRef, team, amt, speed, color, alive, ttl, type}
+  const PROJ_SPEED = 420; // px/sec
+  const PROJ_MIN_DIST = 6;
 
-  function spawnProjectile(shooter, target, dmg, color){
+  function spawnProjectile({shooter, target, amt, color, type}){
     if (!target || !target.alive || !target.cell) return;
     const start = cellCenter(shooter.cell.x, shooter.cell.y);
     projectiles.push({
       x:start.x, y:start.y,
       team: shooter.team,
       targetRef: target,
-      dmg, speed: PROJ_SPEED, color,
-      alive: true, ttl: 2.0 // safety cull
+      amt, speed: PROJ_SPEED, color,
+      alive: true, ttl: 2.0,
+      type
     });
   }
 
@@ -235,15 +237,19 @@
       const tc = cellCenter(t.cell.x, t.cell.y);
       const dx = tc.x - p.x, dy = tc.y - p.y;
       const dist = Math.hypot(dx,dy);
-      const step = Math.min(p.speed * dt, Math.max(40, dist - 6)); // never complete the whole trip in one frame
+      const step = Math.min(p.speed * dt, Math.max(40, dist - PROJ_MIN_DIST));
 
-      if (dist <= 6){
-        // impact: apply damage and spawn a tiny spark
-        t.hp -= p.dmg;
-        if (t.hp<=0) t.alive=false;
+      if (dist <= PROJ_MIN_DIST){
+        if (p.type==='dmg'){
+          t.hp -= p.amt;
+          if (t.hp<=0) t.alive=false;
+          hitSparks.push({x:tc.x, y:tc.y, t:0});
+        } else if (p.type==='heal'){
+          const before = t.hp;
+          t.hp = Math.min(t.maxhp, t.hp + p.amt);
+          healSparks.push({x:tc.x, y:tc.y, t:0, txt:`+${t.hp - before}`});
+        }
         p.alive = false;
-        // spark effect
-        hitSparks.push({x:tc.x, y:tc.y, t:0});
       } else {
         p.x += (dx/dist) * step;
         p.y += (dy/dist) * step;
@@ -253,13 +259,13 @@
     for (let i=projectiles.length-1;i>=0;i--) if (!projectiles[i].alive) projectiles.splice(i,1);
   }
 
-  // ===== Hit sparks =====
+  // ===== FX: Hits & Heals =====
   const hitSparks = []; // {x,y,t}
-  function updateSparks(dt){
+  function updateHitSparks(dt){
     for (const s of hitSparks){ s.t += dt; }
     for (let i=hitSparks.length-1;i>=0;i--) if (hitSparks[i].t>0.2) hitSparks.splice(i,1);
   }
-  function drawSparks(){
+  function drawHitSparks(){
     for (const s of hitSparks){
       const a = Math.max(0, 1 - s.t/0.2);
       ctx.globalAlpha = a;
@@ -271,18 +277,53 @@
     }
   }
 
+  const healSparks = []; // {x,y,t,txt}
+  function updateHealSparks(dt){
+    for (const s of healSparks){ s.t += dt; }
+    for (let i=healSparks.length-1;i>=0;i--) if (healSparks[i].t>0.35) healSparks.splice(i,1);
+  }
+  function drawHealSparks(){
+    for (const s of healSparks){
+      const a = Math.max(0, 1 - s.t/0.35);
+      // pulsing ring
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = '#59e08a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 10 + s.t*20, 0, Math.PI*2);
+      ctx.stroke();
+      // floating +num
+      ctx.fillStyle = '#a6f5c7';
+      ctx.font = '14px -apple-system,system-ui,sans-serif';
+      ctx.fillText(s.txt, s.x-8, s.y - 12 - s.t*16);
+      ctx.globalAlpha = 1;
+    }
+  }
+
   function drawProjectiles(){
     for (const p of projectiles){
-      // white outline for visibility
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.ellipse(p.x, p.y, 7, 3, 0, 0, Math.PI*2);
-      ctx.fill();
-
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.ellipse(p.x, p.y, 5, 2, 0, 0, Math.PI*2);
-      ctx.fill();
+      if (p.type==='heal'){
+        // white outline orb
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, 8, 8, 0, 0, Math.PI*2);
+        ctx.fill();
+        // green core
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, 6, 6, 0, 0, Math.PI*2);
+        ctx.fill();
+      } else {
+        // dmg: arrow/bolt (outlined)
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, 7, 3, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, 5, 2, 0, 0, Math.PI*2);
+        ctx.fill();
+      }
     }
   }
 
@@ -301,22 +342,30 @@
 
         const tgt = frontlineTarget(u, enemiesAlive());
 
-        if (tryStepToward(u, tgt, reservations)) { if (u.cool < 0) u.cool = 0; }
+        if (u.role==='melee' && tryStepToward(u, tgt, reservations)) { if (u.cool < 0) u.cool = 0; }
 
         if(u.cool<=0){
           let did = false;
+
           if(u.role==='healer'){
+            // 1) HEAL via projectile
             const allies=playersAlive();
             if(allies.length){
               allies.sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp));
-              allies[0].hp = Math.min(allies[0].maxhp, allies[0].hp+20);
+              const patient = allies[0];
+              if (patient && patient.hp < patient.maxhp){
+                spawnProjectile({shooter:u, target:patient, amt:20, color:'#59e08a', type:'heal'});
+                did = true;
+              }
             }
+            // 2) POKE an enemy if in range
             const t=frontlineTarget(u,enemiesAlive());
             if(inRange(u,t)){
-              spawnProjectile(u, t, Math.max(4, Math.floor(u.atk*0.5)), '#8fd0ff'); // blue bolt
+              spawnProjectile({shooter:u, target:t, amt:Math.max(4, Math.floor(u.atk*0.5)), color:'#8fd0ff', type:'dmg'});
               did = true;
             }
           }
+
           if(!did && u.role!=='healer'){
             const t=frontlineTarget(u,enemiesAlive());
             if(u.role==='melee' ? isAdjCross(u,t) : inRange(u,t)){
@@ -328,7 +377,8 @@
                 }
                 if(t.hp<=0) t.alive=false;
               } else {
-                spawnProjectile(u, t, u.atk, '#ffe9a6'); // archer arrow
+                // Archer projectile
+                spawnProjectile({shooter:u, target:t, amt:u.atk, color:'#ffe9a6', type:'dmg'});
               }
             }
           }
@@ -350,7 +400,7 @@
 
         const tgt = frontlineTarget(e, playersAlive());
 
-        if (tryStepToward(e, tgt, reservations)) { if (e.cool < 0) e.cool = 0; }
+        if (e.role==='melee' && tryStepToward(e, tgt, reservations)) { if (e.cool < 0) e.cool = 0; }
 
         if(e.cool<=0){
           const t = frontlineTarget(e, playersAlive());
@@ -358,8 +408,8 @@
             if (e.role==='melee'){
               t.hp -= e.atk; if(t.hp<=0) t.alive=false;
             } else {
-              // (if we add ranged enemies later)
-              spawnProjectile(e, t, e.atk, '#cfcfcf');
+              // if we add ranged enemies later
+              spawnProjectile({shooter:e, target:t, amt:e.atk, color:'#cfcfcf', type:'dmg'});
             }
           }
           e.cool = 1/e.spd;
@@ -369,7 +419,8 @@
 
     // FX last
     updateProjectiles(dt);
-    updateSparks(dt);
+    updateHitSparks(dt);
+    updateHealSparks(dt);
   }
 
   // ===== Render =====
@@ -392,7 +443,8 @@
 
     // FX on top
     drawProjectiles();
-    drawSparks();
+    drawHitSparks();
+    drawHealSparks();
 
     // UI
     const y0 = L.originY + L.gridH + 8;
