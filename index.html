@@ -72,8 +72,8 @@
   }
   function mkUnit(name, team, cell=null){
     const d = UNIT[name];
-    // stepCool: melee walk cadence (seconds)
-    return { name, team, cell, alive:true, maxhp:d.hp, hp:d.hp, atk:d.atk, spd:d.spd, range:d.range, color:d.color, role:d.role, cool: Math.random()/d.spd, stepCool: 0 };
+    return { name, team, cell, alive:true, maxhp:d.hp, hp:d.hp, atk:d.atk, spd:d.spd, range:d.range, color:d.color, role:d.role,
+             cool: Math.random()/d.spd, stepCool: 0 };
   }
 
   // ===== Enemies =====
@@ -107,7 +107,7 @@
   // ===== Targeting (FRONT FIRST) =====
   function frontlineTarget(attacker, targets) {
     if (!targets.length) return null;
-    // Our units (left) should hit enemy LEFTMOST (min X) first; enemies (right) hit our RIGHTMOST (max X).
+    // Our units (left) hit enemy LEFTMOST (min X); enemies (right) hit our RIGHTMOST (max X).
     let front;
     if (attacker.team === 'enemy') {
       const maxX = Math.max(...targets.map(t => t.cell.x));
@@ -122,39 +122,72 @@
     return front[0];
   }
 
-  // ===== Movement helpers =====
+  // ===== Range checks (UPDATED: melee can hit same row OR same column if adjacent) =====
+  function inRange(attacker, target){
+    if (!attacker || !target) return false;
+    const dx = Math.abs(target.cell.x - attacker.cell.x);
+    const dy = Math.abs(target.cell.y - attacker.cell.y);
+
+    if (attacker.role === 'melee'){
+      // plus-shaped adjacency: one tile away in row OR column
+      return (dx + dy) === 1;
+    }
+    // ranged: keep same-row rule + within range
+    if (attacker.role === 'healer'){
+      // healer's poke follows ranged rule too
+      if (attacker.cell.y !== target.cell.y) return false;
+      return dx <= Math.max(1, Math.floor(attacker.range));
+    }
+    // generic ranged
+    if (attacker.cell.y !== target.cell.y) return false;
+    return dx <= attacker.range;
+  }
+
+  // ===== Occupancy & movement =====
   function occupiedAt(x,y){
     return playersAlive().some(u=>u.cell.x===x && u.cell.y===y) ||
            enemiesAlive().some(u=>u.cell.x===x && u.cell.y===y);
   }
+
+  // Melee pathing: match row first, then move forward; vertical moves also enable column-adjacent hits.
   function tryStepToward(u, target){
-    if (!target) return false;
-    if (Math.abs(target.cell.x - u.cell.x) <= u.range) return false; // already in range
-    // melee only moves
-    if (u.role !== 'melee') return false;
-    // cadence
+    if (!target || u.role !== 'melee') return false;
+    if (inRange(u,target)) return false;  // already adjacent in row/column
     if (u.stepCool > 0) return false;
 
+    // 1) Vertical alignment toward target row
+    if (u.cell.y !== target.cell.y){
+      const vy = (target.cell.y > u.cell.y) ? 1 : -1;
+      const ny = u.cell.y + vy;
+      if (ny >=0 && ny < ROWS && !occupiedAt(u.cell.x, ny)){
+        u.cell.y = ny;
+        u.stepCool = 0.18;
+        return true;
+      }
+    }
+
+    // 2) Forward step (toward enemy side)
     const dir = (u.team === 'enemy') ? -1 : +1; // enemies walk left; players walk right
     const nx = u.cell.x + dir;
-    const ny = u.cell.y;
-    if (nx < 0 || nx >= COLS) { u.stepCool = 0.1; return false; }
-    if (occupiedAt(nx, ny)) { u.stepCool = 0.12; return false; } // little stall if blocked
-    // step!
-    u.cell.x = nx;
-    u.stepCool = 0.25;
-    return true;
+    if (nx >= 0 && nx < COLS && !occupiedAt(nx, u.cell.y)){
+      u.cell.x = nx;
+      u.stepCool = 0.22;
+      return true;
+    }
+
+    // 3) If blocked both ways, wait briefly
+    u.stepCool = 0.12;
+    return false;
   }
 
   // ===== Battle Logic =====
   function battleTick(dt){
-    // --- players
+    // players
     for(const u of playersAlive()){
       u.cool -= dt;
       if (u.stepCool>0) u.stepCool -= dt;
 
       const tgt = frontlineTarget(u, enemiesAlive());
-      // move if out of range (melee)
       if (tryStepToward(u, tgt)) continue;
 
       if(u.cool<=0){
@@ -166,17 +199,18 @@
             allies[0].hp = Math.min(allies[0].maxhp, allies[0].hp+20);
           }
           const t=frontlineTarget(u,enemiesAlive());
-          if(t && Math.abs(t.cell.x - u.cell.x) <= u.range){
+          if(inRange(u,t)){
             t.hp -= Math.max(4, Math.floor(u.atk*0.5));
             if(t.hp<=0) t.alive=false; didAttack = true;
           }
         }
         if(!didAttack && u.role!=='healer'){
           const t=frontlineTarget(u,enemiesAlive());
-          if(t && Math.abs(t.cell.x - u.cell.x) <= u.range){
+          if(inRange(u,t)){
             t.hp -= u.atk;
             if(u.name==='Brawler'){
-              const mates=enemiesAlive().filter(e=>e!==t && e.cell.y===t.cell.y);
+              // splash to horizontally adjacent mate of target if any
+              const mates=enemiesAlive().filter(e=>e!==t && e.cell.y===t.cell.y && Math.abs(e.cell.x - t.cell.x)===1);
               if(mates[0]) mates[0].hp -= Math.floor(u.atk*0.5);
             }
             if(t.hp<=0) t.alive=false;
@@ -186,7 +220,7 @@
       }
     }
 
-    // --- enemies
+    // enemies
     for(const e of enemiesAlive()){
       e.cool -= dt;
       if (e.stepCool>0) e.stepCool -= dt;
@@ -196,7 +230,7 @@
 
       if(e.cool<=0){
         const t = frontlineTarget(e, playersAlive());
-        if(t && Math.abs(t.cell.x - e.cell.x) <= e.range){
+        if(inRange(e,t)){
           t.hp -= e.atk; if(t.hp<=0) t.alive=false;
         }
         e.cool = 1/e.spd;
@@ -275,7 +309,7 @@
     if(state==='battle') battleTick(dt);
   }
 
-  // ===== Input & helpers =====
+  // ===== Input & helpers (same UX as your current build) =====
   const pointInRect=(x,y,r)=> x>=r.x && y>=r.y && y<=r.y+r.h && x<=r.x+r.w;
 
   function cellAtFloor(px,py){ return { x: Math.floor((px - L.originX)/L.cell), y: Math.floor((py - L.originY)/L.cell) }; }
