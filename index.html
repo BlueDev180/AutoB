@@ -21,7 +21,7 @@
   const ctx = canvas.getContext('2d', { alpha:false });
   const toastEl = document.getElementById('toast');
   let toastTimer = null;
-  function toast(msg){ toastEl.textContent = msg; toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>toastEl.classList.remove('show'),1200); }
+  function toast(msg){ toastEl.textContent = msg; toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>toastEl.classList.remove('show'),1400); }
 
   function resize(){
     const dpr = Math.max(1, devicePixelRatio||1);
@@ -36,7 +36,7 @@
   resize();
 
   // ===== Layout =====
-  const COLS=5, ROWS=3, UI_H=180;
+  const COLS=5, ROWS=3, UI_H=196;
   function layout(){
     const cell = Math.floor(Math.min(innerWidth/COLS, (innerHeight-UI_H)/ROWS));
     const gridW = COLS*cell, gridH = ROWS*cell;
@@ -71,13 +71,13 @@
              crit:0.10, critMult:1.50, armor:6,   resist:12, dodge:0.05, lifesteal:0.00},
   };
 
-  // Apply star scaling (★=1.0, ★★=1.2, ★★★=1.2*1.25=1.5)
+  // Apply star scaling (★=1.0, ★★=1.2, ★★★=1.5)
   function scaledStats(base, star){
     const mul = (star===1)?1 : (star===2)?1.20 : 1.50;
     return {
       hp: Math.round(base.hp*mul),
       atk: Math.round(base.atk*mul),
-      spd: base.spd, // attack speed unchanged
+      spd: base.spd,
       range: base.range,
       color: base.color,
       role: base.role,
@@ -186,11 +186,13 @@
   }
   const key=(x,y)=>`${x},${y}`;
 
-  // ===== Pathing (BFS to cross-adjacent; don't step past target column) =====
+  // ===== Pathing (BFS to any cross-adjacent tile; allows flanking) =====
   function nextStepBFS(u, target, reservations){
     if (!target) return null;
     const start = {x:u.cell.x, y:u.cell.y};
     const tx = target.cell.x, ty = target.cell.y;
+
+    // Desired goal tiles: any cross-adjacent to target that are free (or our own start).
     const goals = [];
     const adj = [[1,0],[-1,0],[0,1],[0,-1]];
     for (const [dx,dy] of adj){
@@ -205,8 +207,7 @@
 
     function valid(nx,ny){
       if(nx<0||nx>=COLS||ny<0||ny>=ROWS) return false;
-      if (u.team==='player' && nx>tx) return false;
-      if (u.team==='enemy'  && nx<tx) return false;
+      // (removed "don't step past target column" to allow flanks)
       if (occupiedAt(nx,ny) && !(nx===start.x && ny===start.y)) return false;
       if (reservations.has(key(nx,ny)) && !(nx===start.x && ny===start.y)) return false;
       if (u.lastPos && nx===u.lastPos.x && ny===u.lastPos.y) return false;
@@ -359,7 +360,7 @@
     }
   }
 
-  // sword slash from attacker toward target
+  // sword slash from attacker toward target (originates from attacker)
   const slashes = []; // {sx,sy,ang,t}
   function spawnSlashFrom(attCell, toCell){
     const a = cellCenter(attCell.x, attCell.y), b = cellCenter(toCell.x, toCell.y);
@@ -371,11 +372,8 @@
     for (const s of slashes){
       const a = Math.max(0, 1 - s.t/0.18);
       ctx.save(); ctx.translate(s.sx, s.sy); ctx.rotate(s.ang); ctx.globalAlpha = a;
-      // swing arc starting near attacker
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 6;
-      ctx.beginPath(); ctx.arc(0, 0, 18 + s.t*14, -0.6, 0.2); ctx.stroke();
-      ctx.strokeStyle = '#ffe9a6'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(0, 0, 18 + s.t*14, -0.6, 0.2); ctx.stroke();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, 18 + s.t*14, -0.6, 0.2); ctx.stroke();
+      ctx.strokeStyle = '#ffe9a6'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 18 + s.t*14, -0.6, 0.2); ctx.stroke();
       ctx.restore(); ctx.globalAlpha = 1;
     }
   }
@@ -394,37 +392,25 @@
 
   // ===== Merging =====
   function tryMerge(name, star){
-    // count copies on the field/roster for this star
     const copies = roster.filter(u=>u.name===name && u.star===star);
     if (copies.length < 3) return false;
-
-    // pick a cell to keep (prefer one that exists)
     const keep = copies.find(u=>u.cell) || copies[0];
     const keepCell = keep.cell ? {...keep.cell} : null;
-
-    // remove three copies
     let removed = 0;
     for (let i=roster.length-1;i>=0 && removed<3;i--){
       const u = roster[i];
-      if (u.name===name && u.star===star){
-        roster.splice(i,1); removed++;
-      }
+      if (u.name===name && u.star===star){ roster.splice(i,1); removed++; }
     }
-
-    // create upgraded unit
     const newStar = star+1;
     const merged = mkUnit(name, 'player', keepCell, newStar);
     roster.push(merged);
-
     toast(`${name} merged to ${'★'.repeat(newStar)}!`);
-    // chain merge (e.g., 3x ★★ → ★★★)
     if (newStar<3) tryMerge(name, newStar);
     return true;
   }
 
   // ===== Battle =====
   function battleTick(dt){
-    // Immediate end
     if (!playersAlive().length){ state='result'; result='lose'; return; }
     if (!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
 
@@ -440,18 +426,15 @@
           let did = false;
 
           if(u.role==='healer'){
-            // Heal lowest HP ally
             const allies=playersAlive().slice().sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp));
             const patient = allies[0];
             if (patient && patient.hp < patient.maxhp){
               spawnProjectile({shooter:u, target:patient, amt:20, color:'#59e08a', type:'heal'});
-              // ★★★ bounce heal to second ally (50%)
               if (u.star>=3 && allies[1] && allies[1].hp<allies[1].maxhp){
                 spawnProjectile({shooter:u, target:allies[1], amt:10, color:'#59e08a', type:'heal'});
               }
               did = true;
             }
-            // Poke enemy with magic if in range
             const t=frontlineTarget(u,enemiesAlive());
             if(inRange(u,t)){ spawnProjectile({shooter:u, target:t, amt:Math.max(4, Math.floor(u.atk*0.5)), color:'#8fd0ff', type:'dmg', dmgType:'magic'}); did = true; }
           }
@@ -462,13 +445,11 @@
               if (u.role==='melee'){
                 spawnSlashFrom(u.cell, t.cell);
                 resolveHit(u, t, u.atk, 'physical');
-                // Brawler ★★★: cleave both sides (60%) to neighbors of target in same row
-                if (u.name==='Brawler' && u.star>=3){
+                if(u.name==='Brawler' && u.star>=3){
                   const mates = enemiesAlive().filter(e=>e!==t && e.cell.y===t.cell.y && Math.abs(e.cell.x - t.cell.x)===1);
                   for (const m of mates) resolveHit(u, m, Math.floor(u.atk*0.6), 'physical');
                 }
               } else {
-                // Archer projectile (physical); ★★★ double-shot
                 const targets = enemiesAlive();
                 if (targets.length){
                   spawnProjectile({shooter:u, target:t, amt:u.atk, color:'#ffe9a6', type:'dmg', dmgType:'physical'});
@@ -485,7 +466,6 @@
       }
     }
 
-    // Mid-tick end
     if (!playersAlive().length){ state='result'; result='lose'; return; }
     if (!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
 
@@ -549,26 +529,33 @@
     const y0 = L.originY + L.gridH + 8;
     fill(0,y0,innerWidth,UI_H,C.ui);
 
+    // Shop cards — tighter, clipped text so it never spills
     buyAreas.length=0;
+    const cardW = Math.min(180, innerWidth/3 - 12);
+    const cardH = 128;
     for(let i=0;i<3;i++){
-      const x=8+i*(Math.min(180, innerWidth/3 - 12)), y=y0+8;
-      const w=Math.min(172, innerWidth/3 - 20), h=110;
+      const x=8+i*(cardW+6), y=y0+8, w=cardW, h=cardH;
       fill(x,y,w,h,'#3c3c3c');
+      ctx.save(); ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
       const name = shop[i];
-      text(`${name} ★`, x+8, y+20, 18);
-      // Stats preview from BASE (★)
+      text(`${name} ★`, x+8, y+18, 16, '#fff');
       const b = BASE[name];
-      const line1 = `HP:${b.hp}  ATK:${b.atk}  RNG:${b.range}`;
-      const line2 = `CRIT:${Math.round(b.crit*100)}%  ARM:${b.armor}  RES:${b.resist}  DGE:${Math.round(b.dodge*100)}%`;
-      text(line1, x+8, y+40, 12, '#eaeaea');
-      text(line2, x+8, y+56, 12, '#cfd2d6');
-      text(`Buy ${BUY_COST}g`, x+w-70, y+h-10, 12, C.td);
+      ctx.font = '11px -apple-system,system-ui,sans-serif';
+      ctx.fillStyle = '#eaeaea';
+      ctx.fillText(`HP:${b.hp}  ATK:${b.atk}  RNG:${b.range}`, x+8, y+36);
+      ctx.fillStyle = '#cfd2d6';
+      ctx.fillText(`CRT:${Math.round(b.crit*100)}%  ARM:${b.armor}  RES:${b.resist}`, x+8, y+52);
+      ctx.fillText(`DGE:${Math.round(b.dodge*100)}%  SPD:${b.spd}`, x+8, y+68);
+      // price tag bar
+      fill(x+8, y+h-22, w-16, 18, '#2a2a2a');
+      text(`Buy ${BUY_COST}g`, x+14, y+h-8, 12, C.td);
+      ctx.restore();
       buyAreas.push({x,y,w,h,i});
     }
 
     // Gold/Floor
-    text(`Gold: ${gold}`, 8, y0+134, 16);
-    text(`Floor: ${floorN}`, 140, y0+134, 16);
+    text(`Gold: ${gold}`, 8, y0+cardH+22, 16);
+    text(`Floor: ${floorN}`, 140, y0+cardH+22, 16);
 
     // Reroll button
     rerollArea = { x: innerWidth-320, y: y0+8, w:140, h:44 };
@@ -610,7 +597,6 @@
     preview.cell = {x:c,y:r};
     roster.push(preview);
     toast(`${preview._fromPickup ? 'Moved' : 'Placed'} ${preview.name} ${'★'.repeat(preview.star||1)} @ ${c},${r}`);
-    // check merges after placing
     tryMerge(preview.name, preview.star||1);
     preview = null; state='shop'; return true;
   }
@@ -650,7 +636,7 @@
           e.preventDefault(); return;
         }
       }
-      // Buy clicks
+      // Buy
       for(const r of buyAreas){
         if(pointInRect(p.x,p.y,r) && gold>=BUY_COST){
           gold -= BUY_COST;
