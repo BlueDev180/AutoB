@@ -72,7 +72,8 @@
   }
   function mkUnit(name, team, cell=null){
     const d = UNIT[name];
-    return { name, team, cell, alive:true, maxhp:d.hp, hp:d.hp, atk:d.atk, spd:d.spd, range:d.range, color:d.color, role:d.role, cool: Math.random()/d.spd };
+    // stepCool: melee walk cadence (seconds)
+    return { name, team, cell, alive:true, maxhp:d.hp, hp:d.hp, atk:d.atk, spd:d.spd, range:d.range, color:d.color, role:d.role, cool: Math.random()/d.spd, stepCool: 0 };
   }
 
   // ===== Enemies =====
@@ -83,7 +84,7 @@
     for(let i=0;i<count;i++){
       const hp = Math.floor(90 + floorN*8);
       const atk = Math.floor(10 + floorN*3);
-      enemies.push({name:'Enemy', team:'enemy', cell:{x:cols[i%cols.length], y:i%3}, alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:C.e, role:'melee', cool: Math.random()});
+      enemies.push({name:'Enemy', team:'enemy', cell:{x:cols[i%cols.length], y:i%3}, alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:C.e, role:'melee', cool: Math.random(), stepCool: 0});
     }
     toast(`Enemies spawned: ${count}`);
   }
@@ -121,11 +122,41 @@
     return front[0];
   }
 
+  // ===== Movement helpers =====
+  function occupiedAt(x,y){
+    return playersAlive().some(u=>u.cell.x===x && u.cell.y===y) ||
+           enemiesAlive().some(u=>u.cell.x===x && u.cell.y===y);
+  }
+  function tryStepToward(u, target){
+    if (!target) return false;
+    if (Math.abs(target.cell.x - u.cell.x) <= u.range) return false; // already in range
+    // melee only moves
+    if (u.role !== 'melee') return false;
+    // cadence
+    if (u.stepCool > 0) return false;
+
+    const dir = (u.team === 'enemy') ? -1 : +1; // enemies walk left; players walk right
+    const nx = u.cell.x + dir;
+    const ny = u.cell.y;
+    if (nx < 0 || nx >= COLS) { u.stepCool = 0.1; return false; }
+    if (occupiedAt(nx, ny)) { u.stepCool = 0.12; return false; } // little stall if blocked
+    // step!
+    u.cell.x = nx;
+    u.stepCool = 0.25;
+    return true;
+  }
+
   // ===== Battle Logic =====
   function battleTick(dt){
-    // players
+    // --- players
     for(const u of playersAlive()){
       u.cool -= dt;
+      if (u.stepCool>0) u.stepCool -= dt;
+
+      const tgt = frontlineTarget(u, enemiesAlive());
+      // move if out of range (melee)
+      if (tryStepToward(u, tgt)) continue;
+
       if(u.cool<=0){
         let didAttack = false;
         if(u.role==='healer'){
@@ -135,11 +166,14 @@
             allies[0].hp = Math.min(allies[0].maxhp, allies[0].hp+20);
           }
           const t=frontlineTarget(u,enemiesAlive());
-          if(t){ t.hp -= Math.max(4, Math.floor(u.atk*0.5)); if(t.hp<=0) t.alive=false; didAttack = true; }
+          if(t && Math.abs(t.cell.x - u.cell.x) <= u.range){
+            t.hp -= Math.max(4, Math.floor(u.atk*0.5));
+            if(t.hp<=0) t.alive=false; didAttack = true;
+          }
         }
         if(!didAttack && u.role!=='healer'){
           const t=frontlineTarget(u,enemiesAlive());
-          if(t){
+          if(t && Math.abs(t.cell.x - u.cell.x) <= u.range){
             t.hp -= u.atk;
             if(u.name==='Brawler'){
               const mates=enemiesAlive().filter(e=>e!==t && e.cell.y===t.cell.y);
@@ -151,15 +185,24 @@
         u.cool = 1/u.spd;
       }
     }
-    // enemies
+
+    // --- enemies
     for(const e of enemiesAlive()){
       e.cool -= dt;
+      if (e.stepCool>0) e.stepCool -= dt;
+
+      const tgt = frontlineTarget(e, playersAlive());
+      if (tryStepToward(e, tgt)) continue;
+
       if(e.cool<=0){
         const t = frontlineTarget(e, playersAlive());
-        if(t){ t.hp -= e.atk; if(t.hp<=0) t.alive=false; }
+        if(t && Math.abs(t.cell.x - e.cell.x) <= e.range){
+          t.hp -= e.atk; if(t.hp<=0) t.alive=false;
+        }
         e.cool = 1/e.spd;
       }
     }
+
     // outcome
     if(!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); }
     else if(!playersAlive().length){ state='result'; result='lose'; }
@@ -167,9 +210,7 @@
 
   // ===== Render Loop =====
   function draw(dt){
-    fill(0,0,innerWidth,innerHeight,C.bg);
-
-    // grid
+    ctx.fillStyle=C.bg; ctx.fillRect(0,0,innerWidth,innerHeight);
     for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++)
       stroke(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, C.grid);
 
@@ -181,7 +222,6 @@
       text('Tap anywhere to continue…', L.originX, Math.max(16, L.originY-6), 12, C.hint);
     }
 
-    // units
     roster.forEach(drawUnit);
     enemies.forEach(drawUnit);
 
@@ -285,13 +325,11 @@
     const p = clientToCanvas(e);
     hover.x = p.x; hover.y = p.y;
 
-    // NEW: allow continue on result
     if (state==='result'){
       if (result==='win'){ floorN++; toast(`Floor ${floorN}`); }
       else { roster.length=0; enemies.length=0; gold=6; floorN=1; toast('Run reset'); }
       result=null; state='shop'; enemies.length=0; refillShop();
-      e.preventDefault();
-      return;
+      e.preventDefault(); return;
     }
 
     if (state==='placing' && preview){ e.preventDefault(); return; }
@@ -309,8 +347,7 @@
           preview._fromCell = {x:ccF.x, y:ccF.y};
           state='placing';
           toast(`Picked up ${u.name}`);
-          e.preventDefault();
-          return;
+          e.preventDefault(); return;
         }
       }
       // BUY
@@ -322,8 +359,7 @@
           preview._fromCell = null;
           state='placing';
           toast(`Bought ${shop[r.i]}`);
-          e.preventDefault();
-          return;
+          e.preventDefault(); return;
         }
       }
       // START
@@ -341,8 +377,7 @@
       c = Math.max(0, Math.min(COLS-1, c));
       r = Math.max(0, Math.min(ROWS-1, r));
       placeExactAt(c, r);
-      e.preventDefault();
-      return;
+      e.preventDefault(); return;
     }
   }
 
