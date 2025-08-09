@@ -31,7 +31,7 @@
   // ===== Config =====
   let SHOW_SHOP = true;
   const UI_H_SHOP = 196;
-  const UI_H_COMPACT = 96;
+  const UI_H_COMPACT = 96; // height when shop hidden
   const BUY_COST = 2;
   const REROLL_COST = 2;
 
@@ -45,7 +45,7 @@
   const currentUIH = () => SHOW_SHOP ? UI_H_SHOP : UI_H_COMPACT;
   const isPortrait = () => getViewport().h > getViewport().w;
 
-  // robust viewport
+  // robust viewport (avoids pinned toolbar clipping)
   function getViewport(){
     const vv = window.visualViewport;
     const w = Math.min(
@@ -129,8 +129,9 @@
 
   const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0}, rerollArea={x:0,y:0,w:0,h:0}, sellArea={x:0,y:0,w:0,h:0};
   let shopOpacity = 1;
-  // Floating & bottom Shop buttons
-  let shopTopBtn={x:0,y:0,w:0,h:0}, shopBottomBtn={x:0,y:0,w:0,h:0};
+
+  // Floating top-left Shop button (fixed position; always visible outside battle)
+  let shopTopBtn={x:8, y:8, w:120, h:40};
 
   function refillShop(){ const keys=Object.keys(BASE); shop = Array.from({length:3},()=>keys[(Math.random()*keys.length)|0]); }
   function mkUnit(name, team, cell=null, star=1){ const s=scaledStats(BASE[name],star); return { name,team,cell,star,alive:true,maxhp:s.hp,hp:s.hp,atk:s.atk,spd:s.spd,range:s.range,color:s.color,role:s.role,crit:s.crit,critMult:s.critMult,armor:s.armor,resist:s.resist,dodge:s.dodge,lifesteal:s.lifesteal,cool:Math.random()/s.spd,stepCool:0,lastPos:null,shield:0,shieldT:0 }; }
@@ -337,11 +338,6 @@
     const UI_H=currentUIH(), y0=L.yUI;
     fill(0,y0,L.vw,UI_H,C.ui);
 
-    // bottom SHOP toggle (new)
-    shopBottomBtn = { x: 8, y: y0+8, w: 140, h: 52 };
-    fill(shopBottomBtn.x, shopBottomBtn.y, shopBottomBtn.w, shopBottomBtn.h, '#2d2d2d');
-    text(SHOW_SHOP ? 'HIDE SHOP' : 'SHOW SHOP', shopBottomBtn.x+12, shopBottomBtn.y+32, 18, '#ffd45a');
-
     // SELL tray (dynamic refund)
     const sellingAmt = preview ? refundFor(preview) : 2;
     sellArea = { x:L.vw-168, y:y0+(SHOW_SHOP?60:8), w:160, h:72 };
@@ -360,15 +356,9 @@
     fill(startArea.x,startArea.y,startArea.w,startArea.h,'#7a50a0');
     text('START', startArea.x+48, startArea.y+32, 20, '#fff');
 
-    // GOLD readout
+    // GOLD readout (above cards when shop visible)
     if (SHOW_SHOP){
-      // big gold label above cards
       text(`GOLD: ${gold}g`, 8, y0+52, 18, '#ffd45a');
-    } else {
-      // compact badge near START when shop hidden
-      const gx = startArea.x - 120, gy = y0+8;
-      fill(gx, gy, 110, 52, '#2d2d2d');
-      text(`GOLD: ${gold}g`, gx+10, gy+32, 18, '#ffd45a');
     }
 
     // SHOP PANEL (cards)
@@ -390,9 +380,8 @@
       ctx.restore();
     } else buyAreas.length=0;
 
-    // Floating SHOP toggle (top-left, always visible on non-battle screens)
-    const topPad = 8 + (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-top'))||0);
-    shopTopBtn = { x: 8, y: topPad, w: 120, h: 40 };
+    // Floating SHOP toggle (top-left, fixed 8px inset so it never overlaps address bar)
+    shopTopBtn = { x: 8, y: 8, w: 120, h: 40 };
     fill(shopTopBtn.x, shopTopBtn.y, shopTopBtn.w, shopTopBtn.h, '#2d2d2d');
     text(SHOW_SHOP ? 'HIDE SHOP' : 'SHOW SHOP', shopTopBtn.x+10, shopTopBtn.y+26, 14, '#ffd45a');
 
@@ -437,27 +426,19 @@
     return { x: t.clientX - rect.left, y: t.clientY - rect.top };
   }
 
-  function handleShopToggle(px,py){
-    if (pointInRect(px,py,shopTopBtn) || pointInRect(px,py,shopBottomBtn)) {
-      SHOW_SHOP = !SHOW_SHOP; L = layout(); return true;
-    }
-    return false;
-  }
-
   function onPointerDown(e){
     if(isPortrait()){ e.preventDefault(); return; }
     const p=clientToCanvas(e); hover=p;
 
-    // Shop toggle works in shop/placing/result screens (not during battle to avoid accidental taps)
-    if(state!=='battle'){
-      if(handleShopToggle(p.x,p.y)){ e.preventDefault(); return; }
+    // Top-left SHOP toggle works on shop/placing/result screens (not during battle)
+    if(state!=='battle' && pointInRect(p.x,p.y,shopTopBtn)){
+      SHOW_SHOP = !SHOW_SHOP; L = layout(); e.preventDefault(); return;
     }
 
     if(state==='result'){
       if(result==='win'){ floorN++; toast(`Floor ${floorN}`); }
       else { roster.length=0; enemies.length=0; gold=6; floorN=1; toast('Run reset'); }
-      result=null; state='shop'; enemies.length=0; refillShop();
-      SHOW_SHOP = true; // always visible when returning to shop
+      result=null; state='shop'; enemies.length=0; refillShop(); SHOW_SHOP=true; // always show shop after a round
       e.preventDefault(); return;
     }
 
