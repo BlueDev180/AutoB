@@ -60,6 +60,12 @@
 
   const REROLL_COST = 2;
   const BUY_COST = 2;
+  const SELL_REFUND = 2;
+
+  // Shop toggle
+  let showShop = true;
+  let shopOpacity = 1; // fades to 0.25 during placement
+  let shopBtnArea={x:0,y:0,w:0,h:0};
 
   // Base statlines
   const BASE = {
@@ -71,9 +77,11 @@
              crit:0.10, critMult:1.50, armor:6,   resist:12, dodge:0.05, lifesteal:0.00},
   };
 
-  // Apply star scaling (★=1.0, ★★=1.2, ★★★=1.5)
+  // Star scaling (beefed up)
+  function starMul(star){ return (star===1)?1.0 : (star===2)?1.40 : 1.80; }
+
   function scaledStats(base, star){
-    const mul = (star===1)?1 : (star===2)?1.20 : 1.50;
+    const mul = starMul(star);
     return {
       hp: Math.round(base.hp*mul),
       atk: Math.round(base.atk*mul),
@@ -81,7 +89,8 @@
       range: base.range,
       color: base.color,
       role: base.role,
-      crit: base.crit, critMult: base.critMult,
+      crit: base.crit + (star>=2 && base.role==='ranged'? 0.10:0), // Archer ★★ +10% crit
+      critMult: base.critMult,
       armor: Math.round(base.armor*mul),
       resist: Math.round(base.resist*mul),
       dodge: base.dodge,
@@ -95,6 +104,7 @@
   const roster=[], enemies=[];
   let shop=[], preview=null;
   const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0}; let rerollArea={x:0,y:0,w:0,h:0};
+  let sellArea={x:0,y:0,w:0,h:0};
   let hover = {x:-1,y:-1};
 
   function refillShop(){
@@ -108,22 +118,25 @@
       name, team, cell, star,
       alive:true, maxhp:s.hp, hp:s.hp, atk:s.atk, spd:s.spd, range:s.range, color:s.color, role:s.role,
       crit:s.crit, critMult:s.critMult, armor:s.armor, resist:s.resist, dodge:s.dodge, lifesteal:s.lifesteal,
-      cool: Math.random()/s.spd, stepCool: 0, lastPos: null
+      cool: Math.random()/s.spd, stepCool: 0, lastPos: null, shield:0, shieldT:0
     };
   }
 
-  // ===== Enemies =====
+  // ===== Enemies (slightly toned for floor 1) =====
   function spawnEnemies(){
     enemies.length=0;
     const count = (floorN===1)? 2 : 3;
     const cols=[4,3,4,3];
     for(let i=0;i<count;i++){
-      const hp = Math.floor(90 + floorN*8);
-      const atk = Math.floor(10 + floorN*3);
+      // Lower floor 1 a touch
+      const baseHP = (floorN===1)? 80 : 90 + floorN*8;
+      const baseATK = (floorN===1)? 10 : 10 + floorN*3;
+      const hp = Math.floor(baseHP);
+      const atk = Math.floor(baseATK);
       enemies.push({name:'Enemy', team:'enemy', cell:{x:cols[i%cols.length], y:i%3}, star:1,
         alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:C.e, role:'melee',
-        crit:0.05, critMult:1.5, armor:6+floorN, resist:4+Math.floor(floorN/2), dodge:0.03, lifesteal:0,
-        cool: Math.random(), stepCool: 0, lastPos: null});
+        crit:0.05, critMult:1.5, armor:5+floorN, resist:3+Math.floor(floorN/2), dodge:0.02, lifesteal:0,
+        cool: Math.random(), stepCool: 0, lastPos: null, shield:0, shieldT:0});
     }
     toast(`Enemies spawned: ${count}`);
   }
@@ -142,6 +155,16 @@
     text(s, x, y, 14, '#ffd45a');
   }
 
+  function drawShield(u){
+    if (!u.shield || u.shield<=0) return;
+    const c = cellCenter(u.cell.x, u.cell.y);
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = '#79e0ff';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(c.x, c.y, L.cell*0.35, 0, Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
   function drawUnit(u){
     if(!u.alive || !u.cell) return;
     const gx = L.originX + u.cell.x*L.cell, gy = L.originY + u.cell.y*L.cell;
@@ -150,9 +173,10 @@
     const w=L.cell-20, hpw=Math.max(0, Math.floor(w*u.hp/u.maxhp));
     fill(gx+10, gy+L.cell-28, w, 6, '#333');
     fill(gx+10, gy+L.cell-28, hpw, 6, C.hp);
+    drawShield(u);
   }
 
-  // ===== Targeting (frontline) =====
+  // ===== Targeting =====
   function frontlineTarget(attacker, targets) {
     if (!targets.length) return null;
     let front;
@@ -186,13 +210,12 @@
   }
   const key=(x,y)=>`${x},${y}`;
 
-  // ===== Pathing (BFS to any cross-adjacent tile; allows flanking) =====
+  // ===== Pathing (BFS to any cross-adjacent tile) =====
   function nextStepBFS(u, target, reservations){
     if (!target) return null;
     const start = {x:u.cell.x, y:u.cell.y};
     const tx = target.cell.x, ty = target.cell.y;
 
-    // Desired goal tiles: any cross-adjacent to target that are free (or our own start).
     const goals = [];
     const adj = [[1,0],[-1,0],[0,1],[0,-1]];
     for (const [dx,dy] of adj){
@@ -207,7 +230,6 @@
 
     function valid(nx,ny){
       if(nx<0||nx>=COLS||ny<0||ny>=ROWS) return false;
-      // (removed "don't step past target column" to allow flanks)
       if (occupiedAt(nx,ny) && !(nx===start.x && ny===start.y)) return false;
       if (reservations.has(key(nx,ny)) && !(nx===start.x && ny===start.y)) return false;
       if (u.lastPos && nx===u.lastPos.x && ny===u.lastPos.y) return false;
@@ -226,7 +248,7 @@
         const nx=cur.x+dx, ny=cur.y+dy, nk=key(nx,ny);
         if (came.has(nk)) continue;
         if (!valid(nx,ny)) continue;
-        came.set(nk, cur); dq.push({x:nx,y:ny});
+        came.set(nk, cur); dq.push({x:nx, y:ny});
       }
     }
     return null;
@@ -276,21 +298,49 @@
     }
   }
 
+  function applyShieldedDamage(target, dmg){
+    // consume shield first
+    if (target.shield && target.shield > 0){
+      const used = Math.min(target.shield, dmg);
+      target.shield -= used; dmg -= used;
+      if (target.shield<=0) target.shieldT=0;
+    }
+    return Math.max(0, dmg);
+  }
+
   function resolveHit(attacker, target, base, dmgType='physical'){
     if (!attacker || !target || !target.alive) return;
+
+    // Brawler ★★ passive: 20% DR while adjacent to any enemy
+    let attackerDR = 0;
+    if (attacker.name==='Brawler' && attacker.star>=2){
+      const anyAdjEnemy = enemiesAlive().some(e=>Math.abs(e.cell.x-attacker.cell.x)+Math.abs(e.cell.y-attacker.cell.y)===1);
+      if (anyAdjEnemy) attackerDR = 0.20;
+    }
+
     if (rnd(target.dodge || 0)){ pushDmgText(target.cell, 'MISS', COL.miss); return; }
     let dmg = base;
     const didCrit = rnd(attacker.crit || 0);
     if (didCrit) dmg *= (attacker.critMult || 1.5);
+
     if (dmgType === 'physical') dmg = physAfterArmor(dmg, target.armor||0);
     else                        dmg = magicAfterRes(dmg,  target.resist||0);
-    dmg = Math.max(1, Math.round(dmg));
+
+    // apply attacker DR as "reduced outgoing" for simple effect (equiv. to incoming on self-hits)
+    dmg = Math.round(dmg * (1 - attackerDR));
+    dmg = Math.max(1, dmg);
+
+    // shields first
+    dmg = applyShieldedDamage(target, dmg);
+
     target.hp -= dmg;
     const color = (dmgType==='physical') ? (didCrit?COL.physCrit:COL.phys) : (didCrit?COL.magicCrit:COL.magic);
     pushDmgText(target.cell, (didCrit? '★':'') + dmg, color);
     if (target.hp<=0) target.alive=false;
+
+    // lifesteal
     const ls = attacker.lifesteal || 0;
-    if (ls > 0 && attacker.alive){
+    if (ls > 0 && attacker.alive && dmg>0){
       const heal = Math.max(1, Math.round(dmg * ls));
       attacker.hp = Math.min(attacker.maxhp, attacker.hp + heal);
       healSparks.push({x:cellCenter(attacker.cell.x, attacker.cell.y).x, y:cellCenter(attacker.cell.x, attacker.cell.y).y, t:0, txt:`+${heal}`});
@@ -329,7 +379,16 @@
       if (dist <= HIT_RADIUS || overshoot){
         p.x = tc.x; p.y = tc.y;
         if (p.type==='dmg'){ resolveHit(p.shooterRef, t, p.amt, p.dmgType || 'physical'); hitSparks.push({x:tc.x, y:tc.y, t:0}); }
-        else if (p.type==='heal'){ const before=t.hp; t.hp=Math.min(t.maxhp, t.hp+p.amt); healSparks.push({x:tc.x, y:tc.y, t:0, txt:`+${t.hp-before}`}); }
+        else if (p.type==='heal'){
+          // Cleric ★★: small shield (5% maxhp) on heal
+          const before=t.hp; t.hp=Math.min(t.maxhp, t.hp+p.amt);
+          const healed = t.hp-before;
+          healSparks.push({x:tc.x, y:tc.y, t:0, txt:`+${healed}`});
+          if (p.shooterRef && p.shooterRef.name==='Cleric' && p.shooterRef.star>=2){
+            t.shield = Math.max(t.shield||0, Math.round(t.maxhp*0.05));
+            t.shieldT = 4.0; // seconds
+          }
+        }
         p.alive = false; continue;
       }
       p.x = nx; p.y = ny;
@@ -360,7 +419,7 @@
     }
   }
 
-  // sword slash from attacker toward target (originates from attacker)
+  // sword slash from attacker toward target
   const slashes = []; // {sx,sy,ang,t}
   function spawnSlashFrom(attCell, toCell){
     const a = cellCenter(attCell.x, attCell.y), b = cellCenter(toCell.x, toCell.y);
@@ -403,6 +462,8 @@
     }
     const newStar = star+1;
     const merged = mkUnit(name, 'player', keepCell, newStar);
+    // Archer ★★ slight atk bump (+10%)
+    if (merged.name==='Archer' && newStar>=2) merged.atk = Math.round(merged.atk*1.10);
     roster.push(merged);
     toast(`${name} merged to ${'★'.repeat(newStar)}!`);
     if (newStar<3) tryMerge(name, newStar);
@@ -410,6 +471,15 @@
   }
 
   // ===== Battle =====
+  function tickShields(dt, units){
+    for(const u of units){
+      if (u.shieldT>0){
+        u.shieldT -= dt;
+        if (u.shieldT<=0){ u.shield=0; u.shieldT=0; }
+      }
+    }
+  }
+
   function battleTick(dt){
     if (!playersAlive().length){ state='result'; result='lose'; return; }
     if (!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
@@ -498,6 +568,8 @@
     updateHealSparks(dt);
     updateSlashes(dt);
     updateDmgTexts(dt);
+    // shield timers
+    tickShields(dt, roster); tickShields(dt, enemies);
   }
 
   // ===== Render =====
@@ -507,9 +579,9 @@
       stroke(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, C.grid);
 
     if (state==='placing'){
-      text('Drag & release to place. Tap outside grid to cancel.', L.originX, Math.max(16, L.originY-6), 12, C.hint);
+      text('Drag & release to place, or drag onto SELL to sell.', L.originX, Math.max(16, L.originY-6), 12, C.hint);
     } else if (state==='shop'){
-      text('Tap a placed unit to move it. Reroll for new shop.', L.originX, Math.max(16, L.originY-6), 12, C.hint);
+      text('Tap a placed unit to move it. Toggle the Shop to buy.', L.originX, Math.max(16, L.originY-6), 12, C.hint);
     } else if (state==='result'){
       text('Tap anywhere to continue…', L.originX, Math.max(16, L.originY-6), 12, C.hint);
     }
@@ -525,47 +597,74 @@
     drawSlashes();
     drawDmgTexts();
 
-    // UI
+    // UI background
     const y0 = L.originY + L.gridH + 8;
     fill(0,y0,innerWidth,UI_H,C.ui);
 
-    // Shop cards — tighter, clipped text so it never spills
-    buyAreas.length=0;
-    const cardW = Math.min(180, innerWidth/3 - 12);
-    const cardH = 128;
-    for(let i=0;i<3;i++){
-      const x=8+i*(cardW+6), y=y0+8, w=cardW, h=cardH;
-      fill(x,y,w,h,'#3c3c3c');
-      ctx.save(); ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
-      const name = shop[i];
-      text(`${name} ★`, x+8, y+18, 16, '#fff');
-      const b = BASE[name];
-      ctx.font = '11px -apple-system,system-ui,sans-serif';
-      ctx.fillStyle = '#eaeaea';
-      ctx.fillText(`HP:${b.hp}  ATK:${b.atk}  RNG:${b.range}`, x+8, y+36);
-      ctx.fillStyle = '#cfd2d6';
-      ctx.fillText(`CRT:${Math.round(b.crit*100)}%  ARM:${b.armor}  RES:${b.resist}`, x+8, y+52);
-      ctx.fillText(`DGE:${Math.round(b.dodge*100)}%  SPD:${b.spd}`, x+8, y+68);
-      // price tag bar
-      fill(x+8, y+h-22, w-16, 18, '#2a2a2a');
-      text(`Buy ${BUY_COST}g`, x+14, y+h-8, 12, C.td);
-      ctx.restore();
-      buyAreas.push({x,y,w,h,i});
+    // Shop toggle button
+    shopBtnArea = { x: 8, y: y0+8, w: 120, h: 44 };
+    fill(shopBtnArea.x, shopBtnArea.y, shopBtnArea.w, shopBtnArea.h, '#2d2d2d');
+    text(showShop ? 'HIDE SHOP' : 'SHOW SHOP', shopBtnArea.x+10, shopBtnArea.y+28, 16, '#ffd45a');
+
+    // SELL tray (always visible in shop/placing)
+    sellArea = { x: innerWidth-160, y: y0+60, w:140, h:64 };
+    fill(sellArea.x, sellArea.y, sellArea.w, sellArea.h, '#3a2222');
+    text('SELL (2g)', sellArea.x+20, sellArea.y+38, 18, '#ff9a9a');
+
+    // Reroll button (only when shop visible)
+    if (showShop){
+      rerollArea = { x: innerWidth-320, y: y0+8, w:140, h:44 };
+      fill(rerollArea.x, rerollArea.y, rerollArea.w, rerollArea.h, '#2d2d2d');
+      text(`REROLL (${REROLL_COST}g)`, rerollArea.x+10, rerollArea.y+28, 16, '#ffd45a');
+    } else {
+      rerollArea = {x:0,y:0,w:0,h:0};
     }
-
-    // Gold/Floor
-    text(`Gold: ${gold}`, 8, y0+cardH+22, 16);
-    text(`Floor: ${floorN}`, 140, y0+cardH+22, 16);
-
-    // Reroll button
-    rerollArea = { x: innerWidth-320, y: y0+8, w:140, h:44 };
-    fill(rerollArea.x, rerollArea.y, rerollArea.w, rerollArea.h, '#2d2d2d');
-    text(`REROLL (${REROLL_COST}g)`, rerollArea.x+10, rerollArea.y+28, 16, '#ffd45a');
 
     // Start button
     startArea = { x: innerWidth-160, y: y0+8, w:140, h:44 };
     fill(startArea.x, startArea.y, startArea.w, startArea.h, C.start);
     text('START', startArea.x+34, startArea.y+28, 20);
+
+    // SHOP PANEL
+    if (showShop){
+      ctx.save();
+      ctx.globalAlpha = shopOpacity;
+      // shop cards
+      buyAreas.length=0;
+      const cardW = Math.min(200, innerWidth/3 - 12);
+      const cardH = 138;
+      for(let i=0;i<3;i++){
+        const x=8+i*(cardW+6), y=y0+60, w=cardW, h=cardH;
+        fill(x,y,w,h,'#3c3c3c');
+        ctx.save(); ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
+        const name = shop[i];
+        text(`${name} ★`, x+8, y+18, 16, '#fff');
+        const b = BASE[name];
+        // Full words, wrapped
+        ctx.fillStyle = '#eaeaea';
+        ctx.font = '12px -apple-system,system-ui,sans-serif';
+        const lines = [
+          `Health: ${b.hp}   Attack: ${b.atk}   Range: ${b.range}`,
+          `Crit Chance: ${Math.round(b.crit*100)}%   Crit Multiplier: ${b.critMult.toFixed(2)}x`,
+          `Armor: ${b.armor}   Magic Resist: ${b.resist}   Dodge: ${Math.round(b.dodge*100)}%`,
+          `Attack Speed: ${b.spd}`
+        ];
+        let ly = y+36;
+        for (const ln of lines){ ctx.fillText(ln, x+8, ly); ly += 16; }
+        // price bar
+        fill(x+8, y+h-22, w-16, 18, '#2a2a2a');
+        text(`Buy ${BUY_COST} gold`, x+14, y+h-8, 12, C.td);
+        ctx.restore();
+        buyAreas.push({x,y,w,h,i});
+      }
+      ctx.restore();
+    } else {
+      buyAreas.length=0;
+    }
+
+    // Gold/Floor
+    text(`Gold: ${gold}`, 8, y0+UI_H-10, 16);
+    text(`Floor: ${floorN}`, 140, y0+UI_H-10, 16);
 
     if(state==='result'){
       text((result==='win')?'Victory!':'Defeated.', innerWidth/2-50, innerHeight/2-10, 28);
@@ -575,7 +674,7 @@
     if(state==='battle') battleTick(dt);
   }
 
-  // ===== Input / Placement =====
+  // ===== Input / Placement & Selling =====
   const pointInRect=(x,y,r)=> x>=r.x && y>=r.y && y<=r.y+r.h && x<=r.x+r.w;
 
   function cellAtFloor(px,py){ return { x: Math.floor((px - L.originX)/L.cell), y: Math.floor((py - L.originY)/L.cell) }; }
@@ -589,7 +688,7 @@
         preview.cell = {...preview._fromCell};
         roster.push(preview);
         toast('Move cancelled');
-        preview = null; state='shop'; return false;
+        preview = null; state='shop'; shopOpacity=1; return false;
       }
       toast('Place in left two columns'); return false;
     }
@@ -598,7 +697,7 @@
     roster.push(preview);
     toast(`${preview._fromPickup ? 'Moved' : 'Placed'} ${preview.name} ${'★'.repeat(preview.star||1)} @ ${c},${r}`);
     tryMerge(preview.name, preview.star||1);
-    preview = null; state='shop'; return true;
+    preview = null; state='shop'; shopOpacity=1; return true;
   }
 
   function clientToCanvas(e){
@@ -624,7 +723,13 @@
     if (state==='placing' && preview){ e.preventDefault(); return; }
 
     if(state==='shop' && !preview){
-      // Pick up existing (reposition)
+      // toggle shop
+      if(pointInRect(p.x,p.y,shopBtnArea)){
+        showShop = !showShop;
+        e.preventDefault(); return;
+      }
+
+      // Pick up existing (reposition or sell)
       const ccF = cellAtFloor(p.x,p.y);
       if (inLeftCols(ccF.x, ccF.y)){
         const u = unitAtCell(ccF.x, ccF.y);
@@ -633,25 +738,33 @@
           if (idx>=0) roster.splice(idx,1);
           preview = u; preview._fromPickup = true; preview._fromCell = {x:ccF.x, y:ccF.y};
           state='placing'; toast(`Picked up ${u.name} ${'★'.repeat(u.star||1)}`);
+          // fade shop while placing (even if hidden — no visible effect)
+          shopOpacity = 0.25;
           e.preventDefault(); return;
         }
       }
-      // Buy
-      for(const r of buyAreas){
-        if(pointInRect(p.x,p.y,r) && gold>=BUY_COST){
-          gold -= BUY_COST;
-          preview = mkUnit(shop[r.i], 'player', null, 1);
-          preview._fromPickup = false; preview._fromCell = null;
-          state='placing'; toast(`Bought ${shop[r.i]} ★`);
-          e.preventDefault(); return;
-        }
-      }
-      // Reroll
-      if(pointInRect(p.x,p.y,rerollArea)){
+
+      // Reroll (only if visible)
+      if (showShop && pointInRect(p.x,p.y,rerollArea)){
         if (gold>=REROLL_COST){ gold -= REROLL_COST; refillShop(); toast('Shop rerolled'); }
         else toast('Not enough gold to reroll');
         e.preventDefault(); return;
       }
+
+      // Buy (only if visible)
+      if (showShop){
+        for(const r of buyAreas){
+          if(pointInRect(p.x,p.y,r) && gold>=BUY_COST){
+            gold -= BUY_COST;
+            preview = mkUnit(shop[r.i], 'player', null, 1);
+            preview._fromPickup = false; preview._fromCell = null;
+            state='placing'; toast(`Bought ${shop[r.i]} ★`);
+            shopOpacity = 0.25; // fade while placing
+            e.preventDefault(); return;
+          }
+        }
+      }
+
       // Start
       if(pointInRect(p.x,p.y,startArea) && roster.some(u=>u.alive && u.cell)){
         spawnEnemies(); state='battle'; e.preventDefault(); return;
@@ -661,6 +774,15 @@
   function onPointerMove(e){ const p = clientToCanvas(e); hover.x = p.x; hover.y = p.y; }
   function onPointerUp(e){
     const p = clientToCanvas(e); hover.x = p.x; hover.y = p.y;
+
+    // Selling while placing
+    if(state==='placing' && preview && pointInRect(p.x,p.y,sellArea)){
+      toast(`Sold ${preview.name} for ${SELL_REFUND}g`);
+      gold += SELL_REFUND;
+      preview = null; state='shop'; shopOpacity=1;
+      e.preventDefault(); return;
+    }
+
     if(state==='placing' && preview){
       let c = cellAtRound(hover.x, hover.y).x;
       let r = cellAtRound(hover.x, hover.y).y;
