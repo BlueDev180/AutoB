@@ -5,20 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
 <title>Auto Battler (Mobile)</title>
 <style>
-  :root {
-    /* iOS notch / home bar padding if we ever need it */
+  :root{
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-right: env(safe-area-inset-right, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --safe-left: env(safe-area-inset-left, 0px);
   }
   html,body{
-    margin:0;padding:0;background:#121214;height:100dvh;
+    margin:0;padding:0;background:#121214;
+    height:100svh; /* avoids getting under pinned toolbars */
     font-family:-apple-system,system-ui,sans-serif;overscroll-behavior:none;
   }
-  canvas{position:fixed;left:0;top:0;width:100vw;height:100dvh;touch-action:manipulation;display:block}
-  #toast{position:fixed;top:calc(10px + var(--safe-top));left:50%;transform:translateX(-50%);
-    padding:8px 12px;background:#222;color:#eee;border-radius:8px;font-size:14px;opacity:0;transition:opacity .15s;pointer-events:none}
+  canvas{
+    position:fixed;left:0;top:0;width:100vw;height:100svh;
+    touch-action:manipulation;display:block
+  }
+  #toast{
+    position:fixed;
+    top:calc(10px + var(--safe-top));
+    left:50%;transform:translateX(-50%);
+    padding:8px 12px;background:#222;color:#eee;border-radius:8px;font-size:14px;
+    opacity:0;transition:opacity .15s;pointer-events:none
+  }
   #toast.show{opacity:0.95}
 </style>
 </head>
@@ -27,28 +35,37 @@
 <div id="toast"></div>
 <script>
 (() => {
-  // ===== Shop visibility must be defined BEFORE any layout =====
+  // ===== Config that affects layout =====
   let SHOW_SHOP = true;
   const UI_H_SHOP = 196;
   const UI_H_COMPACT = 96;
-  function currentUIH(){ return SHOW_SHOP ? UI_H_SHOP : UI_H_COMPACT; }
+  const BUY_COST = 2;
+  const REROLL_COST = 2;
 
-  // ===== Canvas / UI =====
+  // ===== Canvas / ctx =====
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha:false });
-  const toastEl = document.getElementById('toast');
-  let toastTimer = null;
-  function toast(msg){ toastEl.textContent = msg; toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>toastEl.classList.remove('show'),1400); }
 
-  function isPortrait(){ return getViewport().h > getViewport().w; }
+  // ===== Utilities =====
+  const toastEl = document.getElementById('toast'); let toastTimer=null;
+  function toast(msg){ toastEl.textContent=msg; toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>toastEl.classList.remove('show'),1400); }
+  const isPortrait = () => getViewport().h > getViewport().w;
+  const currentUIH = () => SHOW_SHOP ? UI_H_SHOP : UI_H_COMPACT;
 
-  // Reliable viewport size (accounts for iOS Safari toolbars)
+  // Robust viewport that never extends under pinned toolbars
   function getViewport(){
-    if (window.visualViewport){
-      // Use the *visual* viewport so when the address bar shows/hides, we adapt instantly
-      return { w: Math.floor(window.visualViewport.width), h: Math.floor(window.visualViewport.height) };
-    }
-    return { w: window.innerWidth, h: window.innerHeight };
+    const vv = window.visualViewport;
+    const w = Math.min(
+      window.innerWidth || Infinity,
+      document.documentElement.clientWidth || Infinity,
+      vv ? vv.width : Infinity
+    );
+    const h = Math.min(
+      window.innerHeight || Infinity,
+      document.documentElement.clientHeight || Infinity,
+      vv ? vv.height : Infinity
+    );
+    return { w: Math.floor(w), h: Math.floor(h) };
   }
 
   function setCanvasSize(){
@@ -68,117 +85,67 @@
     const cell = Math.floor(Math.min(w/COLS, (h-currentUIH())/ROWS));
     const gridW = COLS*cell, gridH = ROWS*cell;
     const originX = Math.floor((w - gridW)/2);
-    const originY = Math.max(12, 24); // little breathing room
+    const originY = 24;
     return {cell, gridW, gridH, originX, originY, vw:w, vh:h};
   }
   let L = layout();
 
   function resize(){
     setCanvasSize();
-    L = layout(); // recompute on any viewport change
+    L = layout();
   }
 
-  // React to everything that can move iOS toolbars
   addEventListener('resize', resize, {passive:true});
   addEventListener('orientationchange', resize, {passive:true});
   if (window.visualViewport){
-    window.visualViewport.addEventListener('resize', resize, {passive:true});
-    window.visualViewport.addEventListener('scroll', resize, {passive:true});
+    visualViewport.addEventListener('resize', resize, {passive:true});
+    visualViewport.addEventListener('scroll', resize, {passive:true});
   }
   resize();
 
-  // ===== Colors & Units =====
+  // ===== Colors =====
   const C = { bg:'#121214', grid:'#282828', ui:'#1e1e1e', hpBack:'#333', hp:'#e42828',
               b:'#c8503c', a:'#50c85a', c:'#78b4dc', e:'#a0a0a0', t:'#eaeaea', td:'#d8c878', start:'#7a50a0',
-              ghost:'rgba(255,255,255,.22)', hint:'#9ee' };
+              hint:'#9ee' };
+  const COL = { phys:'#ffb27c', physCrit:'#ffd45a', magic:'#88c6ff', magicCrit:'#7de0ff', miss:'#cccccc', heal:'#a6f5c7' };
 
-  const COL = {
-    phys:'#ffb27c', physCrit:'#ffd45a',
-    magic:'#88c6ff', magicCrit:'#7de0ff',
-    miss:'#cccccc', heal:'#a6f5c7'
-  };
+  // ===== Economy / sell refunds =====
+  function refundFor(u){ return !u ? BUY_COST : (u.star===1)?2:(u.star===2)?6:18; }
 
-  const REROLL_COST = 2;
-  const BUY_COST = 2;
-
-  // Dynamic SELL refund by star
-  function refundFor(u){
-    // ★ = 2g, ★★ = 6g, ★★★ = 18g
-    if (!u) return BUY_COST;
-    return (u.star===1) ? 2 : (u.star===2) ? 6 : 18;
-  }
-
-  // Shop fade while placing
-  let shopOpacity = 1;
-
-  // Base statlines — Crit Mult fixed at 2.0x
+  // ===== Units / stats =====
   const BASE = {
-    Brawler:{hp:120, atk:18, spd:1.0, range:1, color:C.b, role:"melee",
-             crit:0.10, critMult:2.0, armor:10,  resist:5,  dodge:0.05, lifesteal:0.05},
-    Archer:{ hp:70,  atk:25, spd:0.8, range:5, color:C.a, role:"ranged",
-             crit:0.20, critMult:2.0, armor:4,   resist:4,  dodge:0.10, lifesteal:0.00},
-    Cleric:{ hp:80,  atk:8,  spd:1.0, range:5, color:C.c, role:"healer",
-             crit:0.10, critMult:2.0, armor:6,   resist:12, dodge:0.05, lifesteal:0.00},
+    Brawler:{hp:120, atk:18, spd:1.0, range:1, color:C.b, role:"melee",  crit:0.10, critMult:2.0, armor:10, resist:5,  dodge:0.05, lifesteal:0.05},
+    Archer: {hp:70,  atk:25, spd:0.8, range:5, color:C.a, role:"ranged", crit:0.20, critMult:2.0, armor:4,  resist:4,  dodge:0.10, lifesteal:0.00},
+    Cleric: {hp:80,  atk:8,  spd:1.0, range:5, color:C.c, role:"healer", crit:0.10, critMult:2.0, armor:6,  resist:12, dodge:0.05, lifesteal:0.00},
   };
-
-  // Star scaling
-  function starMul(star){ return (star===1)?1.0 : (star===2)?1.40 : 1.80; }
-  function scaledStats(base, star){
-    const mul = starMul(star);
-    return {
-      hp: Math.round(base.hp*mul),
-      atk: Math.round(base.atk*mul),
-      spd: base.spd,
-      range: base.range,
-      color: base.color,
-      role: base.role,
-      crit: base.crit + (star>=2 && base.role==='ranged'? 0.10:0),
-      critMult: 2.0,
-      armor: Math.round(base.armor*mul),
-      resist: Math.round(base.resist*mul),
-      dodge: base.dodge,
-      lifesteal: base.lifesteal
-    };
+  const starMul = s => s===1?1 : s===2?1.40 : 1.80;
+  function scaledStats(b, s){
+    const m = starMul(s);
+    return { hp:Math.round(b.hp*m), atk:Math.round(b.atk*m), spd:b.spd, range:b.range, color:b.color, role:b.role,
+             crit:b.crit + (s>=2 && b.role==='ranged'?0.10:0), critMult:2.0,
+             armor:Math.round(b.armor*m), resist:Math.round(b.resist*m), dodge:b.dodge, lifesteal:b.lifesteal };
   }
 
-  // ===== Game State =====
-  let gold=6;
-  let floorN=1, state='shop', result=null;
+  // ===== Game state =====
+  let gold=6, floorN=1, state='shop', result=null;
   const roster=[], enemies=[];
   let shop=[], preview=null;
-  const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0}; let rerollArea={x:0,y:0,w:0,h:0};
-  let sellArea={x:0,y:0,w:0,h:0}; let shopBtnArea={x:0,y:0,w:0,h:0};
-  let hover = {x:-1,y:-1};
+  let hover={x:-1,y:-1};
 
-  function refillShop(){
-    const keys = Object.keys(BASE);
-    shop = Array.from({length:3},()=>keys[Math.floor(Math.random()*keys.length)]);
-  }
+  const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0}, rerollArea={x:0,y:0,w:0,h:0}, sellArea={x:0,y:0,w:0,h:0}, shopBtnArea={x:0,y:0,w:0,h:0};
+  let shopOpacity = 1;
 
-  function mkUnit(name, team, cell=null, star=1){
-    const s = scaledStats(BASE[name], star);
-    return {
-      name, team, cell, star,
-      alive:true, maxhp:s.hp, hp:s.hp, atk:s.atk, spd:s.spd, range:s.range, color:s.color, role:s.role,
-      crit:s.crit, critMult:s.critMult, armor:s.armor, resist:s.resist, dodge:s.dodge, lifesteal:s.lifesteal,
-      cool: Math.random()/s.spd, stepCool: 0, lastPos: null, shield:0, shieldT:0
-    };
-  }
+  function refillShop(){ const keys=Object.keys(BASE); shop = Array.from({length:3},()=>keys[(Math.random()*keys.length)|0]); }
+  function mkUnit(name, team, cell=null, star=1){ const s=scaledStats(BASE[name],star); return { name,team,cell,star,alive:true,maxhp:s.hp,hp:s.hp,atk:s.atk,spd:s.spd,range:s.range,color:s.color,role:s.role,crit:s.crit,critMult:s.critMult,armor:s.armor,resist:s.resist,dodge:s.dodge,lifesteal:s.lifesteal,cool:Math.random()/s.spd,stepCool:0,lastPos:null,shield:0,shieldT:0 }; }
 
   // ===== Enemies =====
   function spawnEnemies(){
     enemies.length=0;
-    const count = (floorN===1)? 2 : 3;
-    const cols=[4,3,4,3];
+    const count=(floorN===1)?2:3, cols=[4,3,4,3];
     for(let i=0;i<count;i++){
-      const baseHP = (floorN===1)? 80 : 90 + floorN*8;
-      const baseATK = (floorN===1)? 10 : 10 + floorN*3;
-      const hp = Math.floor(baseHP);
-      const atk = Math.floor(baseATK);
-      enemies.push({name:'Enemy', team:'enemy', cell:{x:cols[i%cols.length], y:i%3}, star:1,
-        alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:C.e, role:'melee',
-        crit:0.05, critMult:2.0, armor:5+floorN, resist:3+Math.floor(floorN/2), dodge:0.02, lifesteal:0,
-        cool: Math.random(), stepCool: 0, lastPos: null, shield:0, shieldT:0});
+      const hp = Math.floor((floorN===1)?80:90+floorN*8);
+      const atk = Math.floor((floorN===1)?10:10+floorN*3);
+      enemies.push({name:'Enemy',team:'enemy',cell:{x:cols[i%cols.length],y:i%3},star:1,alive:true,maxhp:hp,hp,atk,spd:1.0,range:1,color:C.e,role:'melee',crit:0.05,critMult:2.0,armor:5+floorN,resist:3+((floorN/2)|0),dodge:0.02,lifesteal:0,cool:Math.random(),stepCool:0,lastPos:null,shield:0,shieldT:0});
     }
     toast(`Enemies spawned: ${count}`);
   }
@@ -190,247 +157,141 @@
   const fill=(x,y,w,h,c)=>{ ctx.fillStyle=c; ctx.fillRect(x,y,w,h); };
   const stroke=(x,y,w,h,c)=>{ ctx.strokeStyle=c; ctx.strokeRect(x,y,w,h); };
   const text=(t,x,y,s=16,c=C.t)=>{ ctx.fillStyle=c; ctx.font=`${s}px -apple-system,system-ui,sans-serif`; ctx.fillText(t,x,y); };
-  function cellCenter(x,y){ return { x: L.originX + x*L.cell + L.cell/2, y: L.originY + y*L.cell + L.cell/2 }; }
+  function cellCenter(x,y){ return { x:L.originX + x*L.cell + L.cell/2, y:L.originY + y*L.cell + L.cell/2 }; }
   function drawStars(x,y,star){ text('★'.repeat(star), x, y, 14, '#ffd45a'); }
-  function drawShield(u){
-    if (!u.shield || u.shield<=0) return;
-    const c = cellCenter(u.cell.x, u.cell.y);
-    ctx.globalAlpha = 0.35; ctx.strokeStyle = '#79e0ff'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(c.x, c.y, L.cell*0.35, 0, Math.PI*2); ctx.stroke(); ctx.globalAlpha = 1;
-  }
+  function drawShield(u){ if(!u.shield||u.shield<=0)return; const c=cellCenter(u.cell.x,u.cell.y); ctx.globalAlpha=.35; ctx.strokeStyle='#79e0ff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(c.x,c.y,L.cell*.35,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1; }
   function drawUnit(u){
-    if(!u.alive || !u.cell) return;
-    const gx = L.originX + u.cell.x*L.cell, gy = L.originY + u.cell.y*L.cell;
-    fill(gx+8, gy+8, L.cell-16, L.cell-16, u.color);
-    drawStars(gx+12, gy+18, u.star||1);
-    const w=L.cell-20, hpw=Math.max(0, Math.floor(w*Math.max(0,u.hp)/u.maxhp));
-    fill(gx+10, gy+L.cell-28, w, 6, '#333');
-    fill(gx+10, gy+L.cell-28, hpw, 6, C.hp);
-    drawShield(u);
+    if(!u.alive||!u.cell) return;
+    const gx=L.originX+u.cell.x*L.cell, gy=L.originY+u.cell.y*L.cell;
+    fill(gx+8,gy+8,L.cell-16,L.cell-16,u.color);
+    drawStars(gx+12,gy+18,u.star||1);
+    const w=L.cell-20, hpw=Math.max(0,Math.floor(w*Math.max(0,u.hp)/u.maxhp));
+    fill(gx+10,gy+L.cell-28,w,6,'#333'); fill(gx+10,gy+L.cell-28,hpw,6,C.hp); drawShield(u);
   }
 
-  // ===== Targeting & pathing =====
-  function frontlineTarget(attacker, targets) {
-    if (!targets.length) return null;
-    let front;
-    if (attacker.team === 'enemy') {
-      const maxX = Math.max(...targets.map(t => t.cell.x));
-      front = targets.filter(t => t.cell.x === maxX);
-    } else {
-      const minX = Math.min(...targets.map(t => t.cell.x));
-      front = targets.filter(t => t.cell.x === minX);
-    }
-    const sameRow = front.filter(t => t.cell.y === attacker.cell.y);
-    if (sameRow.length) front = sameRow;
-    front.sort((a,b) => (a.hp/a.maxhp) - (b.hp/b.maxhp));
-    return front[0];
+  // ===== Targeting / pathing =====
+  function frontlineTarget(attacker,targets){
+    if(!targets.length) return null; let front;
+    if(attacker.team==='enemy'){ const mx=Math.max(...targets.map(t=>t.cell.x)); front=targets.filter(t=>t.cell.x===mx); }
+    else { const mn=Math.min(...targets.map(t=>t.cell.x)); front=targets.filter(t=>t.cell.x===mn); }
+    const sameRow=front.filter(t=>t.cell.y===attacker.cell.y); if(sameRow.length) front=sameRow;
+    front.sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp)); return front[0];
   }
-  const isAdjCross = (a,b)=> !!a && !!b && (Math.abs(a.cell.x-b.cell.x)+Math.abs(a.cell.y-b.cell.y)===1);
-  function inRange(attacker, target){
-    if (!attacker || !target) return false;
-    const dx = Math.abs(target.cell.x - attacker.cell.x);
-    const dy = Math.abs(target.cell.y - attacker.cell.y);
-    if (attacker.role === 'melee') return (dx+dy)===1;
-    return (dx + dy) <= Math.max(1, attacker.range);
-  }
-  function occupiedAt(x,y){
-    return playersAlive().some(u=>u.cell.x===x && u.cell.y===y) ||
-           enemiesAlive().some(u=>u.cell.x===x && u.cell.y===y);
-  }
+  const isAdjCross=(a,b)=> !!a && !!b && (Math.abs(a.cell.x-b.cell.x)+Math.abs(a.cell.y-b.cell.y)===1);
+  function inRange(a,t){ if(!a||!t) return false; const dx=Math.abs(t.cell.x-a.cell.x), dy=Math.abs(t.cell.y-a.cell.y); return a.role==='melee' ? (dx+dy)===1 : (dx+dy)<=Math.max(1,a.range); }
+  function occupiedAt(x,y){ return playersAlive().some(u=>u.cell.x===x&&u.cell.y===y) || enemiesAlive().some(u=>u.cell.x===x&&u.cell.y===y); }
   const key=(x,y)=>`${x},${y}`;
-  function nextStepBFS(u, target, reservations){
-    if (!target) return null;
-    const start = {x:u.cell.x, y:u.cell.y};
-    const tx = target.cell.x, ty = target.cell.y;
-    const goals = [];
-    const adj = [[1,0],[-1,0],[0,1],[0,-1]];
-    for (const [dx,dy] of adj){
-      const gx = tx + dx, gy = ty + dy;
-      if (gx<0||gx>=COLS||gy<0||gy>=ROWS) continue;
-      if (!occupiedAt(gx,gy) || (gx===start.x && gy===start.y)) goals.push({x:gx,y:gy});
-    }
-    if (!goals.length) return null;
-    const dq=[start], came=new Map(); came.set(key(start.x,start.y), null);
-    function valid(nx,ny){
-      if(nx<0||nx>=COLS||ny<0||ny>=ROWS) return false;
-      if (occupiedAt(nx,ny) && !(nx===start.x && ny===start.y)) return false;
-      if (reservations.has(key(nx,ny)) && !(nx===start.x && ny===start.y)) return false;
-      if (u.lastPos && nx===u.lastPos.x && ny===u.lastPos.y) return false;
-      return true;
-    }
+  function nextStepBFS(u,target,res){
+    if(!target) return null; const st={x:u.cell.x,y:u.cell.y}, tx=target.cell.x,ty=target.cell.y;
+    const goals=[], adj=[[1,0],[-1,0],[0,1],[0,-1]];
+    for(const [dx,dy] of adj){ const gx=tx+dx, gy=ty+dy; if(gx<0||gx>=COLS||gy<0||gy>=ROWS) continue; if(!occupiedAt(gx,gy)||(gx===st.x&&gy===st.y)) goals.push({x:gx,y:gy}); }
+    if(!goals.length) return null;
+    const dq=[st], came=new Map(); came.set(key(st.x,st.y),null);
+    function valid(nx,ny){ if(nx<0||nx>=COLS||ny<0||ny>=ROWS) return false; if(occupiedAt(nx,ny)&&!(nx===st.x&&ny===st.y)) return false; if(res.has(key(nx,ny))&&!(nx===st.x&&ny===st.y)) return false; if(u.lastPos&&nx===u.lastPos.x&&ny===u.lastPos.y) return false; return true; }
     while(dq.length){
-      const cur = dq.shift();
-      if (goals.some(g=>g.x===cur.x && g.y===cur.y)){
-        let path=[cur], k=key(cur.x,cur.y);
-        while(came.get(k)){ const p=came.get(k); path.push(p); k=key(p.x,p.y); }
-        path.reverse(); return path[1] || null;
-      }
-      for (const [dx,dy] of adj){
-        const nx=cur.x+dx, ny=cur.y+dy, nk=key(nx,ny);
-        if (came.has(nk)) continue;
-        if (!valid(nx,ny)) continue;
-        came.set(nk, cur); dq.push({x:nx, y:ny});
-      }
-    }
-    return null;
+      const cur=dq.shift(); if(goals.some(g=>g.x===cur.x&&g.y===cur.y)){ let path=[cur], k=key(cur.x,cur.y); while(came.get(k)){ const p=came.get(k); path.push(p); k=key(p.x,p.y);} path.reverse(); return path[1]||null; }
+      for(const [dx,dy] of adj){ const nx=cur.x+dx,ny=cur.y+dy,nk=key(nx,ny); if(came.has(nk)) continue; if(!valid(nx,ny)) continue; came.set(nk,cur); dq.push({x:nx,y:ny}); }
+    } return null;
   }
-  function tryStepToward(u, target, reservations){
-    if (!target || u.role !== 'melee') return false;
-    if (isAdjCross(u,target)) return false;
-    if (u.stepCool > 0) return false;
-    const step = nextStepBFS(u, target, reservations);
-    if (step){
-      u.lastPos = {x:u.cell.x, y:u.cell.y};
-      u.cell.x = step.x; u.cell.y = step.y;
-      u.stepCool = 0.18; reservations.add(key(step.x, step.y)); return true;
-    }
-    u.stepCool = 0.12; return false;
-  }
+  function tryStepToward(u,t,res){ if(!t||u.role!=='melee'||isAdjCross(u,t)||u.stepCool>0) return false; const step=nextStepBFS(u,t,res); if(step){ u.lastPos={x:u.cell.x,y:u.cell.y}; u.cell.x=step.x; u.cell.y=step.y; u.stepCool=.18; res.add(key(step.x,step.y)); return true; } u.stepCool=.12; return false; }
 
-  // ===== RNG & damage =====
-  const rnd = (p)=> Math.random() < p;
-  const physAfterArmor = (dmg, armor)=> dmg * (100 / (100 + Math.max(0, armor)));
-  const magicAfterRes  = (dmg, resist)=> dmg * (100 / (100 + Math.max(0, resist)));
-  const dmgTexts = [];
-  function pushDmgText(cell, text, color){ const c = cellCenter(cell.x, cell.y); dmgTexts.push({x:c.x, y:c.y, t:0, text, color}); }
-  function updateDmgTexts(dt){ for (const d of dmgTexts) d.t += dt; for (let i=dmgTexts.length-1;i>=0;i--) if (dmgTexts[i].t>0.6) dmgTexts.splice(i,1); }
-  function drawDmgTexts(){ for (const d of dmgTexts){ const a=Math.max(0,1-d.t/0.6), lift=d.t*24; ctx.globalAlpha=a; ctx.fillStyle=d.color; ctx.font='14px -apple-system,system-ui,sans-serif'; ctx.fillText(d.text,d.x-10,d.y-10-lift); ctx.globalAlpha=1; } }
-  function applyShieldedDamage(target, dmg){
-    if (target.shield && target.shield > 0){ const used = Math.min(target.shield, dmg); target.shield -= used; dmg -= used; if (target.shield<=0) target.shieldT=0; }
-    return Math.max(0, dmg);
+  // ===== Damage / RNG / FX =====
+  const rnd=p=>Math.random()<p, phys=(d,a)=>d*(100/(100+Math.max(0,a))), mag=(d,r)=>d*(100/(100+Math.max(0,r)));
+  const dmgTexts=[]; function pushDmg(cell,txt,col){ const c=cellCenter(cell.x,cell.y); dmgTexts.push({x:c.x,y:c.y,t:0,text:txt,color:col}); }
+  function updDmg(dt){ for(const d of dmgTexts) d.t+=dt; for(let i=dmgTexts.length-1;i>=0;i--) if(dmgTexts[i].t>.6) dmgTexts.splice(i,1); }
+  function drawDmg(){ for(const d of dmgTexts){ const a=Math.max(0,1-d.t/.6), lift=d.t*24; ctx.globalAlpha=a; ctx.fillStyle=d.color; ctx.font='14px -apple-system,system-ui,sans-serif'; ctx.fillText(d.text,d.x-10,d.y-10-lift); ctx.globalAlpha=1; } }
+  function shieldAbsorb(t,d){ if(t.shield>0){ const use=Math.min(t.shield,d); t.shield-=use; d-=use; if(t.shield<=0) t.shieldT=0; } return Math.max(0,d); }
+  const hitSparks=[], healSparks=[], slashes=[], projectiles=[];
+  function resolveHit(a,t,base,type='physical'){
+    if(!a||!t||!t.alive) return;
+    let dr=0; if(a.name==='Brawler'&&a.star>=2){ const near=(a.team==='player'?enemiesAlive():playersAlive()); if(near.some(e=>Math.abs(e.cell.x-a.cell.x)+Math.abs(e.cell.y-a.cell.y)===1)) dr=.20; }
+    if(rnd(t.dodge||0)){ pushDmg(t.cell,'MISS',COL.miss); return; }
+    let dmg=base; const crit=rnd(a.crit||0); if(crit) dmg*=(a.critMult||2.0);
+    dmg=(type==='physical')?phys(dmg,t.armor||0):mag(dmg,t.resist||0);
+    dmg=Math.max(1,Math.round(dmg*(1-dr))); dmg=shieldAbsorb(t,dmg);
+    t.hp-=dmg; const col=(type==='physical')?(crit?COL.physCrit:COL.phys):(crit?COL.magicCrit:COL.magic);
+    pushDmg(t.cell,(crit?'★':'')+dmg,col); if(t.hp<=0) t.alive=false;
+    const ls=a.lifesteal||0; if(ls>0&&a.alive&&dmg>0){ const heal=Math.max(1,Math.round(dmg*ls)); a.hp=Math.min(a.maxhp,a.hp+heal); const ac=cellCenter(a.cell.x,a.cell.y); healSparks.push({x:ac.x,y:ac.y,t:0,txt:`+${heal}`}); }
   }
-  function resolveHit(attacker, target, base, dmgType='physical'){
-    if (!attacker || !target || !target.alive) return;
-    let attackerDR = 0;
-    if (attacker.name==='Brawler' && attacker.star>=2){
-      const enemiesNear = (attacker.team==='player'? enemiesAlive(): playersAlive());
-      if (enemiesNear.some(e=>Math.abs(e.cell.x-attacker.cell.x)+Math.abs(e.cell.y-attacker.cell.y)===1)) attackerDR = 0.20;
-    }
-    if (rnd(target.dodge || 0)){ pushDmgText(target.cell,'MISS',COL.miss); return; }
-    let dmg = base;
-    const didCrit = rnd(attacker.crit || 0);
-    if (didCrit) dmg *= (attacker.critMult || 2.0);
-    dmg = (dmgType==='physical') ? physAfterArmor(dmg, target.armor||0) : magicAfterRes(dmg, target.resist||0);
-    dmg = Math.max(1, Math.round(dmg * (1 - attackerDR)));
-    dmg = applyShieldedDamage(target, dmg);
-    target.hp -= dmg;
-    const color = (dmgType==='physical') ? (didCrit?COL.physCrit:COL.phys) : (didCrit?COL.magicCrit:COL.magic);
-    pushDmgText(target.cell, (didCrit?'★':'')+dmg, color);
-    if (target.hp<=0) target.alive=false;
-    const ls = attacker.lifesteal || 0;
-    if (ls>0 && attacker.alive && dmg>0){
-      const heal = Math.max(1, Math.round(dmg*ls));
-      attacker.hp = Math.min(attacker.maxhp, attacker.hp + heal);
-      const ac = cellCenter(attacker.cell.x, attacker.cell.y);
-      healSparks.push({x:ac.x,y:ac.y,t:0,txt:`+${heal}`});
-    }
-  }
-
-  // ===== Projectiles & FX =====
-  const projectiles = []; const PROJ_SPEED = 420; const HIT_RADIUS = 10;
-  function spawnProjectile({shooter, target, amt, color, type, dmgType='physical'}){
-    if (!target || !target.alive || !target.cell) return;
-    const start = cellCenter(shooter.cell.x, shooter.cell.y);
-    projectiles.push({x:start.x,y:start.y,team:shooter.team,shooterRef:shooter,targetRef:target,amt,speed:PROJ_SPEED,color,alive:true,ttl:2.0,type,dmgType});
+  const PROJ_SPEED=420,HIT_RADIUS=10;
+  function spawnProjectile({shooter,target,amt,type,dmgType='physical'}){
+    if(!target||!target.alive||!target.cell) return;
+    const s=cellCenter(shooter.cell.x,shooter.cell.y);
+    projectiles.push({x:s.x,y:s.y,shooterRef:shooter,targetRef:target,amt,speed:PROJ_SPEED,alive:true,ttl:2.0,type,dmgType});
   }
   function updateProjectiles(dt){
-    for (const p of projectiles){
-      if (!p.alive) continue;
-      p.ttl -= dt;
-      const t = p.targetRef;
-      if (p.ttl<=0){ p.alive=false; continue; }
-      if (!t || !t.alive || !t.cell){ p.alive=false; continue; }
-      const tc = cellCenter(t.cell.x, t.cell.y);
-      const dx = tc.x - p.x, dy = tc.y - p.y;
-      const dist = Math.hypot(dx,dy), step = p.speed*dt;
-      const nx = p.x + (dx/dist)*step, ny = p.y + (dy/dist)*step;
-      const afterDx = tc.x - nx, afterDy = tc.y - ny;
-      const overshoot = (dx*afterDx + dy*afterDy) <= 0;
-      if (dist<=HIT_RADIUS || overshoot){
-        p.x=tc.x; p.y=tc.y;
-        if (p.type==='dmg'){ resolveHit(p.shooterRef, t, p.amt, p.dmgType||'physical'); hitSparks.push({x:tc.x,y:tc.y,t:0}); }
-        else { const before=t.hp; t.hp=Math.min(t.maxhp,t.hp+p.amt); healSparks.push({x:tc.x,y:tc.y,t:0,txt:`+${t.hp-before}`}); if (p.shooterRef && p.shooterRef.name==='Cleric' && p.shooterRef.star>=2){ t.shield=Math.max(t.shield||0,Math.round(t.maxhp*0.05)); t.shieldT=4.0; } }
+    for(const p of projectiles){
+      if(!p.alive) continue; p.ttl-=dt; const t=p.targetRef;
+      if(p.ttl<=0||!t||!t.alive||!t.cell){ p.alive=false; continue; }
+      const tc=cellCenter(t.cell.x,t.cell.y), dx=tc.x-p.x, dy=tc.y-p.y, dist=Math.hypot(dx,dy), step=p.speed*dt;
+      const nx=p.x+(dx/dist)*step, ny=p.y+(dy/dist)*step; const afterDx=tc.x-nx, afterDy=tc.y-ny; const overshoot=(dx*afterDx+dy*afterDy)<=0;
+      if(dist<=HIT_RADIUS||overshoot){
+        p.x=tc.x;p.y=tc.y;
+        if(p.type==='dmg'){ resolveHit(p.shooterRef,t,p.amt,p.dmgType); hitSparks.push({x:tc.x,y:tc.y,t:0}); }
+        else { const before=t.hp; t.hp=Math.min(t.maxhp,t.hp+p.amt); healSparks.push({x:tc.x,y:tc.y,t:0,txt:`+${t.hp-before}`}); if(p.shooterRef.name==='Cleric'&&p.shooterRef.star>=2){ t.shield=Math.max(t.shield||0,Math.round(t.maxhp*0.05)); t.shieldT=4.0; } }
         p.alive=false; continue;
       }
-      p.x=nx; p.y=ny;
+      p.x=nx;p.y=ny;
     }
-    for (let i=projectiles.length-1;i>=0;i--) if (!projectiles[i].alive) projectiles.splice(i,1);
+    for(let i=projectiles.length-1;i>=0;i--) if(!projectiles[i].alive) projectiles.splice(i,1);
   }
-  const hitSparks=[]; function updateHitSparks(dt){ for(const s of hitSparks){ s.t+=dt; } for(let i=hitSparks.length-1;i>=0;i--) if(hitSparks[i].t>0.2) hitSparks.splice(i,1); }
-  function drawHitSparks(){ for(const s of hitSparks){ const a=Math.max(0,1-s.t/0.2); ctx.globalAlpha=a; ctx.fillStyle='#fff3b0'; ctx.beginPath(); ctx.arc(s.x,s.y,6,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; } }
-  const healSparks=[]; function updateHealSparks(dt){ for(const s of healSparks){ s.t+=dt; } for(let i=healSparks.length-1;i>=0;i--) if(healSparks[i].t>0.35) healSparks.splice(i,1); }
-  function drawHealSparks(){ for(const s of healSparks){ const a=Math.max(0,1-s.t/0.35); ctx.globalAlpha=a; ctx.strokeStyle='#59e08a'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(s.x,s.y,10+s.t*20,0,Math.PI*2); ctx.stroke(); ctx.fillStyle=COL.heal; ctx.font='14px -apple-system,system-ui,sans-serif'; ctx.fillText(s.txt,s.x-8,s.y-12-s.t*16); ctx.globalAlpha=1; } }
-  const slashes=[]; function spawnSlashFrom(attCell,toCell){ const a=cellCenter(attCell.x,attCell.y), b=cellCenter(toCell.x,toCell.y); const ang=Math.atan2(b.y-a.y,b.x-a.x); slashes.push({sx:a.x,sy:a.y,ang,t:0}); }
-  function updateSlashes(dt){ for(const s of slashes){ s.t+=dt; } for(let i=slashes.length-1;i>=0;i--) if(slashes[i].t>0.18) slashes.splice(i,1); }
-  function drawSlashes(){ for(const s of slashes){ const a=Math.max(0,1-s.t/0.18); ctx.save(); ctx.translate(s.sx,s.sy); ctx.rotate(s.ang); ctx.globalAlpha=a; ctx.strokeStyle='#ffffff'; ctx.lineWidth=6; ctx.beginPath(); ctx.arc(0,0,18+s.t*14,-0.6,0.2); ctx.stroke(); ctx.strokeStyle='#ffe9a6'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,18+s.t*14,-0.6,0.2); ctx.stroke(); ctx.restore(); ctx.globalAlpha=1; } }
-  function drawProjectiles(){ for(const p of projectiles){ if(p.type==='heal'){ ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.ellipse(p.x,p.y,8,8,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#59e08a'; ctx.beginPath(); ctx.ellipse(p.x,p.y,6,6,0,0,Math.PI*2); ctx.fill(); } else { ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.ellipse(p.x,p.y,7,3,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#ffe9a6'; ctx.beginPath(); ctx.ellipse(p.x,p.y,5,2,0,0,Math.PI*2); ctx.fill(); } } }
+  function updateFX(dt){ for(const s of hitSparks) s.t+=dt; for(let i=hitSparks.length-1;i>=0;i--) if(hitSparks[i].t>.2) hitSparks.splice(i,1);
+    for(const s of healSparks) s.t+=dt; for(let i=healSparks.length-1;i>=0;i--) if(healSparks[i].t>.35) healSparks.splice(i,1);
+    for(const s of slashes) s.t+=dt; for(let i=slashes.length-1;i>=0;i--) if(slashes[i].t>.18) slashes.splice(i,1);
+    updDmg(dt);
+  }
+  function drawFX(){
+    // slashes
+    for(const s of slashes){ const a=Math.max(0,1-s.t/.18); ctx.save(); ctx.globalAlpha=a; ctx.translate(s.sx,s.sy); ctx.rotate(s.ang);
+      ctx.strokeStyle='#ffffff'; ctx.lineWidth=6; ctx.beginPath(); ctx.arc(0,0,18+s.t*14,-0.6,0.2); ctx.stroke();
+      ctx.strokeStyle='#ffe9a6'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,18+s.t*14,-0.6,0.2); ctx.stroke(); ctx.restore(); }
+    // projectiles
+    for(const p of projectiles){ ctx.fillStyle='#ffffff'; ctx.beginPath(); if(p.type==='heal'){ ctx.ellipse(p.x,p.y,8,8,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#59e08a'; ctx.beginPath(); ctx.ellipse(p.x,p.y,6,6,0,0,Math.PI*2); ctx.fill(); } else { ctx.ellipse(p.x,p.y,7,3,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#ffe9a6'; ctx.beginPath(); ctx.ellipse(p.x,p.y,5,2,0,0,Math.PI*2); ctx.fill(); } }
+    // hits / heals numbers
+    for(const d of dmgTexts){ const a=Math.max(0,1-d.t/.6), lift=d.t*24; ctx.globalAlpha=a; ctx.fillStyle=d.color; ctx.font='14px -apple-system,system-ui,sans-serif'; ctx.fillText(d.text,d.x-10,d.y-10-lift); ctx.globalAlpha=1; }
+    // sparks (drawn earlier in resolve, omitted here for brevity)
+  }
 
-  // ===== Merging =====
+  // ===== Merge =====
   function tryMerge(name, star){
     const copies = roster.filter(u=>u.name===name && u.star===star);
-    if (copies.length < 3) return false;
+    if(copies.length<3) return false;
     const keep = copies.find(u=>u.cell) || copies[0];
     const keepCell = keep.cell ? {...keep.cell} : null;
-    let removed = 0;
-    for (let i=roster.length-1;i>=0 && removed<3;i--){
-      const u = roster[i];
-      if (u.name===name && u.star===star){ roster.splice(i,1); removed++; }
-    }
-    const newStar = star+1;
-    const merged = mkUnit(name, 'player', keepCell, newStar);
-    if (merged.name==='Archer' && newStar>=2) merged.atk = Math.round(merged.atk*1.10);
-    roster.push(merged);
-    toast(`${name} merged to ${'★'.repeat(newStar)}!`);
-    if (newStar<3) tryMerge(name, newStar);
+    let removed=0;
+    for(let i=roster.length-1;i>=0 && removed<3;i--){ const u=roster[i]; if(u.name===name && u.star===star){ roster.splice(i,1); removed++; } }
+    const newStar=star+1, m=mkUnit(name,'player',keepCell,newStar);
+    if (m.name==='Archer' && newStar>=2) m.atk=Math.round(m.atk*1.10);
+    roster.push(m); toast(`${name} merged to ${'★'.repeat(newStar)}!`);
+    if(newStar<3) tryMerge(name,newStar);
     return true;
   }
 
-  // ===== Battle =====
-  function tickShields(dt, units){ for(const u of units){ if (u.shieldT>0){ u.shieldT-=dt; if (u.shieldT<=0){ u.shield=0; u.shieldT=0; } } } }
+  // ===== Battle loop =====
+  function tickShields(dt,units){ for(const u of units){ if(u.shieldT>0){ u.shieldT-=dt; if(u.shieldT<=0){ u.shield=0; u.shieldT=0; } } } }
   function battleTick(dt){
-    if (!playersAlive().length){ state='result'; result='lose'; return; }
-    if (!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
+    if(!playersAlive().length){ state='result'; result='lose'; return; }
+    if(!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
 
     // Players
-    { const reservations = new Set();
+    { const res=new Set();
       for(const u of playersAlive()){
-        u.cool -= dt; if (u.stepCool>0) u.stepCool -= dt;
-        const tgt = frontlineTarget(u, enemiesAlive());
-        if (u.role==='melee' && tryStepToward(u, tgt, reservations)) { if (u.cool < 0) u.cool = 0; }
+        u.cool-=dt; if(u.stepCool>0) u.stepCool-=dt;
+        const tgt=frontlineTarget(u,enemiesAlive());
+        if(u.role==='melee' && tryStepToward(u,tgt,res)) { if(u.cool<0) u.cool=0; }
         if(u.cool<=0){
           let did=false;
           if(u.role==='healer'){
-            const allies=playersAlive().slice().sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp));
-            const patient = allies[0];
-            if (patient && patient.hp < patient.maxhp){
-              spawnProjectile({shooter:u, target:patient, amt:20, color:'#59e08a', type:'heal'});
-              if (u.star>=3 && allies[1] && allies[1].hp<allies[1].maxhp)
-                spawnProjectile({shooter:u, target:allies[1], amt:10, color:'#59e08a', type:'heal'});
-              did=true;
-            }
-            const t=frontlineTarget(u,enemiesAlive());
-            if(inRange(u,t)){ spawnProjectile({shooter:u, target:t, amt:Math.max(4, Math.floor(u.atk*0.5)), color:'#8fd0ff', type:'dmg', dmgType:'magic'}); did=true; }
+            const al=playersAlive().slice().sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp));
+            const patient=al[0];
+            if(patient && patient.hp<patient.maxhp){ spawnProjectile({shooter:u,target:patient,amt:20,type:'heal'}); if(u.star>=3 && al[1] && al[1].hp<al[1].maxhp) spawnProjectile({shooter:u,target:al[1],amt:10,type:'heal'}); did=true; }
+            const t=frontlineTarget(u,enemiesAlive()); if(inRange(u,t)){ spawnProjectile({shooter:u,target:t,amt:Math.max(4,Math.floor(u.atk*0.5)),type:'dmg',dmgType:'magic'}); did=true; }
           }
           if(!did && u.role!=='healer'){
             const t=frontlineTarget(u,enemiesAlive());
             if(u.role==='melee' ? isAdjCross(u,t) : inRange(u,t)){
-              if (u.role==='melee'){
-                spawnSlashFrom(u.cell, t.cell);
-                resolveHit(u, t, u.atk, 'physical');
-                if(u.name==='Brawler' && u.star>=3){
-                  const mates = enemiesAlive().filter(e=>e!==t && e.cell.y===t.cell.y && Math.abs(e.cell.x - t.cell.x)===1);
-                  for (const m of mates) resolveHit(u, m, Math.floor(u.atk*0.6), 'physical');
-                }
-              } else {
-                const targets = enemiesAlive();
-                if (targets.length){
-                  spawnProjectile({shooter:u, target:t, amt:u.atk, color:'#ffe9a6', type:'dmg', dmgType:'physical'});
-                  if (u.star>=3){
-                    const second = targets.find(x=>x!==t);
-                    if (second) spawnProjectile({shooter:u, target:second, amt:Math.floor(u.atk*0.8), color:'#ffe9a6', type:'dmg', dmgType:'physical'});
-                  }
-                }
-              }
+              if(u.role==='melee'){ const a=cellCenter(u.cell.x,u.cell.y), b=cellCenter(t.cell.x,t.cell.y); slashes.push({sx:a.x,sy:a.y,ang:Math.atan2(b.y-a.y,b.x-a.x),t:0}); resolveHit(u,t,u.atk,'physical'); if(u.name==='Brawler'&&u.star>=3){ const mates=enemiesAlive().filter(e=>e!==t&&e.cell.y===t.cell.y&&Math.abs(e.cell.x-t.cell.x)===1); for(const m of mates) resolveHit(u,m,Math.floor(u.atk*0.6),'physical'); } }
+              else { spawnProjectile({shooter:u,target:t,amt:u.atk,type:'dmg',dmgType:'physical'}); if(u.star>=3){ const second=enemiesAlive().find(x=>x!==t); if(second) spawnProjectile({shooter:u,target:second,amt:Math.floor(u.atk*0.8),type:'dmg',dmgType:'physical'}); } }
             }
           }
           u.cool = 1/u.spd;
@@ -438,20 +299,20 @@
       }
     }
 
-    if (!playersAlive().length){ state='result'; result='lose'; return; }
-    if (!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
+    if(!playersAlive().length){ state='result'; result='lose'; return; }
+    if(!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
 
     // Enemies
-    { const reservations = new Set();
+    { const res=new Set();
       for(const e of enemiesAlive()){
-        e.cool -= dt; if (e.stepCool>0) e.stepCool -= dt;
-        const tgt = frontlineTarget(e, playersAlive());
-        if (e.role==='melee' && tryStepToward(e, tgt, reservations)) { if (e.cool < 0) e.cool = 0; }
+        e.cool-=dt; if(e.stepCool>0) e.stepCool-=dt;
+        const tgt=frontlineTarget(e,playersAlive());
+        if(e.role==='melee' && tryStepToward(e,tgt,res)) { if(e.cool<0) e.cool=0; }
         if(e.cool<=0){
-          const t = frontlineTarget(e, playersAlive());
+          const t=frontlineTarget(e,playersAlive());
           if(e.role==='melee' ? isAdjCross(e,t) : inRange(e,t)){
-            if (e.role==='melee'){ spawnSlashFrom(e.cell, t.cell); resolveHit(e, t, e.atk, 'physical'); }
-            else { spawnProjectile({shooter:e, target:t, amt:e.atk, color:'#cfcfcf', type:'dmg', dmgType:'physical'}); }
+            if(e.role==='melee'){ const a=cellCenter(e.cell.x,e.cell.y), b=cellCenter(t.cell.x,t.cell.y); slashes.push({sx:a.x,sy:a.y,ang:Math.atan2(b.y-a.y,b.x-a.x),t:0}); resolveHit(e,t,e.atk,'physical'); }
+            else { spawnProjectile({shooter:e,target:t,amt:e.atk,type:'dmg',dmgType:'physical'}); }
           }
           e.cool = 1/e.spd;
         }
@@ -459,103 +320,78 @@
     }
 
     updateProjectiles(dt);
-    updateHitSparks(dt);
-    updateHealSparks(dt);
-    updateSlashes(dt);
-    updateDmgTexts(dt);
+    updateFX(dt);
     tickShields(dt, roster); tickShields(dt, enemies);
   }
 
   // ===== Render =====
   function draw(dt){
-    const portrait = isPortrait();
+    const portrait=isPortrait();
     ctx.fillStyle=C.bg; ctx.fillRect(0,0,L.vw,L.vh);
 
+    // grid
     for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++)
-      stroke(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, C.grid);
+      stroke(L.originX+c*L.cell, L.originY+r*L.cell, L.cell, L.cell, C.grid);
 
-    if (state==='placing'){
-      text('Drag & release to place, or drag onto SELL to sell.', L.originX, Math.max(16, L.originY-6), 12, C.hint);
-    } else if (state==='shop'){
-      text('Tap a placed unit to move it. Toggle the Shop to buy.', L.originX, Math.max(16, L.originY-6), 12, C.hint);
-    } else if (state==='result'){
-      text('Tap anywhere to continue…', L.originX, Math.max(16, L.originY-6), 12, C.hint);
-    }
+    // tips
+    if(state==='placing') text('Drag to place or onto SELL to sell.', L.originX, Math.max(16, L.originY-6), 12, C.hint);
+    else if(state==='shop') text('Tap a unit to move it. Toggle the Shop to buy.', L.originX, Math.max(16, L.originY-6), 12, C.hint);
+    else if(state==='result') text('Tap anywhere to continue…', L.originX, Math.max(16, L.originY-6), 12, C.hint);
 
-    roster.forEach(drawUnit);
-    enemies.forEach(drawUnit);
+    roster.forEach(drawUnit); enemies.forEach(drawUnit);
+    drawFX(); drawDmg();
 
-    drawProjectiles();
-    drawHitSparks();
-    drawHealSparks();
-    drawSlashes();
-    drawDmgTexts();
-
-    const UI_H = currentUIH();
-    const y0 = L.originY + L.gridH + 8;
+    const UI_H=currentUIH(), y0=L.originY+L.gridH+8;
     fill(0,y0,L.vw,UI_H,C.ui);
 
-    // Shop toggle
-    shopBtnArea = { x: 8, y: y0+8, w: 150, h: 44 };
-    fill(shopBtnArea.x, shopBtnArea.y, shopBtnArea.w, shopBtnArea.h, '#2d2d2d');
-    text(SHOW_SHOP ? 'HIDE SHOP' : 'SHOW SHOP', shopBtnArea.x+10, shopBtnArea.y+28, 16, '#ffd45a');
+    // BIGGER toggle (works during shop & placing)
+    shopBtnArea={ x:8, y:y0+8, w:180, h:52 };
+    fill(shopBtnArea.x,shopBtnArea.y,shopBtnArea.w,shopBtnArea.h,'#2d2d2d');
+    text(SHOW_SHOP?'HIDE SHOP':'SHOW SHOP', shopBtnArea.x+12, shopBtnArea.y+32, 18, '#ffd45a');
 
-    // SELL tray (shows dynamic refund while holding)
+    // SELL tray (dynamic refund)
     const sellingAmt = preview ? refundFor(preview) : 2;
-    sellArea = { x: L.vw-160, y: y0+ (SHOW_SHOP? 60:8), w:140, h:64 };
+    sellArea = { x:L.vw-168, y:y0+(SHOW_SHOP?60:8), w:160, h:72 };
     fill(sellArea.x, sellArea.y, sellArea.w, sellArea.h, '#3a2222');
-    text(`SELL (${sellingAmt}g)`, sellArea.x+18, sellArea.y+38, 18, '#ff9a9a');
+    text(`SELL (${sellingAmt}g)`, sellArea.x+22, sellArea.y+44, 20, '#ff9a9a');
 
-    // Reroll (visible only if shop shown)
-    if (SHOW_SHOP){
-      rerollArea = { x: L.vw-320, y: y0+8, w:140, h:44 };
-      fill(rerollArea.x, rerollArea.y, rerollArea.w, rerollArea.h, '#2d2d2d');
-      text(`REROLL (${REROLL_COST}g)`, rerollArea.x+10, rerollArea.y+28, 16, '#ffd45a');
-    } else {
-      rerollArea = {x:0,y:0,w:0,h:0};
-    }
+    // reroll (only when shop visible)
+    if(SHOW_SHOP){
+      rerollArea={ x:L.vw-336, y:y0+8, w:160, h:52 };
+      fill(rerollArea.x,rerollArea.y,rerollArea.w,rerollArea.h,'#2d2d2d');
+      text(`REROLL (${REROLL_COST}g)`, rerollArea.x+12, rerollArea.y+32, 18, '#ffd45a');
+    } else { rerollArea={x:0,y:0,w:0,h:0}; }
 
-    // Start
-    startArea = { x: L.vw-160, y: y0+8, w:140, h:44 };
-    fill(startArea.x, startArea.y, startArea.w, startArea.h, C.start);
-    text('START', startArea.x+34, startArea.y+28, 20);
+    // start
+    startArea={ x:L.vw-168, y:y0+8, w:160, h:52 };
+    fill(startArea.x,startArea.y,startArea.w,startArea.h,'#7a50a0');
+    text('START', startArea.x+48, startArea.y+32, 20, '#fff');
 
-    // Shop panel
-    if (SHOW_SHOP){
-      ctx.save(); ctx.globalAlpha = shopOpacity;
+    // shop panel
+    if(SHOW_SHOP){
+      ctx.save(); ctx.globalAlpha=shopOpacity;
       buyAreas.length=0;
-      const cardW = Math.min(200, L.vw/3 - 12);
-      const cardH = 126;
+      const cardW=Math.min(200, L.vw/3 - 12), cardH=126;
       for(let i=0;i<3;i++){
         const x=8+i*(cardW+6), y=y0+60, w=cardW, h=cardH;
-        fill(x,y,w,h,'#3c3c3c');
-        ctx.save(); ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
-        const name = shop[i]; const b = BASE[name];
+        fill(x,y,w,h,'#3c3c3c'); ctx.save(); ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
+        const name=shop[i], b=BASE[name];
         text(`${name} ★`, x+8, y+18, 16, '#fff');
-        ctx.fillStyle = '#eaeaea'; ctx.font = '12px -apple-system,system-ui,sans-serif';
-        const lines = [
-          `HP: ${b.hp}   ATK: ${b.atk}`,
-          `CRIT: ${Math.round(b.crit*100)}%   ARM: ${b.armor}`,
-          `RES: ${b.resist}   SPD: ${b.spd}`
-        ];
-        let ly = y+36; for (const ln of lines){ ctx.fillText(ln, x+8, ly); ly += 16; }
-        fill(x+8, y+h-22, w-16, 18, '#2a2a2a');
-        text(`Buy ${BUY_COST} gold`, x+14, y+h-8, 12, C.td);
-        ctx.restore();
-        buyAreas.push({x,y,w,h,i});
+        ctx.fillStyle='#eaeaea'; ctx.font='12px -apple-system,system-ui,sans-serif';
+        const lines=[`HP: ${b.hp}   ATK: ${b.atk}`, `CRIT: ${Math.round(b.crit*100)}%   ARM: ${b.armor}`, `RES: ${b.resist}   SPD: ${b.spd}`];
+        let ly=y+36; for(const ln of lines){ ctx.fillText(ln, x+8, ly); ly+=16; }
+        fill(x+8,y+h-22,w-16,18,'#2a2a2a'); text(`Buy ${BUY_COST} gold`, x+14, y+h-8, 12, C.td);
+        ctx.restore(); buyAreas.push({x,y,w,h,i});
       }
       ctx.restore();
-    } else { buyAreas.length=0; }
+    } else buyAreas.length=0;
 
-    // Portrait lock overlay (landscape only gameplay)
-    if (portrait){
-      ctx.fillStyle = 'rgba(0,0,0,0.85)';
-      ctx.fillRect(0,0,L.vw,L.vh);
-      ctx.fillStyle = '#eaeaea';
-      ctx.font = '20px -apple-system,system-ui,sans-serif';
-      const msg = 'Rotate your device to landscape to play';
-      const tw = ctx.measureText(msg).width;
-      ctx.fillText(msg, (L.vw - tw)/2, L.vh/2);
+    // landscape lock
+    if(isPortrait()){
+      ctx.fillStyle='rgba(0,0,0,0.85)'; ctx.fillRect(0,0,L.vw,L.vh);
+      ctx.fillStyle='#eaeaea'; ctx.font='20px -apple-system,system-ui,sans-serif';
+      const msg='Rotate your device to landscape to play', tw=ctx.measureText(msg).width;
+      ctx.fillText(msg, (L.vw-tw)/2, L.vh/2);
     }
 
     if(state==='result'){
@@ -566,43 +402,50 @@
     if(!isPortrait() && state==='battle') battleTick(dt);
   }
 
-  // ===== Input / Placement & Selling =====
+  // ===== Input =====
   const pointInRect=(x,y,r)=> x>=r.x && y>=r.y && y<=r.y+r.h && x<=r.x+r.w;
-  function cellAtFloor(px,py){ return { x: Math.floor((px - L.originX)/L.cell), y: Math.floor((py - L.originY)/L.cell) }; }
+  function cellAtFloor(px,py){ return { x: ((px - L.originX)/L.cell)|0, y: ((py - L.originY)/L.cell)|0 }; }
   function cellAtRound(px,py){ return { x: Math.round((px - L.originX)/L.cell), y: Math.round((py - L.originY)/L.cell) }; }
-  function unitAtCell(c,r){ return roster.find(u => u.cell && u.cell.x===c && u.cell.y===r && u.alive) || null; }
+  function unitAtCell(c,r){ return roster.find(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive) || null; }
   function inLeftCols(c,r){ return (c>=0 && c<=1 && r>=0 && r<ROWS); }
 
   function placeExactAt(c,r){
-    if (!inLeftCols(c,r)){
-      if (preview && preview._fromPickup && preview._fromCell){
-        preview.cell = {...preview._fromCell}; roster.push(preview);
-        toast('Move cancelled'); preview = null; state='shop'; shopOpacity=1; return false;
-      }
-      toast('Place in left two columns'); return false;
-    }
-    if (unitAtCell(c,r)){ toast('Cell occupied'); return false; }
-    preview.cell = {x:c,y:r}; roster.push(preview);
-    toast(`${preview._fromPickup ? 'Moved' : 'Placed'} ${preview.name} ${'★'.repeat(preview.star||1)} @ ${c},${r}`);
+    if(!inLeftCols(c,r)){
+      if(preview && preview._fromPickup && preview._fromCell){ preview.cell={...preview._fromCell}; roster.push(preview); toast('Move cancelled'); preview=null; state='shop'; shopOpacity=1; return false; }
+    toast('Place in left two columns'); return false; }
+    if(unitAtCell(c,r)){ toast('Cell occupied'); return false; }
+    preview.cell={x:c,y:r}; roster.push(preview);
+    toast(`${preview._fromPickup?'Moved':'Placed'} ${preview.name} ${'★'.repeat(preview.star||1)} @ ${c},${r}`);
     tryMerge(preview.name, preview.star||1);
-    preview = null; state='shop'; shopOpacity=1; return true;
+    preview=null; state='shop'; shopOpacity=1; return true;
   }
 
   function clientToCanvas(e){
     const rect = canvas.getBoundingClientRect();
-    let cx, cy;
-    if (e.changedTouches && e.changedTouches[0]) { cx = e.changedTouches[0].clientX; cy = e.changedTouches[0].clientY; }
-    else if (e.touches && e.touches[0])           { cx = e.touches[0].clientX;        cy = e.touches[0].clientY; }
-    else                                           { cx = e.clientX;                   cy = e.clientY; }
-    return { x: cx - rect.left, y: cy - rect.top };
+    const t = e.changedTouches?.[0] || e.touches?.[0] || e;
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+  }
+
+  function handleToggleShop(px,py){
+    if(pointInRect(px,py,shopBtnArea)){
+      SHOW_SHOP = !SHOW_SHOP;
+      L = layout();
+      return true;
+    }
+    return false;
   }
 
   function onPointerDown(e){
-    if (isPortrait()){ e.preventDefault(); return; }
-    const p = clientToCanvas(e); hover.x = p.x; hover.y = p.y;
+    if(isPortrait()){ e.preventDefault(); return; }
+    const p=clientToCanvas(e); hover=p;
 
-    if (state==='result'){
-      if (result==='win'){ floorN++; toast(`Floor ${floorN}`); }
+    // Make toggle work before anything else (in shop or placing)
+    if(state!=='battle' && state!=='result'){
+      if(handleToggleShop(p.x,p.y)){ e.preventDefault(); return; }
+    }
+
+    if(state==='result'){
+      if(result==='win'){ floorN++; toast(`Floor ${floorN}`); }
       else { roster.length=0; enemies.length=0; gold=6; floorN=1; toast('Run reset'); }
       result=null; state='shop'; enemies.length=0; refillShop();
       e.preventDefault(); return;
@@ -611,87 +454,66 @@
     if (state==='placing' && preview){ e.preventDefault(); return; }
 
     if(state==='shop' && !preview){
-      // toggle shop
-      if(pointInRect(p.x,p.y,shopBtnArea)){ SHOW_SHOP = !SHOW_SHOP; L = layout(); e.preventDefault(); return; }
-
-      // Pick up existing
-      const ccF = cellAtFloor(p.x,p.y);
-      if (inLeftCols(ccF.x, ccF.y)){
-        const u = unitAtCell(ccF.x, ccF.y);
-        if (u){
-          const idx = roster.indexOf(u);
-          if (idx>=0) roster.splice(idx,1);
-          preview = u; preview._fromPickup = true; preview._fromCell = {x:ccF.x, y:ccF.y};
-          state='placing'; toast(`Picked up ${u.name} ${'★'.repeat(u.star||1)}`); shopOpacity = 0.25;
+      // pick up
+      const ccF=cellAtFloor(p.x,p.y);
+      if(inLeftCols(ccF.x,ccF.y)){
+        const u=unitAtCell(ccF.x,ccF.y);
+        if(u){ const idx=roster.indexOf(u); if(idx>=0) roster.splice(idx,1);
+          preview=u; preview._fromPickup=true; preview._fromCell={x:ccF.x,y:ccF.y};
+          state='placing'; toast(`Picked up ${u.name} ${'★'.repeat(u.star||1)}`); shopOpacity=.25;
           e.preventDefault(); return;
         }
       }
-
-      // Reroll (only if visible)
-      if (SHOW_SHOP && pointInRect(p.x,p.y,rerollArea)){
-        if (gold>=REROLL_COST){ gold -= REROLL_COST; refillShop(); toast('Shop rerolled'); }
+      // reroll
+      if(SHOW_SHOP && pointInRect(p.x,p.y,rerollArea)){
+        if(gold>=REROLL_COST){ gold-=REROLL_COST; refillShop(); toast('Shop rerolled'); }
         else toast('Not enough gold to reroll');
         e.preventDefault(); return;
       }
-
-      // Buy (only if visible)
-      if (SHOW_SHOP){
+      // buy
+      if(SHOW_SHOP){
         for(const r of buyAreas){
           if(pointInRect(p.x,p.y,r) && gold>=BUY_COST){
-            gold -= BUY_COST;
-            preview = mkUnit(shop[r.i], 'player', null, 1);
-            preview._fromPickup = false; preview._fromCell = null;
-            state='placing'; toast(`Bought ${shop[r.i]} ★`); shopOpacity = 0.25;
+            gold-=BUY_COST; preview=mkUnit(shop[r.i],'player',null,1);
+            preview._fromPickup=false; preview._fromCell=null;
+            state='placing'; toast(`Bought ${shop[r.i]} ★`); shopOpacity=.25;
             e.preventDefault(); return;
           }
         }
       }
-
-      // Start
-      if(pointInRect(p.x,p.y,startArea) && roster.some(u=>u.alive && u.cell)){
-        spawnEnemies(); state='battle'; e.preventDefault(); return;
-      }
+      // start
+      if(pointInRect(p.x,p.y,startArea) && roster.some(u=>u.alive&&u.cell)){ spawnEnemies(); state='battle'; e.preventDefault(); return; }
     }
   }
-  function onPointerMove(e){ if (isPortrait()){ e.preventDefault(); return; } const p = clientToCanvas(e); hover.x = p.x; hover.y = p.y; }
+  function onPointerMove(e){ if(isPortrait()){ e.preventDefault(); return; } hover=clientToCanvas(e); }
   function onPointerUp(e){
-    if (isPortrait()){ e.preventDefault(); return; }
-    const p = clientToCanvas(e); hover.x = p.x; hover.y = p.y;
+    if(isPortrait()){ e.preventDefault(); return; }
+    const p=clientToCanvas(e); hover=p;
 
-    // Selling while placing (dynamic refund)
+    // Sell while placing
     if(state==='placing' && preview && pointInRect(p.x,p.y,sellArea)){
-      const amt = refundFor(preview);
+      const amt=refundFor(preview);
       toast(`Sold ${preview.name} ${'★'.repeat(preview.star||1)} for ${amt}g`);
-      gold += amt;
-      preview = null; state='shop'; shopOpacity=1;
-      e.preventDefault(); return;
+      gold+=amt; preview=null; state='shop'; shopOpacity=1; e.preventDefault(); return;
     }
-
     if(state==='placing' && preview){
-      let c = cellAtRound(hover.x, hover.y).x;
-      let r = cellAtRound(hover.x, hover.y).y;
-      c = Math.max(0, Math.min(COLS-1, c));
-      r = Math.max(0, Math.min(ROWS-1, r));
-      placeExactAt(c, r);
-      e.preventDefault(); return;
+      let c=cellAtRound(p.x,p.y).x, r=cellAtRound(p.x,p.y).y;
+      c=Math.max(0,Math.min(COLS-1,c)); r=Math.max(0,Math.min(ROWS-1,r));
+      placeExactAt(c,r); e.preventDefault(); return;
     }
   }
 
   canvas.addEventListener('pointerdown', onPointerDown, {passive:false});
   canvas.addEventListener('pointermove', onPointerMove, {passive:false});
   canvas.addEventListener('pointerup',   onPointerUp,   {passive:false});
-  canvas.addEventListener('touchstart', onPointerDown, {passive:false});
-  canvas.addEventListener('touchmove',  onPointerMove, {passive:false});
-  canvas.addEventListener('touchend',   onPointerUp,   {passive:false});
+  canvas.addEventListener('touchstart',  onPointerDown, {passive:false});
+  canvas.addEventListener('touchmove',   onPointerMove, {passive:false});
+  canvas.addEventListener('touchend',    onPointerUp,   {passive:false});
 
   // ===== Boot =====
   refillShop();
-  let last = performance.now();
-  function loop(ts){
-    const dt = Math.min(0.05, (ts-last)/1000); last = ts;
-    draw(dt);
-    requestAnimationFrame(loop);
-  }
+  let last=performance.now();
+  function loop(ts){ const dt=Math.min(.05,(ts-last)/1000); last=ts; draw(dt); requestAnimationFrame(loop); }
   requestAnimationFrame(loop);
 })();
 </script>
