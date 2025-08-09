@@ -95,10 +95,11 @@
   const playersAlive=()=>roster.filter(u=>u.alive && u.cell);
   const enemiesAlive=()=>enemies.filter(u=>u.alive);
 
-  // ===== Drawing =====
+  // ===== Drawing helpers =====
   const fill=(x,y,w,h,c)=>{ ctx.fillStyle=c; ctx.fillRect(x,y,w,h); };
   const stroke=(x,y,w,h,c)=>{ ctx.strokeStyle=c; ctx.strokeRect(x,y,w,h); };
   const text=(t,x,y,s=16,c=C.t)=>{ ctx.fillStyle=c; ctx.font=`${s}px -apple-system,system-ui,sans-serif`; ctx.fillText(t,x,y); };
+  function cellCenter(x,y){ return { x: L.originX + x*L.cell + L.cell/2, y: L.originY + y*L.cell + L.cell/2 }; }
 
   function drawUnit(u){
     if(!u.alive || !u.cell) return;
@@ -113,10 +114,10 @@
   function frontlineTarget(attacker, targets) {
     if (!targets.length) return null;
     let front;
-    if (attacker.team === 'enemy') { // enemies hit our RIGHTMOST first
+    if (attacker.team === 'enemy') {
       const maxX = Math.max(...targets.map(t => t.cell.x));
       front = targets.filter(t => t.cell.x === maxX);
-    } else { // we hit their LEFTMOST first
+    } else {
       const minX = Math.min(...targets.map(t => t.cell.x));
       front = targets.filter(t => t.cell.x === minX);
     }
@@ -133,7 +134,7 @@
     const dx = Math.abs(target.cell.x - attacker.cell.x);
     const dy = Math.abs(target.cell.y - attacker.cell.y);
     if (attacker.role === 'melee') return (dx+dy)===1; // cross-adjacent only
-    // ranged/healer: MANHATTAN range (feels better on small grid)
+    // ranged/healer: Manhattan range (looks/feels better on this grid)
     return (dx + dy) <= Math.max(1, attacker.range);
   }
 
@@ -144,7 +145,7 @@
   }
   const key=(x,y)=>`${x},${y}`;
 
-  // ===== BFS to any cross-adjacent cell around target (with “don’t step past target” rule) =====
+  // ===== Pathing (BFS to any cross-adjacent tile; don't step past target column) =====
   function nextStepBFS(u, target, reservations){
     if (!target) return null;
     const start = {x:u.cell.x, y:u.cell.y};
@@ -154,7 +155,6 @@
     for (const [dx,dy] of adj){
       const gx = tx + dx, gy = ty + dy;
       if (gx<0||gx>=COLS||gy<0||gy>=ROWS) continue;
-      // goal must be free (or it's our own tile)
       if (!occupiedAt(gx,gy) || (gx===start.x && gy===start.y)) goals.push({x:gx,y:gy});
     }
     if (!goals.length) return null;
@@ -162,15 +162,12 @@
     const dq=[start], came=new Map();
     came.set(key(start.x,start.y), null);
 
-    function valid(nx,ny,px,py){
+    function valid(nx,ny){
       if(nx<0||nx>=COLS||ny<0||ny>=ROWS) return false;
-      // prevent stepping PAST target column
       if (u.team==='player' && nx>tx) return false;
       if (u.team==='enemy'  && nx<tx) return false;
-      // block occupied/reserved except our own start
       if (occupiedAt(nx,ny) && !(nx===start.x && ny===start.y)) return false;
       if (reservations.has(key(nx,ny)) && !(nx===start.x && ny===start.y)) return false;
-      // avoid immediate ping-pong to lastPos if possible
       if (u.lastPos && nx===u.lastPos.x && ny===u.lastPos.y) return false;
       return true;
     }
@@ -178,27 +175,21 @@
     while(dq.length){
       const cur = dq.shift();
       if (goals.some(g=>g.x===cur.x && g.y===cur.y)){
-        // reconstruct first step
         let path=[cur], k=key(cur.x,cur.y);
-        while(came.get(k)){
-          const p=came.get(k); path.push(p); k=key(p.x,p.y);
-        }
+        while(came.get(k)){ const p=came.get(k); path.push(p); k=key(p.x,p.y); }
         path.reverse();
         return path[1] || null;
       }
       for (const [dx,dy] of adj){
-        const nx=cur.x+dx, ny=cur.y+dy;
-        const nk=key(nx,ny);
+        const nx=cur.x+dx, ny=cur.y+dy, nk=key(nx,ny);
         if (came.has(nk)) continue;
-        if (!valid(nx,ny,cur.x,cur.y)) continue;
-        came.set(nk, cur);
-        dq.push({x:nx,y:ny});
+        if (!valid(nx,ny)) continue;
+        came.set(nk, cur); dq.push({x:nx,y:ny});
       }
     }
     return null;
   }
 
-  // ===== Step wrapper (melee only) =====
   function tryStepToward(u, target, reservations){
     if (!target || u.role !== 'melee') return false;
     if (isAdjCross(u,target)) return false;
@@ -212,18 +203,72 @@
       reservations.add(key(step.x, step.y));
       return true;
     }
-    // small delay to avoid jitter when blocked
     u.stepCool = 0.12;
     return false;
   }
 
+  // ===== Projectiles =====
+  const projectiles = []; // {x,y, targetRef, team, dmg, speed, color, alive}
+  const PROJ_SPEED = 680; // px/sec
+
+  function spawnProjectile(shooter, target, dmg, color){
+    if (!target || !target.alive || !target.cell) return;
+    const start = cellCenter(shooter.cell.x, shooter.cell.y);
+    projectiles.push({
+      x:start.x, y:start.y,
+      team: shooter.team,
+      targetRef: target,
+      dmg,
+      speed: PROJ_SPEED,
+      color,
+      alive: true
+    });
+  }
+
+  function updateProjectiles(dt){
+    for (const p of projectiles){
+      if (!p.alive) continue;
+      const t = p.targetRef;
+      if (!t || !t.alive || !t.cell){ p.alive=false; continue; }
+      const tc = cellCenter(t.cell.x, t.cell.y);
+      const dx = tc.x - p.x, dy = tc.y - p.y;
+      const dist = Math.hypot(dx,dy);
+      const step = p.speed * dt;
+      if (dist <= step + 2){
+        // impact
+        t.hp -= p.dmg;
+        if (t.hp<=0) t.alive=false;
+        p.alive = false;
+      } else {
+        p.x += (dx/dist) * step;
+        p.y += (dy/dist) * step;
+      }
+    }
+    // cull
+    for (let i=projectiles.length-1;i>=0;i--) if (!projectiles[i].alive) projectiles.splice(i,1);
+  }
+
+  function drawProjectiles(){
+    for (const p of projectiles){
+      ctx.fillStyle = p.color;
+      // simple arrowhead-ish diamond
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y-3);
+      ctx.lineTo(p.x+4, p.y);
+      ctx.lineTo(p.x, p.y+3);
+      ctx.lineTo(p.x-4, p.y);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
   // ===== Battle =====
   function battleTick(dt){
-    // Immediate end (prevents stray damage frames)
+    // Immediate end
     if (!playersAlive().length){ state='result'; result='lose'; return; }
     if (!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
 
-    // --- Players move/act ---
+    // --- Players ---
     {
       const reservations = new Set();
       for(const u of playersAlive()){
@@ -232,16 +277,12 @@
 
         const tgt = frontlineTarget(u, enemiesAlive());
 
-        // movement (melee only) if not already adjacent
-        if (tryStepToward(u, tgt, reservations)) {
-          // allow immediate attack this beat if now in range (prevents “only one hits” feeling)
-          if (u.cool < 0) u.cool = 0;
-        }
+        if (tryStepToward(u, tgt, reservations)) { if (u.cool < 0) u.cool = 0; }
 
-        // attack
         if(u.cool<=0){
           let did = false;
           if(u.role==='healer'){
+            // heal first (instant)
             const allies=playersAlive();
             if(allies.length){
               allies.sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp));
@@ -249,20 +290,26 @@
             }
             const t=frontlineTarget(u,enemiesAlive());
             if(inRange(u,t)){
-              t.hp -= Math.max(4, Math.floor(u.atk*0.5));
-              if(t.hp<=0) t.alive=false; did = true;
+              // cleric poke: small blue bolt
+              spawnProjectile(u, t, Math.max(4, Math.floor(u.atk*0.5)), '#8fd0ff');
+              did = true;
             }
           }
           if(!did && u.role!=='healer'){
             const t=frontlineTarget(u,enemiesAlive());
             if(u.role==='melee' ? isAdjCross(u,t) : inRange(u,t)){
-              t.hp -= u.atk;
-              if(u.name==='Brawler'){
-                // splash to horizontal neighbor of target
-                const mates=enemiesAlive().filter(e=>e!==t && e.cell.y===t.cell.y && Math.abs(e.cell.x - t.cell.x)===1);
-                if(mates[0]) mates[0].hp -= Math.floor(u.atk*0.5);
+              if (u.role==='melee'){
+                // instant melee damage
+                t.hp -= u.atk;
+                if(u.name==='Brawler'){
+                  const mates=enemiesAlive().filter(e=>e!==t && e.cell.y===t.cell.y && Math.abs(e.cell.x - t.cell.x)===1);
+                  if(mates[0]) mates[0].hp -= Math.floor(u.atk*0.5);
+                }
+                if(t.hp<=0) t.alive=false;
+              } else {
+                // ranged: fire arrow projectile (yellow-white)
+                spawnProjectile(u, t, u.atk, '#ffe9a6');
               }
-              if(t.hp<=0) t.alive=false;
             }
           }
           u.cool = 1/u.spd;
@@ -270,11 +317,11 @@
       }
     }
 
-    // Mid-tick end check
+    // Mid-tick end
     if (!playersAlive().length){ state='result'; result='lose'; return; }
     if (!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
 
-    // --- Enemies move/act ---
+    // --- Enemies ---
     {
       const reservations = new Set();
       for(const e of enemiesAlive()){
@@ -283,29 +330,33 @@
 
         const tgt = frontlineTarget(e, playersAlive());
 
-        if (tryStepToward(e, tgt, reservations)) {
-          if (e.cool < 0) e.cool = 0;
-        }
+        if (tryStepToward(e, tgt, reservations)) { if (e.cool < 0) e.cool = 0; }
 
         if(e.cool<=0){
           const t = frontlineTarget(e, playersAlive());
           if(e.role==='melee' ? isAdjCross(e,t) : inRange(e,t)){
-            t.hp -= e.atk; if(t.hp<=0) t.alive=false;
+            if (e.role==='melee'){
+              t.hp -= e.atk; if(t.hp<=0) t.alive=false;
+            } else {
+              // enemy ranged (if we add one later): gray bolt
+              spawnProjectile(e, t, e.atk, '#cfcfcf');
+            }
           }
           e.cool = 1/e.spd;
         }
       }
     }
+
+    // projectiles after actions
+    updateProjectiles(dt);
   }
 
   // ===== Render =====
   function draw(dt){
-    // Background & grid
     ctx.fillStyle=C.bg; ctx.fillRect(0,0,innerWidth,innerHeight);
     for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++)
       stroke(L.originX + c*L.cell, L.originY + r*L.cell, L.cell, L.cell, C.grid);
 
-    // Tips
     if (state==='placing'){
       text('Drag & release to place. Tap outside grid to cancel.', L.originX, Math.max(16, L.originY-6), 12, C.hint);
     } else if (state==='shop'){
@@ -314,11 +365,12 @@
       text('Tap anywhere to continue…', L.originX, Math.max(16, L.originY-6), 12, C.hint);
     }
 
-    // Units
+    // Units under projectiles so arrows draw on top
     roster.forEach(drawUnit);
     enemies.forEach(drawUnit);
+    drawProjectiles();
 
-    // UI bottom bar
+    // UI
     const y0 = L.originY + L.gridH + 8;
     fill(0,y0,innerWidth,160,C.ui);
 
@@ -366,7 +418,7 @@
         state='shop';
         return false;
       }
-    toast('Place in left two columns'); return false;
+      toast('Place in left two columns'); return false;
     }
     if (unitAtCell(c,r)){ toast('Cell occupied'); return false; }
     preview.cell = {x:c,y:r};
@@ -388,7 +440,6 @@
     const p = clientToCanvas(e);
     hover.x = p.x; hover.y = p.y;
 
-    // Continue from result
     if (state==='result'){
       if (result==='win'){ floorN++; toast(`Floor ${floorN}`); }
       else { roster.length=0; enemies.length=0; gold=6; floorN=1; toast('Run reset'); }
