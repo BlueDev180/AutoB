@@ -52,10 +52,23 @@
               b:'#c8503c', a:'#50c85a', c:'#78b4dc', e:'#a0a0a0', t:'#eaeaea', td:'#d8c878', start:'#7a50a0',
               ghost:'rgba(255,255,255,.22)', hint:'#9ee' };
 
+  // Damage text colors
+  const COL = {
+    phys: '#ffb27c',
+    physCrit: '#ffd45a',
+    magic: '#88c6ff',
+    magicCrit: '#7de0ff',
+    miss: '#cccccc',
+    heal: '#a6f5c7'
+  };
+
   const UNIT = {
-    Brawler:{hp:120, atk:18, spd:1.0, range:1, color:C.b, role:"melee"},
-    Archer:{hp:70,  atk:25, spd:0.8, range:5, color:C.a, role:"ranged"}, // bumped to 5
-    Cleric:{hp:80,  atk:8,  spd:1.0, range:5, color:C.c, role:"healer"}, // bumped to 5
+    Brawler:{hp:120, atk:18, spd:1.0, range:1, color:C.b, role:"melee",
+             crit:0.10, critMult:1.75, armor:10,  resist:5,  dodge:0.05, lifesteal:0.05},
+    Archer:{ hp:70,  atk:25, spd:0.8, range:5, color:C.a, role:"ranged",
+             crit:0.20, critMult:1.80, armor:4,   resist:4,  dodge:0.10, lifesteal:0.00},
+    Cleric:{ hp:80,  atk:8,  spd:1.0, range:5, color:C.c, role:"healer",
+             crit:0.10, critMult:1.50, armor:6,   resist:12, dodge:0.05, lifesteal:0.00},
   };
 
   // ===== Game State =====
@@ -75,6 +88,7 @@
     return {
       name, team, cell,
       alive:true, maxhp:d.hp, hp:d.hp, atk:d.atk, spd:d.spd, range:d.range, color:d.color, role:d.role,
+      crit:d.crit, critMult:d.critMult, armor:d.armor, resist:d.resist, dodge:d.dodge, lifesteal:d.lifesteal,
       cool: Math.random()/d.spd, stepCool: 0, lastPos: null
     };
   }
@@ -87,7 +101,8 @@
     for(let i=0;i<count;i++){
       const hp = Math.floor(90 + floorN*8);
       const atk = Math.floor(10 + floorN*3);
-      enemies.push({name:'Enemy', team:'enemy', cell:{x:cols[i%cols.length], y:i%3}, alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:C.e, role:'melee', cool: Math.random(), stepCool: 0, lastPos: null});
+      enemies.push({name:'Enemy', team:'enemy', cell:{x:cols[i%cols.length], y:i%3}, alive:true, maxhp:hp, hp, atk, spd:1.0, range:1, color:C.e, role:'melee', cool: Math.random(), stepCool: 0, lastPos: null,
+                    crit:0.05, critMult:1.5, armor:6+floorN, resist:4+Math.floor(floorN/2), dodge:0.03, lifesteal:0});
     }
     toast(`Enemies spawned: ${count}`);
   }
@@ -207,20 +222,86 @@
     return false;
   }
 
+  // ===== RNG & damage helpers =====
+  const rnd = (p)=> Math.random() < p;
+  const physAfterArmor = (dmg, armor)=> dmg * (100 / (100 + Math.max(0, armor)));
+  const magicAfterRes  = (dmg, resist)=> dmg * (100 / (100 + Math.max(0, resist)));
+
+  // Floating numbers
+  const dmgTexts = []; // {x,y,t,text,color}
+  function pushDmgText(cell, text, color){
+    const c = cellCenter(cell.x, cell.y);
+    dmgTexts.push({x:c.x, y:c.y, t:0, text, color});
+  }
+  function updateDmgTexts(dt){
+    for (const d of dmgTexts) d.t += dt;
+    for (let i=dmgTexts.length-1;i>=0;i--) if (dmgTexts[i].t>0.6) dmgTexts.splice(i,1);
+  }
+  function drawDmgTexts(){
+    for (const d of dmgTexts){
+      const a = Math.max(0, 1 - d.t/0.6);
+      const lift = d.t * 24;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = d.color;
+      ctx.font = '14px -apple-system,system-ui,sans-serif';
+      ctx.fillText(d.text, d.x-10, d.y - 10 - lift);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // Main hit resolver (applies dodge, crit, mitigation, lifesteal, numbers)
+  function resolveHit(attacker, target, base, dmgType='physical'){
+    if (!attacker || !target || !target.alive) return;
+
+    // dodge
+    if (rnd(target.dodge || 0)){
+      pushDmgText(target.cell, 'MISS', COL.miss);
+      return;
+    }
+
+    // crit
+    let dmg = base;
+    const didCrit = rnd(attacker.crit || 0);
+    if (didCrit) dmg *= (attacker.critMult || 1.5);
+
+    // mitigation
+    if (dmgType === 'physical') dmg = physAfterArmor(dmg, target.armor||0);
+    else                        dmg = magicAfterRes(dmg,  target.resist||0);
+
+    dmg = Math.max(1, Math.round(dmg));
+
+    // apply
+    target.hp -= dmg;
+    const color = (dmgType==='physical')
+      ? (didCrit ? COL.physCrit : COL.phys)
+      : (didCrit ? COL.magicCrit : COL.magic);
+    pushDmgText(target.cell, (didCrit? '★':'') + dmg, color);
+    if (target.hp<=0) target.alive=false;
+
+    // lifesteal
+    const ls = attacker.lifesteal || 0;
+    if (ls > 0 && attacker.alive){
+      const heal = Math.max(1, Math.round(dmg * ls));
+      attacker.hp = Math.min(attacker.maxhp, attacker.hp + heal);
+      healSparks.push({x:cellCenter(attacker.cell.x, attacker.cell.y).x, y:cellCenter(attacker.cell.x, attacker.cell.y).y, t:0, txt:`+${heal}`});
+    }
+  }
+
   // ===== Projectiles (no jitter) =====
-  // type: 'dmg' or 'heal'
-  const projectiles = []; // {x,y,targetRef,team,amt,speed,color,alive,ttl,type}
-  const PROJ_SPEED = 420;    // px/sec
-  const HIT_RADIUS = 10;     // px — snap & resolve if within this
-  function spawnProjectile({shooter, target, amt, color, type}){
+  // type: 'dmg' or 'heal'; dmgType: 'physical' | 'magic'
+  const projectiles = []; // {x,y,targetRef,shooterRef,team,amt,speed,color,alive,ttl,type,dmgType}
+  const PROJ_SPEED = 420;
+  const HIT_RADIUS = 10;
+  function spawnProjectile({shooter, target, amt, color, type, dmgType='physical'}){
     if (!target || !target.alive || !target.cell) return;
     const start = cellCenter(shooter.cell.x, shooter.cell.y);
     projectiles.push({
       x:start.x, y:start.y,
       team: shooter.team,
+      shooterRef: shooter,
       targetRef: target,
       amt, speed: PROJ_SPEED, color,
-      alive: true, ttl: 2.0, type
+      alive: true, ttl: 2.0, type, dmgType
     });
   }
   function updateProjectiles(dt){
@@ -244,8 +325,7 @@
       if (dist <= HIT_RADIUS || overshoot){
         p.x = tc.x; p.y = tc.y;
         if (p.type==='dmg'){
-          t.hp -= p.amt;
-          if (t.hp<=0) t.alive=false;
+          resolveHit(p.shooterRef, t, p.amt, p.dmgType || 'physical');
           hitSparks.push({x:tc.x, y:tc.y, t:0});
         } else if (p.type==='heal'){
           const before = t.hp;
@@ -293,7 +373,7 @@
       ctx.beginPath();
       ctx.arc(s.x, s.y, 10 + s.t*20, 0, Math.PI*2);
       ctx.stroke();
-      ctx.fillStyle = '#a6f5c7';
+      ctx.fillStyle = COL.heal;
       ctx.font = '14px -apple-system,system-ui,sans-serif';
       ctx.fillText(s.txt, s.x-8, s.y - 12 - s.t*16);
       ctx.globalAlpha = 1;
@@ -342,7 +422,7 @@
         ctx.beginPath();
         ctx.ellipse(p.x, p.y, 8, 8, 0, 0, Math.PI*2);
         ctx.fill();
-        ctx.fillStyle = p.color;
+        ctx.fillStyle = '#59e08a';
         ctx.beginPath();
         ctx.ellipse(p.x, p.y, 6, 6, 0, 0, Math.PI*2);
         ctx.fill();
@@ -351,7 +431,7 @@
         ctx.beginPath();
         ctx.ellipse(p.x, p.y, 7, 3, 0, 0, Math.PI*2);
         ctx.fill();
-        ctx.fillStyle = p.color;
+        ctx.fillStyle = '#ffe9a6';
         ctx.beginPath();
         ctx.ellipse(p.x, p.y, 5, 2, 0, 0, Math.PI*2);
         ctx.fill();
@@ -380,6 +460,7 @@
           let did = false;
 
           if(u.role==='healer'){
+            // Heal lowest HP ally (projectile)
             const allies=playersAlive();
             if(allies.length){
               allies.sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp));
@@ -389,9 +470,10 @@
                 did = true;
               }
             }
+            // Poke an enemy with magic
             const t=frontlineTarget(u,enemiesAlive());
             if(inRange(u,t)){
-              spawnProjectile({shooter:u, target:t, amt:Math.max(4, Math.floor(u.atk*0.5)), color:'#8fd0ff', type:'dmg'});
+              spawnProjectile({shooter:u, target:t, amt:Math.max(4, Math.floor(u.atk*0.5)), color:'#8fd0ff', type:'dmg', dmgType:'magic'});
               did = true;
             }
           }
@@ -400,17 +482,16 @@
             const t=frontlineTarget(u,enemiesAlive());
             if(u.role==='melee' ? isAdjCross(u,t) : inRange(u,t)){
               if (u.role==='melee'){
-                // Brawler hit + sword slash visual
                 const dir = (t.cell.x > u.cell.x)?'right' : (t.cell.x < u.cell.x)?'left' : (t.cell.y>u.cell.y)?'down':'up';
                 spawnSlash(t.cell, dir);
-                t.hp -= u.atk;
+                resolveHit(u, t, u.atk, 'physical');
                 if(u.name==='Brawler'){
                   const mates=enemiesAlive().filter(e=>e!==t && e.cell.y===t.cell.y && Math.abs(e.cell.x - t.cell.x)===1);
-                  if(mates[0]) mates[0].hp -= Math.floor(u.atk*0.5);
+                  if(mates[0]) resolveHit(u, mates[0], Math.floor(u.atk*0.5), 'physical');
                 }
-                if(t.hp<=0) t.alive=false;
               } else {
-                spawnProjectile({shooter:u, target:t, amt:u.atk, color:'#ffe9a6', type:'dmg'});
+                // Archer projectile (physical)
+                spawnProjectile({shooter:u, target:t, amt:u.atk, color:'#ffe9a6', type:'dmg', dmgType:'physical'});
               }
             }
           }
@@ -440,9 +521,10 @@
             if (e.role==='melee'){
               const dir = (t.cell.x > e.cell.x)?'right' : (t.cell.x < e.cell.x)?'left' : (t.cell.y>e.cell.y)?'down':'up';
               spawnSlash(t.cell, dir);
-              t.hp -= e.atk; if(t.hp<=0) t.alive=false;
+              resolveHit(e, t, e.atk, 'physical');
             } else {
-              spawnProjectile({shooter:e, target:t, amt:e.atk, color:'#cfcfcf', type:'dmg'});
+              // if you add ranged enemies later
+              spawnProjectile({shooter:e, target:t, amt:e.atk, color:'#cfcfcf', type:'dmg', dmgType:'physical'});
             }
           }
           e.cool = 1/e.spd;
@@ -455,6 +537,7 @@
     updateHitSparks(dt);
     updateHealSparks(dt);
     updateSlashes(dt);
+    updateDmgTexts(dt);
   }
 
   // ===== Render =====
@@ -480,6 +563,7 @@
     drawHitSparks();
     drawHealSparks();
     drawSlashes();
+    drawDmgTexts();
 
     // UI
     const y0 = L.originY + L.gridH + 8;
@@ -518,8 +602,6 @@
   function inLeftCols(c,r){ return (c>=0 && c<=1 && r>=0 && r<ROWS); }
 
   function placeExactAt(c,r){
-    const fc = Math.max(0, Math.min(1, c));
-    const fr = Math.max(0, Math.min(ROWS-1, r));
     if (!inLeftCols(c,r)){
       if (preview && preview._fromPickup && preview._fromCell){
         preview.cell = {...preview._fromCell};
