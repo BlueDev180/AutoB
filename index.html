@@ -61,7 +61,7 @@
   let gold=6;
   let floorN=1, state='shop', result=null;
   const roster=[], enemies=[];
-  let shop=[], preview=null;
+  let shop=[], preview=null;     // preview._fromPickup + preview._fromCell
   const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0};
   let flash = null;
   let hover = {x:-1,y:-1};
@@ -122,18 +122,12 @@
   }
 
   // ===== Range checks =====
-  function isAdjCross(a,b){ // strict plus-adjacency
-    if (!a||!b) return false;
-    return Math.abs(a.cell.x-b.cell.x) + Math.abs(a.cell.y-b.cell.y) === 1;
-  }
+  function isAdjCross(a,b){ return !!a && !!b && (Math.abs(a.cell.x-b.cell.x) + Math.abs(a.cell.y-b.cell.y) === 1); }
   function inRange(attacker, target){
     if (!attacker || !target) return false;
     const dx = Math.abs(target.cell.x - attacker.cell.x);
     const dy = Math.abs(target.cell.y - attacker.cell.y);
-    if (attacker.role === 'melee'){
-      // must be strictly adjacent (row OR column), never through allies
-      return (dx + dy) === 1;
-    }
+    if (attacker.role === 'melee') return (dx + dy) === 1;
     // healer/ranged: same row + within range
     if (attacker.cell.y !== target.cell.y) return false;
     return dx <= attacker.range;
@@ -144,32 +138,61 @@
     return playersAlive().some(u=>u.cell.x===x && u.cell.y===y) ||
            enemiesAlive().some(u=>u.cell.x===x && u.cell.y===y);
   }
+  function occupiedByTeam(x,y,team){
+    const list = team==='enemy' ? enemiesAlive() : playersAlive();
+    return list.some(u=>u.cell.x===x && u.cell.y===y);
+  }
+  function manhattan(x1,y1,x2,y2){ return Math.abs(x1-x2)+Math.abs(y1-y2); }
 
+  // Melee pathing: vertical align; forward; if blocked, side-step (up/down) that reduces distance; never attack until cross-adjacent.
   function tryStepToward(u, target){
     if (!target || u.role !== 'melee') return false;
-    if (isAdjCross(u,target)) return false; // already adjacent
+    if (isAdjCross(u,target)) return false;     // already adjacent
     if (u.stepCool > 0) return false;
 
-    // 1) vertical align first (to allow column-adjacent fights)
-    if (u.cell.y !== target.cell.y){
-      const vy = (target.cell.y > u.cell.y) ? 1 : -1;
-      const ny = u.cell.y + vy;
-      if (ny >=0 && ny < ROWS && !occupiedAt(u.cell.x, ny)){
+    const tx = target.cell.x, ty = target.cell.y;
+    const x = u.cell.x, y = u.cell.y;
+    const dir = (u.team === 'enemy') ? -1 : +1; // enemies go left; players go right
+
+    // 1) Vertical alignment first (to enable column adjacency)
+    if (y !== ty){
+      const vy = (ty > y) ? 1 : -1;
+      const ny = y + vy;
+      if (ny >= 0 && ny < ROWS && !occupiedAt(x, ny)){
         u.cell.y = ny;
         u.stepCool = 0.18;
         return true;
       }
+      // if vertical blocked, fallthrough to lateral logic
     }
 
-    // 2) then forward toward enemy side
-    const dir = (u.team === 'enemy') ? -1 : +1;
-    const nx = u.cell.x + dir;
-    if (nx >= 0 && nx < COLS && !occupiedAt(nx, u.cell.y)){
+    // 2) Try forward if free
+    const nx = x + dir;
+    if (nx >= 0 && nx < COLS && !occupiedAt(nx, y)){
       u.cell.x = nx;
       u.stepCool = 0.22;
       return true;
     }
 
+    // 3) Side-step around a blocker (prefer the move that reduces Manhattan distance to target)
+    let best = null, bestD = Infinity;
+    const candidates = [
+      {cx:x, cy:y-1}, // up
+      {cx:x, cy:y+1}  // down
+    ];
+    for (const c of candidates){
+      if (c.cy<0 || c.cy>=ROWS) continue;
+      if (occupiedAt(c.cx, c.cy)) continue;
+      const d = manhattan(c.cx, c.cy, tx, ty);
+      if (d < bestD){ bestD = d; best = c; }
+    }
+    if (best){
+      u.cell.x = best.cx; u.cell.y = best.cy;
+      u.stepCool = 0.2;
+      return true;
+    }
+
+    // 4) Nudge timer so it tries again soon
     u.stepCool = 0.12;
     return false;
   }
@@ -200,11 +223,11 @@
         }
         if(!didAttack && u.role!=='healer'){
           const t=frontlineTarget(u,enemiesAlive());
-          // EXTRA SAFETY: recheck strict adjacency for melee right before hit
+          // MELEE: extra guard — only hit if cross-adjacent right now
           if(u.role==='melee' ? isAdjCross(u,t) : inRange(u,t)){
             t.hp -= u.atk;
             if(u.name==='Brawler'){
-              // splash only to horizontally adjacent mate of target (no through)
+              // splash only to horizontally adjacent mate of target
               const mates=enemiesAlive().filter(e=>e!==t && e.cell.y===t.cell.y && Math.abs(e.cell.x - t.cell.x)===1);
               if(mates[0]) mates[0].hp -= Math.floor(u.atk*0.5);
             }
@@ -281,7 +304,7 @@
     text(`Floor: ${floorN}`, 140, y0+110, 16);
 
     startArea = { x: innerWidth-160, y: y0+48, w:140, h:44 };
-    fill(startArea.x, startArea.y, startArea.w, startArea.h, C.start);
+    fill(startArea.x, startArea.y, startArea.w, C.start, C.start);
     text('START', startArea.x+26, startArea.y+30, 24);
 
     if(state==='result'){
@@ -304,7 +327,7 @@
     if(state==='battle') battleTick(dt);
   }
 
-  // ===== Input & placement (same UX as last) =====
+  // ===== Input & placement (unchanged UX) =====
   const pointInRect=(x,y,r)=> x>=r.x && y>=r.y && y<=r.y+r.h && x<=r.x+r.w;
 
   function cellAtFloor(px,py){ return { x: Math.floor((px - L.originX)/L.cell), y: Math.floor((py - L.originY)/L.cell) }; }
