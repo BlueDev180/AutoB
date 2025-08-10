@@ -3,44 +3,43 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
-<title>Auto Battler (Mobile) — DEBUG</title>
+<title>Auto Battler (Mobile)</title>
 <style>
   html,body{margin:0;padding:0;background:#121214;height:100svh;overscroll-behavior:none;font-family:-apple-system,system-ui,sans-serif}
   canvas{position:fixed;left:0;top:0;width:100vw;height:100svh;touch-action:manipulation;display:block}
-  /* debug overlay */
-  #dbg{position:fixed;right:8px;top:8px;background:rgba(0,0,0,.65);color:#9ee;
-       padding:6px 8px;border-radius:8px;font:12px -apple-system,system-ui,sans-serif;pointer-events:none;white-space:pre}
+  #toast{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);
+         padding:8px 12px;background:#222;color:#eee;border-radius:8px;font-size:14px;opacity:0;transition:opacity .12s;pointer-events:none}
+  #toast.show{opacity:.96}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="dbg"></div>
+<div id="toast"></div>
 <script>
 (() => {
-  const DEBUG = true; // flip to false later
-  // ---------------- Core toggles / costs ----------------
-  let SHOW_SHOP = true;
-  const UI_H_SHOP = 196;
-  const UI_H_COMPACT = 96;
+  // ---------- Switches & Costs ----------
+  let SHOW_SHOP = true;                // top-left toggle controls this
+  const UI_H_SHOP = 196;               // bottom panel height when shop visible
+  const UI_H_COMPACT = 96;             // ...when hidden
   const BUY_COST = 2, REROLL_COST = 2;
 
-  // ---------------- Canvas & viewport ----------------
+  // ---------- Canvas & Viewport ----------
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha:false });
-  const dbgEl = document.getElementById('dbg');
+  const toastEl = document.getElementById('toast'); let toastTimer=null;
+  function toast(m){ toastEl.textContent=m; toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>toastEl.classList.remove('show'),1100); }
 
-  function getVV(){
-    const vv = window.visualViewport;
-    const w = Math.min(window.innerWidth||1e9, document.documentElement.clientWidth||1e9, vv?vv.width:1e9);
-    const h = Math.min(window.innerHeight||1e9, document.documentElement.clientHeight||1e9, vv?vv.height:1e9);
-    return { w: Math.floor(w), h: Math.floor(h) };
+  function vv(){ const v=visualViewport;
+    const w=Math.min(window.innerWidth||1e9, document.documentElement.clientWidth||1e9, v?v.width:1e9);
+    const h=Math.min(window.innerHeight||1e9, document.documentElement.clientHeight||1e9, v?v.height:1e9);
+    return {w:Math.floor(w),h:Math.floor(h)};
   }
-  const isPortrait = () => getVV().h > getVV().w;
+  const isPortrait = () => vv().h > vv().w;
   const currentUIH = () => SHOW_SHOP ? UI_H_SHOP : UI_H_COMPACT;
 
   function setCanvasSize(){
     const dpr = Math.max(1, devicePixelRatio||1);
-    const { w, h } = getVV();
+    const {w,h} = vv();
     canvas.width = Math.floor(w*dpr);
     canvas.height = Math.floor(h*dpr);
     canvas.style.width = w+'px';
@@ -48,20 +47,16 @@
     ctx.setTransform(dpr,0,0,dpr,0,0);
   }
 
-  // ---------------- Layout (clamped so UI can’t disappear) ----------------
+  // ---------- Layout (clamped so UI never vanishes) ----------
   const COLS=5, ROWS=3;
   let L={cell:48,originX:0,originY:24,gridW:0,gridH:0,yUI:0,vw:0,vh:0};
   function layout(){
-    const { w, h } = getVV();
-    const TOP_PAD = 36;     // tip + top toggle
+    const {w,h}=vv();
+    const TOP_PAD = 36; // room for tip + top-left toggle
     const BTM_BUF = 2;
-
     const targetUIH = currentUIH();
     const availH = Math.max(60, h - targetUIH - TOP_PAD - BTM_BUF);
-    const byH = Math.floor(availH / ROWS);
-    const byW = Math.floor(w / COLS);
-    const cell = Math.max(14, Math.min(byH, byW));
-
+    const cell = Math.max(14, Math.min(Math.floor(availH/ROWS), Math.floor(w/COLS)));
     const gridW = COLS*cell, gridH = ROWS*cell;
 
     let originY = Math.floor((h - targetUIH - gridH)/2);
@@ -71,9 +66,8 @@
     let yUI = h - targetUIH - BTM_BUF;
     yUI = Math.max(originY + gridH + 8, yUI);
 
-    L = { cell, originX, originY, gridW, gridH, yUI, vw:w, vh:h };
+    L = {cell,originX,originY,gridW,gridH,yUI,vw:w,vh:h};
   }
-
   function resize(){ setCanvasSize(); layout(); }
   addEventListener('resize', resize, {passive:true});
   addEventListener('orientationchange', resize, {passive:true});
@@ -83,14 +77,15 @@
   }
   resize();
 
-  // ---------------- Colors ----------------
+  // ---------- Colors ----------
   const C={ bg:'#121214', grid:'#282828', ui:'#1e1e1e', hp:'#e42828', t:'#eaeaea', td:'#d8c878', start:'#7a50a0', hint:'#9ee',
             b:'#c8503c', a:'#50c85a', c:'#78b4dc', e:'#a0a0a0' };
   const COL={ phys:'#ffb27c', physCrit:'#ffd45a', magic:'#88c6ff', magicCrit:'#7de0ff', miss:'#cccccc', heal:'#a6f5c7' };
 
-  // ---------------- Economy & units ----------------
+  // ---------- Economy / Refunds ----------
   const refundFor = u => (!u)?BUY_COST : (u.star===1?2 : u.star===2?6 : 18);
 
+  // ---------- Units ----------
   const BASE={
     Brawler:{hp:120, atk:18, spd:1.0, range:1, color:C.b, role:'melee',  crit:0.10, critMult:2.0, armor:10, resist:5,  dodge:0.05, lifesteal:0.05},
     Archer: {hp:70,  atk:25, spd:0.8, range:5, color:C.a, role:'ranged', crit:0.20, critMult:2.0, armor:4,  resist:4,  dodge:0.10, lifesteal:0.00},
@@ -99,30 +94,28 @@
   const starMul=s=>s===1?1:s===2?1.4:1.8;
   const scaled=(b,s)=>({hp:Math.round(b.hp*starMul(s)),atk:Math.round(b.atk*starMul(s)),spd:b.spd,range:b.range,color:b.color,role:b.role,
     crit:b.crit+(s>=2&&b.role==='ranged'?0.10:0),critMult:2.0,armor:Math.round(b.armor*starMul(s)),resist:Math.round(b.resist*starMul(s)),dodge:b.dodge,lifesteal:b.lifesteal});
-  function mkUnit(name,team,cell=null,star=1){ const s=scaled(BASE[name],star); return {name,team,cell,star,alive:true,maxhp:s.hp,hp:s.hp,atk:s.atk,spd:s.spd,range:s.range,color:s.color,role:s.role,crit:s.crit,critMult:s.critMult,armor:s.armor,resist:s.resist,dodge:s.dodge,lifesteal:s.lifesteal,cool:Math.random()/s.spd,stepCool:0,lastPos:null,shield:0,shieldT:0}; }
+  function mkUnit(name,team,cell=null,star=1){ const s=scaled(BASE[name],star); return {name,team,cell,star,alive:true,maxhp:s.hp,hp:s.hp,atk:s.atk,spd:s.spd,range:s.range,color:s.color,role:s.role,crit:s.crit,critMult:s.critMult,armor:s.armor,resist:s.resist,dodge:s.dodge,lifesteal:s.lifesteal,cool:0,stepCool:0,lastPos:null,shield:0,shieldT:0}; }
 
-  // ---------------- State ----------------
+  // ---------- Game State ----------
   let gold=6, floorN=1, state='shop', result=null;
   const roster=[], enemies=[];
-  let shop=[], preview=null; let shopOpacity=1;
+  let shop=[], preview=null, shopOpacity=1;
   const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0}, rerollArea={x:0,y:0,w:0,h:0}, sellArea={x:0,y:0,w:0,h:0};
-  // floating top-left toggle (bigger hitbox & moved in)
-  let shopBtn={x:24,y:36,w:170,h:56};
-  // debug tap logger
-  let lastTap = {x:0,y:0,info:''};
+  // top-left SHOP button (single source of truth)
+  let shopBtn={x:16,y:20,w:160,h:54};
 
   function refillShop(){ const k=Object.keys(BASE); shop=Array.from({length:3},()=>k[(Math.random()*k.length)|0]); }
 
-  // ---------------- Enemies ----------------
+  // ---------- Enemies ----------
   function spawnEnemies(){
     enemies.length=0; const count=(floorN===1)?2:3, cols=[4,3,4,3];
     for(let i=0;i<count;i++){
       const hp=Math.floor((floorN===1)?80:90+floorN*8), atk=Math.floor((floorN===1)?10:10+floorN*3);
-      enemies.push({name:'Enemy',team:'enemy',cell:{x:cols[i%cols.length],y:i%3},star:1,alive:true,maxhp:hp,hp,atk,spd:1.0,range:1,color:C.e,role:'melee',crit:0.05,critMult:2.0,armor:5+floorN,resist:3+((floorN/2)|0),dodge:0.02,lifesteal:0,cool:Math.random(),stepCool:0,lastPos:null,shield:0,shieldT:0});
+      enemies.push({name:'Enemy',team:'enemy',cell:{x:cols[i%cols.length],y:i%3},star:1,alive:true,maxhp:hp,hp,atk,spd:1.0,range:1,color:C.e,role:'melee',crit:0.05,critMult:2.0,armor:5+floorN,resist:3+((floorN/2)|0),dodge:0.02,lifesteal:0,cool:0,stepCool:0,lastPos:null,shield:0,shieldT:0});
     }
   }
 
-  // ---------------- Helpers ----------------
+  // ---------- Helpers ----------
   const fill=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h);};
   const stroke=(x,y,w,h,c)=>{ctx.strokeStyle=c;ctx.strokeRect(x,y,w,h);};
   const text=(t,x,y,s=16,c=C.t)=>{ctx.fillStyle=c;ctx.font=`${s}px -apple-system,system-ui,sans-serif`;ctx.fillText(t,x,y);};
@@ -140,26 +133,58 @@
     front.sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp)); return front[0];
   }
   const isAdjCross=(a,b)=> !!a && !!b && (Math.abs(a.cell.x-b.cell.x)+Math.abs(a.cell.y-b.cell.y)===1);
-  const inRange=(a,t)=>{ if(!a||!t) return false; const dx=Math.abs(t.cell.x-a.cell.x), dy=Math.abs(t.cell.y-a.cell.y); return a.role==='melee' ? (dx+dy)===1 : (dx+dy)<=Math.max(1,a.range); };
+  const inRange=(a,t)=>{ if(!a||!t) return false; const dx=Math.abs(t.cell.x-a.cell.x), dy=Math.abs(t.cell.y-a.cell.y);
+    return a.role==='melee' ? (dx+dy)===1 : (dx+dy)<=Math.max(1,a.range); };
   const occupiedAt=(x,y)=> playersAlive().some(u=>u.cell.x===x&&u.cell.y===y) || enemiesAlive().some(u=>u.cell.x===x&&u.cell.y===y);
   const key=(x,y)=>`${x},${y}`;
 
   function nextStepBFS(u,target,res){
-    if(!target) return null; const st={x:u.cell.x,y:u.cell.y}, tx=target.cell.x,ty=target.cell.y;
+    if(!target) return null;
+    const st={x:u.cell.x,y:u.cell.y}, tx=target.cell.x,ty=target.cell.y;
     const goals=[], adj=[[1,0],[-1,0],[0,1],[0,-1]];
-    for(const [dx,dy] of adj){ const gx=tx+dx, gy=ty+dy; if(gx<0||gx>=COLS||gy<0||gy>=ROWS) continue; if(!occupiedAt(gx,gy)||(gx===st.x&&gy===st.y)) goals.push({x:gx,y:gy}); }
+    for(const [dx,dy] of adj){ const gx=tx+dx, gy=ty+dy;
+      if(gx<0||gx>=COLS||gy<0||gy>=ROWS) continue;
+      if(!occupiedAt(gx,gy)||(gx===st.x&&gy===st.y)) goals.push({x:gx,y:gy});
+    }
     if(!goals.length) return null;
     const dq=[st], came=new Map(); came.set(key(st.x,st.y),null);
-    function valid(nx,ny){ if(nx<0||nx>=COLS||ny<0||ny>=ROWS) return false; if(occupiedAt(nx,ny)&&!(nx===st.x&&ny===st.y)) return false; if(res.has(key(nx,ny))&&!(nx===st.x&&ny===st.y)) return false; if(u.lastPos&&nx===u.lastPos.x&&ny===u.lastPos.y) return false; return true; }
+    function valid(nx,ny){
+      if(nx<0||nx>=COLS||ny<0||ny>=ROWS) return false;
+      if(occupiedAt(nx,ny)&&!(nx===st.x&&ny===st.y)) return false;
+      if(res.has(key(nx,ny))&&!(nx===st.x&&ny===st.y)) return false;
+      if(u.lastPos&&nx===u.lastPos.x&&ny===u.lastPos.y) return false; // anti-jiggle
+      return true;
+    }
     while(dq.length){
       const cur=dq.shift();
-      if(goals.some(g=>g.x===cur.x&&g.y===cur.y)){ let path=[cur], k=key(cur.x,cur.y); while(came.get(k)){ const p=came.get(k); path.push(p); k=key(p.x,p.y);} path.reverse(); return path[1]||null; }
-      for(const [dx,dy] of adj){ const nx=cur.x+dx,ny=cur.y+dy,nk=key(nx,ny); if(came.has(nk)) continue; if(!valid(nx,ny)) continue; came.set(nk,cur); dq.push({x:nx,y:ny}); }
-    } return null;
+      if(goals.some(g=>g.x===cur.x&&g.y===cur.y)){
+        let path=[cur], k=key(cur.x,cur.y);
+        while(came.get(k)){ const p=came.get(k); path.push(p); k=key(p.x,p.y); }
+        path.reverse(); return path[1]||null;
+      }
+      for(const [dx,dy] of adj){
+        const nx=cur.x+dx, ny=cur.y+dy, nk=key(nx,ny);
+        if(came.has(nk)) continue;
+        if(!valid(nx,ny)) continue;
+        came.set(nk,cur); dq.push({x:nx,y:ny});
+      }
+    }
+    return null;
   }
-  function tryStepToward(u,t,res){ if(!t||u.role!=='melee'||isAdjCross(u,t)||u.stepCool>0) return false; const step=nextStepBFS(u,t,res); if(step){ u.lastPos={x:u.cell.x,y:u.cell.y}; u.cell.x=step.x; u.cell.y=step.y; u.stepCool=.18; res.add(key(step.x,step.y)); return true; } u.stepCool=.12; return false; }
 
-  // ---------------- Combat / FX ----------------
+  function tryStepToward(u,t,res){
+    if(!t||u.role!=='melee'||isAdjCross(u,t)||u.stepCool>0) return false;
+    const step=nextStepBFS(u,t,res);
+    if(step){
+      u.lastPos={x:u.cell.x,y:u.cell.y};
+      u.cell.x=step.x; u.cell.y=step.y;
+      u.stepCool=.18; res.add(key(step.x,step.y));
+      return true;
+    }
+    u.stepCool=.12; return false;
+  }
+
+  // ---------- Damage / FX ----------
   const rnd=p=>Math.random()<p, phys=(d,a)=>d*(100/(100+Math.max(0,a))), mag=(d,r)=>d*(100/(100+Math.max(0,r)));
   const dmgTexts=[]; function pushDmg(cell,txt,col){ const c=cellCenter(cell.x,cell.y); dmgTexts.push({x:c.x,y:c.y,t:0,text:txt,color:col}); }
   function updDmg(dt){ for(const d of dmgTexts) d.t+=dt; for(let i=dmgTexts.length-1;i>=0;i--) if(dmgTexts[i].t>.6) dmgTexts.splice(i,1); }
@@ -169,7 +194,10 @@
   const hitSparks=[], healSparks=[], slashes=[], projectiles=[];
   function resolveHit(a,t,base,type='physical'){
     if(!a||!t||!t.alive) return;
-    let dr=0; if(a.name==='Brawler'&&a.star>=2){ const near=(a.team==='player'?enemiesAlive():playersAlive()); if(near.some(e=>Math.abs(e.cell.x-a.cell.x)+Math.abs(e.cell.y-a.cell.y)===1)) dr=.20; }
+    let dr=0; if(a.name==='Brawler'&&a.star>=2){
+      const near=(a.team==='player'?enemiesAlive():playersAlive());
+      if(near.some(e=>Math.abs(e.cell.x-a.cell.x)+Math.abs(e.cell.y-a.cell.y)===1)) dr=.20;
+    }
     if(rnd(t.dodge||0)){ pushDmg(t.cell,'MISS',COL.miss); return; }
     let dmg=base; const crit=rnd(a.crit||0); if(crit) dmg*=(a.critMult||2.0);
     dmg=(type==='physical')?phys(dmg,t.armor||0):mag(dmg,t.resist||0);
@@ -193,20 +221,21 @@
       if(dist<=HIT_RADIUS||overshoot){
         p.x=tc.x;p.y=tc.y;
         if(p.type==='dmg'){ resolveHit(p.shooterRef,t,p.amt,p.dmgType); hitSparks.push({x:tc.x,y:tc.y,t:0}); }
-        else { const before=t.hp; t.hp=Math.min(t.maxhp,t.hp+p.amt); healSparks.push({x:tc.x,y:tc.y,t:0,txt:`+${t.hp-before}`}); if(p.shooterRef.name==='Cleric'&&p.shooterRef.star>=2){ t.shield=Math.max(t.shield||0,Math.round(t.maxhp*0.05)); t.shieldT=4.0; } }
+        else { const before=t.hp; t.hp=Math.min(t.maxhp,t.hp+p.amt); healSparks.push({x:tc.x,y:tc.y,t:0,txt:`+${t.hp-before}`}); }
         p.alive=false; continue;
       }
       p.x=nx;p.y=ny;
     }
     for(let i=projectiles.length-1;i>=0;i--) if(!projectiles[i].alive) projectiles.splice(i,1);
   }
-  function updateFX(dt){ for(const s of hitSparks) s.t+=dt; for(let i=hitSparks.length-1;i>=0;i--) if(hitSparks[i].t>.2) hitSparks.splice(i,1);
+  function updateFX(dt){
+    for(const s of hitSparks) s.t+=dt; for(let i=hitSparks.length-1;i>=0;i--) if(hitSparks[i].t>.2) hitSparks.splice(i,1);
     for(const s of healSparks) s.t+=dt; for(let i=healSparks.length-1;i>=0;i--) if(healSparks[i].t>.35) healSparks.splice(i,1);
     for(const s of slashes) s.t+=dt; for(let i=slashes.length-1;i>=0;i--) if(slashes[i].t>.18) slashes.splice(i,1);
     updDmg(dt);
   }
 
-  // ---------------- Merge ----------------
+  // ---------- Merge ----------
   function tryMerge(name, star){
     const copies=roster.filter(u=>u.name===name&&u.star===star);
     if(copies.length<3) return false;
@@ -217,7 +246,7 @@
     roster.push(m); if(m.star<3) tryMerge(name,m.star); return true;
   }
 
-  // ---------------- Battle loop ----------------
+  // ---------- Battle Tick (melee movement fixed) ----------
   function battleTick(dt){
     if(!playersAlive().length){ state='result'; result='lose'; return; }
     if(!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
@@ -225,18 +254,20 @@
     // players
     { const res=new Set();
       for(const u of playersAlive()){
-        u.cool-=dt; if(u.stepCool>0) u.stepCool-=dt;
+        u.cool=Math.max(0,u.cool-dt); u.stepCool=Math.max(0,u.stepCool-dt);
         const tgt=frontlineTarget(u,enemiesAlive());
-        if(u.role==='melee' && tryStepToward(u,tgt,res)) { if(u.cool<0) u.cool=0; }
+        if(u.role==='melee') tryStepToward(u,tgt,res);
         if(u.cool<=0){
+          let acted=false;
           if(u.role==='healer'){
             const al=playersAlive().slice().sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp));
             const patient=al[0];
-            if(patient && patient.hp<patient.maxhp){ spawnProjectile({shooter:u,target:patient,amt:20,type:'heal'}); }
-            const t=frontlineTarget(u,enemiesAlive()); if(inRange(u,t)){ spawnProjectile({shooter:u,target:t,amt:Math.max(4,Math.floor(u.atk*0.5)),type:'dmg',dmgType:'magic'}); }
-          } else {
+            if(patient && patient.hp<patient.maxhp){ spawnProjectile({shooter:u,target:patient,amt:20,type:'heal'}); acted=true; }
+            const t=frontlineTarget(u,enemiesAlive()); if(inRange(u,t)){ spawnProjectile({shooter:u,target:t,amt:Math.max(4,Math.floor(u.atk*0.5)),type:'dmg',dmgType:'magic'}); acted=true; }
+          }
+          if(!acted && u.role!=='healer'){
             const t=frontlineTarget(u,enemiesAlive());
-            if(u.role==='melee' ? isAdjCross(u,t) : inRange(u,t)){
+            if(u.role==='melee'? isAdjCross(u,t) : inRange(u,t)){
               if(u.role==='melee'){ const a=cellCenter(u.cell.x,u.cell.y), b=cellCenter(t.cell.x,t.cell.y); slashes.push({sx:a.x,sy:a.y,ang:Math.atan2(b.y-a.y,b.x-a.x),t:0}); resolveHit(u,t,u.atk,'physical'); }
               else { spawnProjectile({shooter:u,target:t,amt:u.atk,type:'dmg',dmgType:'physical'}); }
             }
@@ -252,12 +283,12 @@
     // enemies
     { const res=new Set();
       for(const e of enemiesAlive()){
-        e.cool-=dt; if(e.stepCool>0) e.stepCool-=dt;
+        e.cool=Math.max(0,e.cool-dt); e.stepCool=Math.max(0,e.stepCool-dt);
         const tgt=frontlineTarget(e,playersAlive());
-        if(e.role==='melee' && tryStepToward(e,tgt,res)) { if(e.cool<0) e.cool=0; }
+        if(e.role==='melee') tryStepToward(e,tgt,res);
         if(e.cool<=0){
           const t=frontlineTarget(e,playersAlive());
-          if(e.role==='melee' ? isAdjCross(e,t) : inRange(e,t)){
+          if(e.role==='melee'? isAdjCross(e,t) : inRange(e,t)){
             if(e.role==='melee'){ const a=cellCenter(e.cell.x,e.cell.y), b=cellCenter(t.cell.x,t.cell.y); slashes.push({sx:a.x,sy:a.y,ang:Math.atan2(b.y-a.y,b.x-a.x),t:0}); resolveHit(e,t,e.atk,'physical'); }
             else { spawnProjectile({shooter:e,target:t,amt:e.atk,type:'dmg',dmgType:'physical'}); }
           }
@@ -265,68 +296,61 @@
         }
       }
     }
-
-    updateProjectiles(dt);
-    updateFX(dt);
   }
 
-  // ---------------- Input ----------------
+  // ---------- Input ----------
   const cellAtFloor=(px,py)=>({ x: ((px-L.originX)/L.cell)|0, y: ((py-L.originY)/L.cell)|0 });
   const cellAtRound=(px,py)=>({ x: Math.round((px-L.originX)/L.cell), y: Math.round((py-L.originY)/L.cell) });
   const unitAtCell=(c,r)=> roster.find(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive) || null;
   const inLeftCols=(c,r)=> (c>=0 && c<=1 && r>=0 && r<ROWS);
 
   function placeExactAt(c,r){
-    if(!inLeftCols(c,r)) return false;
-    if(unitAtCell(c,r)) return false;
-    preview.cell={x:c,y:r}; roster.push(preview); tryMerge(preview.name, preview.star||1);
+    if(!inLeftCols(c,r)) { toast('Place in the left two columns'); return false; }
+    if(unitAtCell(c,r)) { toast('Cell occupied'); return false; }
+    preview.cell={x:c,y:r}; roster.push(preview);
+    tryMerge(preview.name, preview.star||1);
+    toast(`${preview._fromPickup?'Moved':'Placed'} ${preview.name} ${'★'.repeat(preview.star||1)} @ ${c},${r}`);
     preview=null; state='shop'; shopOpacity=1; return true;
   }
 
   function clientToCanvas(e){
     const rect = canvas.getBoundingClientRect();
     const t = e.changedTouches?.[0] || e.touches?.[0] || e;
-    return { x: t.clientX - rect.left, y: t.clientY - rect.top, touches: (e.touches?e.touches.length: (e.pointerType==='touch'?1:0)) };
-  }
-
-  function toggleShop(src='tap'){
-    SHOW_SHOP = !SHOW_SHOP; layout();
-    lastTap.info = `toggle:${src} => ${SHOW_SHOP?'show':'hide'}`;
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
   }
 
   function onPointerDown(e){
     if(isPortrait()){ e.preventDefault(); return; }
     const p=clientToCanvas(e);
 
-    // three-finger tap = force toggle (debug escape hatch)
-    if (p.touches >= 3) { toggleShop('3finger'); e.preventDefault(); return; }
-
-    // Always allow SHOP toggle (works in all states)
-    if(pointInRect(p.x,p.y,shopBtn)){ toggleShop('button'); e.preventDefault(); return; }
-
-    // log tap
-    lastTap = { x:p.x, y:p.y, info:`state:${state}` };
+    // Always allow top-left SHOP toggle (all states)
+    if(pointInRect(p.x,p.y,shopBtn)){
+      SHOW_SHOP = !SHOW_SHOP; layout(); toast(SHOW_SHOP?'Shop shown':'Shop hidden');
+      e.preventDefault(); return;
+    }
 
     if(state==='result'){
-      if(result==='win'){ floorN++; } else { roster.length=0; enemies.length=0; gold=6; floorN=1; }
+      if(result==='win'){ floorN++; toast(`Floor ${floorN}`); }
+      else { roster.length=0; enemies.length=0; gold=6; floorN=1; toast('Run reset'); }
       result=null; state='shop'; SHOW_SHOP=true; enemies.length=0; refillShop(); e.preventDefault(); return;
     }
 
     if(state==='placing' && preview){ e.preventDefault(); return; }
 
     if(state==='shop' && !preview){
-      // pick up
+      // pick up from board
       const cc=cellAtFloor(p.x,p.y);
       if(inLeftCols(cc.x,cc.y)){
         const u=unitAtCell(cc.x,cc.y);
         if(u){ const idx=roster.indexOf(u); if(idx>=0) roster.splice(idx,1);
           preview=u; preview._fromPickup=true; preview._fromCell={x:cc.x,y:cc.y};
-          state='placing'; shopOpacity=.25; e.preventDefault(); return;
+          state='placing'; shopOpacity=.25; toast(`Picked up ${u.name} ${'★'.repeat(u.star||1)}`); e.preventDefault(); return;
         }
       }
       // reroll
       if(SHOW_SHOP && pointInRect(p.x,p.y,rerollArea)){
-        if(gold>=REROLL_COST){ gold-=REROLL_COST; refillShop(); }
+        if(gold>=REROLL_COST){ gold-=REROLL_COST; refillShop(); toast('Shop rerolled'); }
+        else toast('Not enough gold');
         e.preventDefault(); return;
       }
       // buy
@@ -335,7 +359,7 @@
           if(pointInRect(p.x,p.y,r) && gold>=BUY_COST){
             gold-=BUY_COST; preview=mkUnit(shop[r.i],'player',null,1);
             preview._fromPickup=false; preview._fromCell=null;
-            state='placing'; shopOpacity=.25; e.preventDefault(); return;
+            state='placing'; shopOpacity=.25; toast(`Bought ${shop[r.i]} ★`); e.preventDefault(); return;
           }
         }
       }
@@ -343,12 +367,11 @@
       if(pointInRect(p.x,p.y,startArea) && roster.some(u=>u.alive&&u.cell)){ spawnEnemies(); state='battle'; e.preventDefault(); return; }
     }
   }
-
   function onPointerUp(e){
     if(isPortrait()){ e.preventDefault(); return; }
     const p=clientToCanvas(e);
     if(state==='placing' && preview && pointInRect(p.x,p.y,sellArea)){
-      const amt=refundFor(preview); gold+=amt; preview=null; state='shop'; shopOpacity=1; e.preventDefault(); return;
+      const amt=refundFor(preview); gold+=amt; preview=null; state='shop'; shopOpacity=1; toast(`Sold for ${amt}g`); e.preventDefault(); return;
     }
     if(state==='placing' && preview){
       let c=cellAtRound(p.x,p.y).x, r=cellAtRound(p.x,p.y).y;
@@ -362,7 +385,7 @@
   canvas.addEventListener('touchstart',  onPointerDown, {passive:false});
   canvas.addEventListener('touchend',    onPointerUp,   {passive:false});
 
-  // ---------------- Render ----------------
+  // ---------- Render ----------
   function draw(dt){
     const portrait=isPortrait();
     ctx.fillStyle=C.bg; ctx.fillRect(0,0,L.vw,L.vh);
@@ -388,33 +411,32 @@
     }
     roster.forEach(drawUnit); enemies.forEach(drawUnit);
 
-    // FX
+    // FX & damage numbers
     for(const s of slashes){ const a=Math.max(0,1-s.t/.18); ctx.save(); ctx.globalAlpha=a; ctx.translate(s.sx,s.sy); ctx.rotate(s.ang);
       ctx.strokeStyle='#ffffff'; ctx.lineWidth=6; ctx.beginPath(); ctx.arc(0,0,18+s.t*14,-0.6,0.2); ctx.stroke();
       ctx.strokeStyle='#ffe9a6'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,18+s.t*14,-0.6,0.2); ctx.stroke(); ctx.restore(); }
-    for(const p of projectiles){ ctx.fillStyle='#ffffff'; ctx.beginPath(); if(p.type==='heal'){ ctx.ellipse(p.x,p.y,8,8,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle=COL.heal; ctx.beginPath(); ctx.ellipse(p.x,p.y,6,6,0,0,Math.PI*2); ctx.fill(); } else { ctx.ellipse(p.x,p.y,7,3,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#ffe9a6'; ctx.beginPath(); ctx.ellipse(p.x,p.y,5,2,0,0,Math.PI*2); ctx.fill(); } }
+    for(const p of projectiles){ ctx.fillStyle='#ffffff'; ctx.beginPath();
+      if(p.type==='heal'){ ctx.ellipse(p.x,p.y,8,8,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle=COL.heal; ctx.beginPath(); ctx.ellipse(p.x,p.y,6,6,0,0,Math.PI*2); ctx.fill(); }
+      else { ctx.ellipse(p.x,p.y,7,3,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#ffe9a6'; ctx.beginPath(); ctx.ellipse(p.x,p.y,5,2,0,0,Math.PI*2); ctx.fill(); } }
     drawDmg();
 
-    // bottom UI (always drawn; clamped)
-    const y0=L.yUI; ctx.fillStyle=C.ui; ctx.fillRect(0,y0,L.vw,currentUIH());
+    // bottom UI
+    const y0=L.yUI; fill(0,y0,L.vw,currentUIH(),C.ui);
 
     // SELL
     sellArea = { x:L.vw-168, y:y0+(SHOW_SHOP?60:8), w:160, h:72 };
-    ctx.fillStyle='#3a2222'; ctx.fillRect(sellArea.x, sellArea.y, sellArea.w, sellArea.h);
-    text(`SELL (${preview ? refundFor(preview) : 2}g)`, sellArea.x+22, sellArea.y+44, 20, '#ff9a9a');
+    fill(sellArea.x, sellArea.y, sellArea.w, sellArea.h, '#3a2222'); text(`SELL (${preview ? refundFor(preview) : 2}g)`, sellArea.x+22, sellArea.y+44, 20, '#ff9a9a');
 
     // REROLL / START
     if(SHOW_SHOP){
       rerollArea={ x:L.vw-336, y:y0+8, w:160, h:52 };
-      ctx.fillStyle='#2d2d2d'; ctx.fillRect(rerollArea.x,rerollArea.y,rerollArea.w,rerollArea.h);
-      text(`REROLL (${REROLL_COST}g)`, rerollArea.x+12, rerollArea.y+32, 18, '#ffd45a');
+      fill(rerollArea.x,rerollArea.y,rerollArea.w,rerollArea.h,'#2d2d2d'); text(`REROLL (${REROLL_COST}g)`, rerollArea.x+12, rerollArea.y+32, 18, '#ffd45a');
     } else rerollArea={x:0,y:0,w:0,h:0};
 
     startArea={ x:L.vw-168, y:y0+8, w:160, h:52 };
-    ctx.fillStyle=C.start; ctx.fillRect(startArea.x,startArea.y,startArea.w,startArea.h);
-    text('START', startArea.x+48, startArea.y+32, 20, '#fff');
+    fill(startArea.x,startArea.y,startArea.w,startArea.h,C.start); text('START', startArea.x+48, startArea.y+32, 20, '#fff');
 
-    // GOLD above cards (only when shop visible)
+    // GOLD
     if (SHOW_SHOP) text(`GOLD: ${gold}g`, 8, y0+52, 18, '#ffd45a');
 
     // SHOP cards
@@ -422,59 +444,47 @@
       buyAreas.length=0; const cardW=Math.min(200, L.vw/3 - 12), cardH=126;
       for(let i=0;i<3;i++){
         const x=8+i*(cardW+6), y=y0+60, w=cardW, h=cardH;
-        ctx.fillStyle='#3c3c3c'; ctx.fillRect(x,y,w,h);
+        fill(x,y,w,h,'#3c3c3c');
         const name=shop[i], b=BASE[name];
         text(`${name} ★`, x+8, y+18, 16, '#fff');
         ctx.fillStyle='#eaeaea'; ctx.font='12px -apple-system,system-ui,sans-serif';
         const lines=[`HP: ${b.hp}   ATK: ${b.atk}`, `CRIT: ${Math.round(b.crit*100)}%   ARM: ${b.armor}`, `RES: ${b.resist}   SPD: ${b.spd}`];
         let ly=y+36; for(const ln of lines){ ctx.fillText(ln, x+8, ly); ly+=16; }
-        ctx.fillStyle='#2a2a2a'; ctx.fillRect(x+8,y+h-22,w-16,18);
-        text(`Buy ${BUY_COST} gold`, x+14, y+h-8, 12, C.td);
+        fill(x+8,y+h-22,w-16,18,'#2a2a2a'); text(`Buy ${BUY_COST} gold`, x+14, y+h-8, 12, C.td);
         buyAreas.push({x,y,w,h,i});
       }
     } else buyAreas.length=0;
 
-    // Floating SHOP toggle (only one) + DEBUG dashed hitbox
-    ctx.fillStyle='#2d2d2d'; ctx.fillRect(shopBtn.x,shopBtn.y,shopBtn.w,shopBtn.h);
+    // top-left SHOP toggle (single)
+    fill(shopBtn.x,shopBtn.y,shopBtn.w,shopBtn.h,'#2d2d2d');
     text(SHOW_SHOP ? 'HIDE SHOP' : 'SHOW SHOP', shopBtn.x+14, shopBtn.y+34, 18, '#ffd45a');
-    if (DEBUG){
-      ctx.save();
-      ctx.setLineDash([6,4]); ctx.lineWidth=2; ctx.strokeStyle='#9ee';
-      ctx.strokeRect(shopBtn.x,shopBtn.y,shopBtn.w,shopBtn.h);
-      ctx.restore();
-    }
 
     // portrait lock
-    if(portrait){
+    if(isPortrait()){
       ctx.fillStyle='rgba(0,0,0,0.85)'; ctx.fillRect(0,0,L.vw,L.vh);
       text('Rotate your device to landscape to play', (L.vw-320)/2, L.vh/2, 18, '#eaeaea');
     }
-
-    if(state==='result'){
-      text((result==='win')?'Victory!':'Defeated.', L.vw/2-50, L.vh/2-10, 28, '#fff');
-      text('Tap to continue', L.vw/2-70, L.vh/2+20, 16, '#fff');
-    }
-
-    // DEBUG overlay text
-    if (DEBUG){
-      dbgEl.textContent =
-        `vw×vh: ${L.vw}×${L.vh}
-cell: ${L.cell}
-originY: ${L.originY}
-yUI: ${L.yUI} (h=${currentUIH()})
-state: ${state}
-shop: ${SHOW_SHOP ? 'shown' : 'hidden'}
-lastTap: ${lastTap.x|0},${lastTap.y|0} ${lastTap.info||''}`;
-    } else { dbgEl.textContent=''; }
   }
 
-  // ---------------- Boot ----------------
+  // ---------- Boot & Loop ----------
   function boot(){ state='shop'; SHOW_SHOP=true; refillShop(); }
   boot();
   let last=performance.now();
-  function loop(ts){ const dt=Math.min(.05,(ts-last)/1000); last=ts;
-    if(!isPortrait() && state==='battle'){ battleTick(dt); updateProjectiles(dt); updateFX(dt); }
-    draw(dt); requestAnimationFrame(loop);
+  function loop(ts){
+    const dt=Math.min(.05,(ts-last)/1000); last=ts;
+    if(!isPortrait()){
+      if(state==='battle'){
+        // make sure combat & movement always tick during battle
+        battleTick(dt);
+        updateProjectiles(dt);
+        updateFX(dt);
+      } else {
+        // still run FX outside battle so numbers fade
+        updateFX(dt);
+      }
+    }
+    draw(dt);
+    requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
 })();
