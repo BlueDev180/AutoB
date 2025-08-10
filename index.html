@@ -17,10 +17,12 @@
 <div id="toast"></div>
 <script>
 (() => {
+  // --- Switches & costs ---
   let SHOW_SHOP = true;
   const UI_H_SHOP = 196, UI_H_COMPACT = 96;
   const BUY_COST = 2, REROLL_COST = 2;
 
+  // --- Canvas / viewport ---
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha:false });
   const toastEl = document.getElementById('toast'); let toastTimer=null;
@@ -39,12 +41,15 @@
   if(visualViewport){visualViewport.addEventListener('resize',resize,{passive:true});visualViewport.addEventListener('scroll',resize,{passive:true});}
   resize();
 
+  // --- Colors ---
   const C={ bg:'#121214', grid:'#282828', ui:'#1e1e1e', hp:'#e42828', t:'#eaeaea', td:'#d8c878', start:'#7a50a0', hint:'#9ee',
             b:'#c8503c', a:'#50c85a', c:'#78b4dc', e:'#a0a0a0' };
   const COL={ phys:'#ffb27c', physCrit:'#ffd45a', magic:'#88c6ff', magicCrit:'#7de0ff', miss:'#cccccc', heal:'#a6f5c7' };
 
+  // --- Economy ---
   const refundFor=u=>(!u)?BUY_COST:(u.star===1?2:u.star===2?6:18);
 
+  // --- Units ---
   const BASE={
     Brawler:{hp:120, atk:18, spd:1.0, range:1, color:C.b, role:'melee',  crit:0.10, critMult:2.0, armor:10, resist:5,  dodge:0.05, lifesteal:0.05},
     Archer: {hp:70,  atk:25, spd:0.8, range:5, color:C.a, role:'ranged', crit:0.20, critMult:2.0, armor:4,  resist:4,  dodge:0.10, lifesteal:0.00},
@@ -55,15 +60,17 @@
     crit:b.crit+(s>=2&&b.role==='ranged'?0.10:0),critMult:2.0,armor:Math.round(b.armor*starMul(s)),resist:Math.round(b.resist*starMul(s)),dodge:b.dodge,lifesteal:b.lifesteal});
   function mkUnit(name,team,cell=null,star=1){const s=scaled(BASE[name],star);return {name,team,cell,star,alive:true,maxhp:s.hp,hp:s.hp,atk:s.atk,spd:s.spd,range:s.range,color:s.color,role:s.role,crit:s.crit,critMult:s.critMult,armor:s.armor,resist:s.resist,dodge:s.dodge,lifesteal:s.lifesteal,cool:0,stepCool:0,lastPos:null,shield:0,shieldT:0};}
 
+  // --- Game state ---
   let gold=6, floorN=1, state='shop', result=null;
   const roster=[], enemies=[];
-  let shop=[], preview=null, shopOpacity=1;
+  let shop=[], preview=null;
   const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0}, rerollArea={x:0,y:0,w:0,h:0}, sellArea={x:0,y:0,w:0,h:0};
   let shopBtn={x:16,y:20,w:160,h:54};
 
   function refillShop(){const k=Object.keys(BASE);shop=Array.from({length:3},()=>k[(Math.random()*k.length)|0]);}
   function spawnEnemies(){enemies.length=0;const count=(floorN===1)?2:3, cols=[4,3,4,3];for(let i=0;i<count;i++){const hp=Math.floor((floorN===1)?80:90+floorN*8), atk=Math.floor((floorN===1)?10:10+floorN*3);enemies.push({name:'Enemy',team:'enemy',cell:{x:cols[i%cols.length],y:i%3},star:1,alive:true,maxhp:hp,hp,atk,spd:1.0,range:1,color:C.e,role:'melee',crit:0.05,critMult:2.0,armor:5+floorN,resist:3+((floorN/2)|0),dodge:0.02,lifesteal:0,cool:0,stepCool:0,lastPos:null,shield:0,shieldT:0});}}
 
+  // --- Helpers ---
   const fill=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h);};
   const text=(t,x,y,s=16,c=C.t)=>{ctx.fillStyle=c;ctx.font=`${s}px -apple-system,system-ui,sans-serif`;ctx.fillText(t,x,y);};
   const cellCenter=(x,y)=>({x:L.originX+x*L.cell+L.cell/2,y:L.originY+y*L.cell+L.cell/2});
@@ -102,6 +109,7 @@
     u.stepCool=.12;return false;
   }
 
+  // --- Damage / FX ---
   const rnd=p=>Math.random()<p, phys=(d,a)=>d*(100/(100+Math.max(0,a))), mag=(d,r)=>d*(100/(100+Math.max(0,r)));
   const dmgTexts=[]; const pushDmg=(cell,txt,col)=>{const c=cellCenter(cell.x,cell.y);dmgTexts.push({x:c.x,y:c.y,t:0,text:txt,color:col});};
   function updDmg(dt){for(const d of dmgTexts) d.t+=dt; for(let i=dmgTexts.length-1;i>=0;i--) if(dmgTexts[i].t>.6) dmgTexts.splice(i,1);}
@@ -120,6 +128,7 @@
     pushDmg(t.cell,(crit?'★':'')+dmg,col);if(t.hp<=0) t.alive=false;
     const ls=a.lifesteal||0;if(ls>0&&a.alive&&dmg>0){const heal=Math.max(1,Math.round(dmg*ls));a.hp=Math.min(a.maxhp,a.hp+heal);const ac=cellCenter(a.cell.x,a.cell.y);healSparks.push({x:ac.x,y:ac.y,t:0,txt:`+${heal}`});}
   }
+
   const PROJ_SPEED=420,HIT_RADIUS=10;
   function spawnProjectile({shooter,target,amt,type,dmgType='physical'}){
     if(!target||!target.alive||!target.cell) return;
@@ -128,15 +137,28 @@
   }
   function updateProjectiles(dt){
     for(const p of projectiles){
-      if(!p.alive) continue; p.ttl-=dt; const t=p.targetRef;
-      if(p.ttl<=0||!t||!t.alive||!t.cell){p.alive=false;continue;}
-      const tc=cellCenter(t.cell.x,t.cell.y),dx=tc.x-p.x,dy=tc.y-p.y,dist=Math.hypot(dx,dy),step=p.speed*dt;
-      const nx=p.x+(dx/dist)*step,ny=p.y+(dy/dist)*step;const afterDx=tc.x-nx,afterDy=tc.y-ny,overshoot=(dx*afterDx+dy*afterDy)<=0;
-      if(dist<=HIT_RADIUS||overshoot){
+      if(!p.alive) continue;
+      p.ttl-=dt;
+      const t=p.targetRef;
+      if(p.ttl<=0||!t||!t.alive||!t.cell){ p.alive=false; continue; }
+      const tc=cellCenter(t.cell.x,t.cell.y), dx=tc.x-p.x, dy=tc.y-p.y, dist=Math.hypot(dx,dy);
+      // Resolve BEFORE any division — avoids NaN/Infinity on exact overlap
+      if(dist<=HIT_RADIUS || dist===0){
         p.x=tc.x;p.y=tc.y;
-        if(p.type==='dmg'){resolveHit(p.shooterRef,t,p.amt,p.dmgType);hitSparks.push({x:tc.x,y:tc.y,t:0});}
-        else{const before=t.hp;t.hp=Math.min(t.maxhp,t.hp+p.amt);healSparks.push({x:tc.x,y:tc.y,t:0,txt:`+${t.hp-before}`});}
-        p.alive=false;continue;
+        if(p.type==='dmg'){ resolveHit(p.shooterRef,t,p.amt,p.dmgType); hitSparks.push({x:tc.x,y:tc.y,t:0}); }
+        else { const before=t.hp; t.hp=Math.min(t.maxhp,t.hp+p.amt); healSparks.push({x:tc.x,y:tc.y,t:0,txt:`+${t.hp-before}`}); }
+        p.alive=false; continue;
+      }
+      const step=p.speed*dt;
+      const nx=p.x+(dx/dist)*step, ny=p.y+(dy/dist)*step;
+      // check overshoot using dot product without dividing again
+      const adx=tc.x-nx, ady=tc.y-ny;
+      const overshoot=(dx*adx+dy*ady)<=0;
+      if(overshoot){
+        p.x=tc.x;p.y=tc.y;
+        if(p.type==='dmg'){ resolveHit(p.shooterRef,t,p.amt,p.dmgType); hitSparks.push({x:tc.x,y:tc.y,t:0}); }
+        else { const before=t.hp; t.hp=Math.min(t.maxhp,t.hp+p.amt); healSparks.push({x:tc.x,y:tc.y,t:0,txt:`+${t.hp-before}`}); }
+        p.alive=false; continue;
       }
       p.x=nx;p.y=ny;
     }
@@ -147,6 +169,7 @@
     for(const s of slashes) s.t+=dt; for(let i=slashes.length-1;i>=0;i--) if(s.t>.18) slashes.splice(i,1);
     updDmg(dt);}
 
+  // --- Merge ---
   function tryMerge(name,star){
     const copies=roster.filter(u=>u.name===name&&u.star===star);
     if(copies.length<3) return false;
@@ -157,7 +180,7 @@
     roster.push(m);if(m.star<3) tryMerge(name,m.star);return true;
   }
 
-  // ---- BATTLE TICK (cooldown only resets if an action happened) ----
+  // --- Battle tick (CD only resets on real action; quick retry otherwise) ---
   function battleTick(dt){
     if(!playersAlive().length){state='result';result='lose';return;}
     if(!enemiesAlive().length){state='result';result='win';gold+=2+Math.floor(floorN/2);return;}
@@ -182,7 +205,7 @@
               acted=true;
             }
           }
-          u.cool = acted ? (1/u.spd) : 0.12; // <-- key change
+          u.cool = acted ? (1/u.spd) : 0.12;
         }
       }
     }
@@ -203,13 +226,13 @@
             else { spawnProjectile({shooter:e,target:t,amt:e.atk,type:'dmg',dmgType:'physical'}); }
             acted=true;
           }
-          e.cool = acted ? (1/e.spd) : 0.12; // <-- key change
+          e.cool = acted ? (1/e.spd) : 0.12;
         }
       }
     }
   }
 
-  // ---------- Input with robust toggle ----------
+  // --- Input (robust SHOP toggle on pointerup) ---
   const cellAtFloor=(px,py)=>({x:((px-L.originX)/L.cell)|0,y:((py-L.originY)/L.cell)|0});
   const cellAtRound=(px,py)=>({x:Math.round((px-L.originX)/L.cell),y:Math.round((py-L.originY)/L.cell)});
   const unitAtCell=(c,r)=>roster.find(u=>u.cell&&u.cell.x===c&&u.cell.y===r&&u.alive)||null;
@@ -220,7 +243,7 @@
     if(unitAtCell(c,r)){toast('Cell occupied');return false;}
     preview.cell={x:c,y:r};roster.push(preview);tryMerge(preview.name,preview.star||1);
     toast(`${preview._fromPickup?'Moved':'Placed'} ${preview.name} ${'★'.repeat(preview.star||1)} @ ${c},${r}`);
-    preview=null;state='shop';shopOpacity=1;return true;
+    preview=null;state='shop';return true;
   }
   function clientToCanvas(e){const rect=canvas.getBoundingClientRect();const t=e.changedTouches?.[0]||e.touches?.[0]||e;return {x:t.clientX-rect.left,y:t.clientY-rect.top};}
 
@@ -232,33 +255,49 @@
     if(isPortrait()){e.preventDefault();return;}
     const p=clientToCanvas(e);
     if(pointInRect(p.x,p.y,shopBtn)){safeToggleShop();e.preventDefault();e.stopPropagation();return;}
+
     if(state==='result'){
       if(result==='win'){floorN++;toast(`Floor ${floorN}`);} else {roster.length=0;enemies.length=0;gold=6;floorN=1;toast('Run reset');}
       result=null;state='shop';SHOW_SHOP=true;refillShop();layout();e.preventDefault();return;
     }
+
     if(state==='placing'&&preview){
-      if(pointInRect(p.x,p.y,sellArea)){const amt=refundFor(preview);gold+=amt;preview=null;state='shop';shopOpacity=1;toast(`Sold for ${amt}g`);e.preventDefault();return;}
+      if(pointInRect(p.x,p.y,sellArea)){const amt=refundFor(preview);gold+=amt;preview=null;state='shop';toast(`Sold for ${amt}g`);e.preventDefault();return;}
       let c=cellAtRound(p.x,p.y).x,r=cellAtRound(p.x,p.y).y;c=Math.max(0,Math.min(COLS-1,c));r=Math.max(0,Math.min(ROWS-1,r));placeExactAt(c,r);e.preventDefault();return;
     }
+
     if(state==='shop'&&!preview){
       const cc=cellAtFloor(p.x,p.y);
-      if(inLeftCols(cc.x,cc.y)){const u=unitAtCell(cc.x,cc.y);if(u){const idx=roster.indexOf(u);if(idx>=0) roster.splice(idx,1);preview=u;preview._fromPickup=true;preview._fromCell={x:cc.x,y:cc.y};state='placing';shopOpacity=.25;toast(`Picked up ${u.name} ${'★'.repeat(u.star||1)}`);e.preventDefault();return;}}
-      if(SHOW_SHOP&&pointInRect(p.x,p.y,rerollArea)){if(gold>=REROLL_COST){gold-=REROLL_COST;refillShop();toast('Shop rerolled');}else toast('Not enough gold');e.preventDefault();return;}
-      if(SHOW_SHOP){for(const r of buyAreas){if(pointInRect(p.x,p.y,r)&&gold>=BUY_COST){gold-=BUY_COST;preview=mkUnit(shop[r.i],'player',null,1);preview._fromPickup=false;preview._fromCell=null;state='placing';shopOpacity=.25;toast(`Bought ${shop[r.i]} ★`);e.preventDefault();return;}}}
-      if(pointInRect(p.x,p.y,startArea)&&roster.some(u=>u.alive&&u.cell)){spawnEnemies();state='battle';e.preventDefault();return;}
+      // pick up to move
+      if(inLeftCols(cc.x,cc.y)){
+        const u=unitAtCell(cc.x,cc.y);
+        if(u){const idx=roster.indexOf(u);if(idx>=0) roster.splice(idx,1);preview=u;preview._fromPickup=true;preview._fromCell={x:cc.x,y:cc.y};state='placing';toast(`Picked up ${u.name} ${'★'.repeat(u.star||1)}`);e.preventDefault();return;}
+      }
+      // reroll / buy
+      if(SHOW_SHOP && pointInRect(p.x,p.y,rerollArea)){if(gold>=REROLL_COST){gold-=REROLL_COST;refillShop();toast('Shop rerolled');}else toast('Not enough gold');e.preventDefault();return;}
+      if(SHOW_SHOP){for(const r of buyAreas){if(pointInRect(p.x,p.y,r)&&gold>=BUY_COST){gold-=BUY_COST;preview=mkUnit(shop[r.i],'player',null,1);preview._fromPickup=false;preview._fromCell=null;state='placing';toast(`Bought ${shop[r.i]} ★`);e.preventDefault();return;}}}
+      // start
+      if(pointInRect(p.x,p.y,startArea)){
+        if(roster.some(u=>u.alive&&u.cell)){ spawnEnemies(); state='battle'; }
+        else toast('Place at least one unit first');
+        e.preventDefault();return;
+      }
     }
   }
   canvas.addEventListener('pointerdown',onPointerDown,{passive:false});
   canvas.addEventListener('pointerup',onPointerUp,{passive:false});
 
+  // --- Render ---
   function draw(dt){
     const portrait=isPortrait();
     ctx.fillStyle=C.bg;ctx.fillRect(0,0,L.vw,L.vh);
     ctx.strokeStyle=C.grid;for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++)ctx.strokeRect(L.originX+c*L.cell,L.originY+r*L.cell,L.cell,L.cell);
     const hint=state==='result'?'Tap anywhere to continue…':state==='placing'?'Drag to place or onto SELL to sell.':'Tap a unit to move it. Use SHOP to toggle.';
     text(hint,L.originX,Math.max(16,L.originY-6),12,C.hint);
+
     function drawUnit(u){if(!u.alive||!u.cell)return;const gx=L.originX+u.cell.x*L.cell,gy=L.originY+u.cell.y*L.cell;ctx.fillStyle=u.color;ctx.fillRect(gx+8,gy+8,L.cell-16,L.cell-16);const w=L.cell-20,hpw=Math.max(0,Math.floor(w*Math.max(0,u.hp)/u.maxhp));ctx.fillStyle='#333';ctx.fillRect(gx+10,gy+L.cell-28,w,6);ctx.fillStyle=C.hp;ctx.fillRect(gx+10,gy+L.cell-28,hpw,6);}
     roster.forEach(drawUnit);enemies.forEach(drawUnit);
+
     for(const s of slashes){const a=Math.max(0,1-s.t/.18);ctx.save();ctx.globalAlpha=a;ctx.translate(s.sx,s.sy);ctx.rotate(s.ang);ctx.strokeStyle='#ffffff';ctx.lineWidth=6;ctx.beginPath();ctx.arc(0,0,18+s.t*14,-0.6,0.2);ctx.stroke();ctx.strokeStyle='#ffe9a6';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,18+s.t*14,-0.6,0.2);ctx.stroke();ctx.restore();}
     for(const p of projectiles){ctx.fillStyle='#ffffff';ctx.beginPath();if(p.type==='heal'){ctx.ellipse(p.x,p.y,8,8,0,0,Math.PI*2);ctx.fill();ctx.fillStyle=COL.heal;ctx.beginPath();ctx.ellipse(p.x,p.y,6,6,0,0,Math.PI*2);ctx.fill();}else{ctx.ellipse(p.x,p.y,7,3,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ffe9a6';ctx.beginPath();ctx.ellipse(p.x,p.y,5,2,0,0,Math.PI*2);ctx.fill();}}
     drawDmg();
