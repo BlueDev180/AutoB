@@ -114,7 +114,6 @@
 
   // ---------- Helpers ----------
   const fill=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h);};
-  const stroke=(x,y,w,h,c)=>{ctx.strokeStyle=c;ctx.strokeRect(x,y,w,h);};
   const text=(t,x,y,s=16,c=C.t)=>{ctx.fillStyle=c;ctx.font=`${s}px -apple-system,system-ui,sans-serif`;ctx.fillText(t,x,y);};
   const cellCenter=(x,y)=>({x:L.originX+x*L.cell+L.cell/2, y:L.originY+y*L.cell+L.cell/2});
   const pointInRect=(x,y,r)=> x>=r.x && y>=r.y && y<=r.y+r.h && x<=r.x+r.w;
@@ -184,7 +183,7 @@
   // ---------- Damage / FX ----------
   const rnd=p=>Math.random()<p, phys=(d,a)=>d*(100/(100+Math.max(0,a))), mag=(d,r)=>d*(100/(100+Math.max(0,r)));
   const dmgTexts=[]; function pushDmg(cell,txt,col){ const c=cellCenter(cell.x,cell.y); dmgTexts.push({x:c.x,y:c.y,t:0,text:txt,color:col}); }
-  function updDmg(dt){ for(const d of dmgTexts) d.t+=dt; for(let i=dmgTexts.length-1;i>=0;i--) if(dmgTexts[i].t>.6) dmgTexts.splice(i,1); }
+  function updDmg(dt){ for(const d of dmgTexts) d.t+=dt; for(let i=dmgTexts.length-1;i>=0;i--) if(d.t>.6) dmgTexts.splice(i,1); }
   function drawDmg(){ for(const d of dmgTexts){ const a=Math.max(0,1-d.t/.6), lift=d.t*24; ctx.globalAlpha=a; ctx.fillStyle=d.color; ctx.font='14px -apple-system,system-ui,sans-serif'; ctx.fillText(d.text,d.x-10,d.y-10-lift); ctx.globalAlpha=1; } }
   function shieldAbsorb(t,d){ if(t.shield>0){ const use=Math.min(t.shield,d); t.shield-=use; d-=use; if(t.shield<=0) t.shieldT=0; } return Math.max(0,d); }
 
@@ -226,9 +225,9 @@
     for(let i=projectiles.length-1;i>=0;i--) if(!projectiles[i].alive) projectiles.splice(i,1);
   }
   function updateFX(dt){
-    for(const s of hitSparks) s.t+=dt; for(let i=hitSparks.length-1;i>=0;i--) if(hitSparks[i].t>.2) hitSparks.splice(i,1);
-    for(const s of healSparks) s.t+=dt; for(let i=healSparks.length-1;i>=0;i--) if(healSparks[i].t>.35) healSparks.splice(i,1);
-    for(const s of slashes) s.t+=dt; for(let i=slashes.length-1;i>=0;i--) if(slashes[i].t>.18) slashes.splice(i,1);
+    for(const s of hitSparks) s.t+=dt; for(let i=hitSparks.length-1;i>=0;i--) if(s.t>.2) hitSparks.splice(i,1);
+    for(const s of healSparks) s.t+=dt; for(let i=healSparks.length-1;i>=0;i--) if(s.t>.35) healSparks.splice(i,1);
+    for(const s of slashes) s.t+=dt; for(let i=slashes.length-1;i>=0;i--) if(s.t>.18) slashes.splice(i,1);
     updDmg(dt);
   }
 
@@ -295,7 +294,7 @@
     }
   }
 
-  // ---------- Input (no double-fire on iOS) ----------
+  // ---------- Input (robust toggle on pointerup) ----------
   const cellAtFloor=(px,py)=>({ x: ((px-L.originX)/L.cell)|0, y: ((py-L.originY)/L.cell)|0 });
   const cellAtRound=(px,py)=>({ x: Math.round((px-L.originX)/L.cell), y: Math.round((py-L.originY)/L.cell) });
   const unitAtCell=(c,r)=> roster.find(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive) || null;
@@ -316,32 +315,47 @@
     return { x: t.clientX - rect.left, y: t.clientY - rect.top };
   }
 
-  // Debounce so pointer+touch can’t flip twice
-  let lastToggleTs = 0;
+  let toggleLock = false, toggleTimer = null;
   function safeToggleShop(){
-    const now = performance.now();
-    if (now - lastToggleTs < 180) return; // ignore duplicates within 180ms
-    lastToggleTs = now;
+    if (toggleLock) return;
+    toggleLock = true;
     SHOW_SHOP = !SHOW_SHOP;
-    layout(); // force recompute of UI height/positions
+    layout();
     toast(SHOW_SHOP ? 'Shop shown' : 'Shop hidden');
+    clearTimeout(toggleTimer);
+    toggleTimer = setTimeout(()=>{ toggleLock=false; }, 400);
   }
 
-  function onDown(e){
+  function onPointerDown(e){
+    // Just prevent Safari long-press/callout, actual toggle on pointerup
+    if(isPortrait()){ e.preventDefault(); return; }
+    e.preventDefault();
+  }
+  function onPointerUp(e){
     if(isPortrait()){ e.preventDefault(); return; }
     const p=clientToCanvas(e);
-    // Top-left toggle works in ALL states
-    if(pointInRect(p.x,p.y,shopBtn)){ safeToggleShop(); e.preventDefault(); return; }
-
+    // If the up happens inside the toggle rect, flip; stop all bubbling
+    if(pointInRect(p.x,p.y,shopBtn)){
+      safeToggleShop();
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    // Normal interactions below...
     if(state==='result'){
       if(result==='win'){ floorN++; toast(`Floor ${floorN}`); }
       else { roster.length=0; enemies.length=0; gold=6; floorN=1; toast('Run reset'); }
       result=null; state='shop'; SHOW_SHOP=true; refillShop(); layout(); e.preventDefault(); return;
     }
-
-    if(state==='placing' && preview){ e.preventDefault(); return; }
-
+    if(state==='placing' && preview){
+      // sell?
+      if(pointInRect(p.x,p.y,sellArea)){ const amt=refundFor(preview); gold+=amt; preview=null; state='shop'; shopOpacity=1; toast(`Sold for ${amt}g`); e.preventDefault(); return; }
+      let c=cellAtRound(p.x,p.y).x, r=cellAtRound(p.x,p.y).y;
+      c=Math.max(0,Math.min(COLS-1,c)); r=Math.max(0,Math.min(ROWS-1,r));
+      placeExactAt(c,r); e.preventDefault(); return;
+    }
     if(state==='shop' && !preview){
+      // pickup from board
       const cc=cellAtFloor(p.x,p.y);
       if(inLeftCols(cc.x,cc.y)){
         const u=unitAtCell(cc.x,cc.y);
@@ -350,44 +364,18 @@
           state='placing'; shopOpacity=.25; toast(`Picked up ${u.name} ${'★'.repeat(u.star||1)}`); e.preventDefault(); return;
         }
       }
-      if(SHOW_SHOP && pointInRect(p.x,p.y,rerollArea)){
-        if(gold>=REROLL_COST){ gold-=REROLL_COST; refillShop(); toast('Shop rerolled'); } else toast('Not enough gold');
-        e.preventDefault(); return;
-      }
+      // reroll / buy / start
+      if(SHOW_SHOP && pointInRect(p.x,p.y,rerollArea)){ if(gold>=REROLL_COST){ gold-=REROLL_COST; refillShop(); toast('Shop rerolled'); } else toast('Not enough gold'); e.preventDefault(); return; }
       if(SHOW_SHOP){
-        for(const r of buyAreas){
-          if(pointInRect(p.x,p.y,r) && gold>=BUY_COST){
-            gold-=BUY_COST; preview=mkUnit(shop[r.i],'player',null,1);
-            preview._fromPickup=false; preview._fromCell=null;
-            state='placing'; shopOpacity=.25; toast(`Bought ${shop[r.i]} ★`); e.preventDefault(); return;
-          }
-        }
+        for(const r of buyAreas){ if(pointInRect(p.x,p.y,r) && gold>=BUY_COST){ gold-=BUY_COST; preview=mkUnit(shop[r.i],'player',null,1); preview._fromPickup=false; preview._fromCell=null; state='placing'; shopOpacity=.25; toast(`Bought ${shop[r.i]} ★`); e.preventDefault(); return; } }
       }
       if(pointInRect(p.x,p.y,startArea) && roster.some(u=>u.alive&&u.cell)){ spawnEnemies(); state='battle'; e.preventDefault(); return; }
     }
   }
 
-  function onUp(e){
-    if(isPortrait()){ e.preventDefault(); return; }
-    const p=clientToCanvas(e);
-    if(state==='placing' && preview && pointInRect(p.x,p.y,sellArea)){
-      const amt=refundFor(preview); gold+=amt; preview=null; state='shop'; shopOpacity=1; toast(`Sold for ${amt}g`); e.preventDefault(); return;
-    }
-    if(state==='placing' && preview){
-      let c=cellAtRound(p.x,p.y).x, r=cellAtRound(p.x,p.y).y;
-      c=Math.max(0,Math.min(COLS-1,c)); r=Math.max(0,Math.min(ROWS-1,r));
-      placeExactAt(c,r); e.preventDefault(); return;
-    }
-  }
-
-  // Prefer Pointer Events; only fall back to Touch if needed
-  if (window.PointerEvent){
-    canvas.addEventListener('pointerdown', onDown, {passive:false});
-    canvas.addEventListener('pointerup',   onUp,   {passive:false});
-  } else {
-    canvas.addEventListener('touchstart',  onDown, {passive:false});
-    canvas.addEventListener('touchend',    onUp,   {passive:false});
-  }
+  // Only pointer events; no touch/click fallbacks (avoids double firing)
+  canvas.addEventListener('pointerdown', onPointerDown, {passive:false});
+  canvas.addEventListener('pointerup',   onPointerUp,   {passive:false});
 
   // ---------- Render ----------
   function draw(dt){
@@ -395,7 +383,7 @@
     ctx.fillStyle=C.bg; ctx.fillRect(0,0,L.vw,L.vh);
 
     // grid
-    ctx.strokeStyle=C.grid;
+    ctx.strokeStyle='#282828';
     for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++)
       ctx.strokeRect(L.originX+c*L.cell, L.originY+r*L.cell, L.cell, L.cell);
 
@@ -403,7 +391,7 @@
     const hint = state==='result' ? 'Tap anywhere to continue…'
                 : state==='placing' ? 'Drag to place or onto SELL to sell.'
                 : 'Tap a unit to move it. Use SHOP to toggle.';
-    text(hint, L.originX, Math.max(16, L.originY-6), 12, C.hint);
+    text(hint, L.originX, Math.max(16, L.originY-6), 12, '#9ee');
 
     // units
     function drawUnit(u){
@@ -425,20 +413,23 @@
     drawDmg();
 
     // bottom UI
-    const y0=L.yUI; fill(0,y0,L.vw,currentUIH(),C.ui);
+    const y0=L.yUI; ctx.fillStyle=C.ui; ctx.fillRect(0,y0,L.vw,currentUIH());
 
     // SELL
     sellArea = { x:L.vw-168, y:y0+(SHOW_SHOP?60:8), w:160, h:72 };
-    fill(sellArea.x, sellArea.y, sellArea.w, sellArea.h, '#3a2222'); text(`SELL (${preview ? refundFor(preview) : 2}g)`, sellArea.x+22, sellArea.y+44, 20, '#ff9a9a');
+    ctx.fillStyle='#3a2222'; ctx.fillRect(sellArea.x, sellArea.y, sellArea.w, sellArea.h);
+    text(`SELL (${preview ? refundFor(preview) : 2}g)`, sellArea.x+22, sellArea.y+44, 20, '#ff9a9a');
 
     // REROLL / START
     if(SHOW_SHOP){
       rerollArea={ x:L.vw-336, y:y0+8, w:160, h:52 };
-      fill(rerollArea.x,rerollArea.y,rerollArea.w,rerollArea.h,'#2d2d2d'); text(`REROLL (${REROLL_COST}g)`, rerollArea.x+12, rerollArea.y+32, 18, '#ffd45a');
+      ctx.fillStyle='#2d2d2d'; ctx.fillRect(rerollArea.x,rerollArea.y,rerollArea.w,rerollArea.h);
+      text(`REROLL (${REROLL_COST}g)`, rerollArea.x+12, rerollArea.y+32, 18, '#ffd45a');
     } else rerollArea={x:0,y:0,w:0,h:0};
 
     startArea={ x:L.vw-168, y:y0+8, w:160, h:52 };
-    fill(startArea.x,startArea.y,startArea.w,startArea.h,C.start); text('START', startArea.x+48, startArea.y+32, 20, '#fff');
+    ctx.fillStyle=C.start; ctx.fillRect(startArea.x,startArea.y,startArea.w,startArea.h);
+    text('START', startArea.x+48, startArea.y+32, 20, '#fff');
 
     // GOLD
     if (SHOW_SHOP) text(`GOLD: ${gold}g`, 8, y0+52, 18, '#ffd45a');
@@ -448,19 +439,20 @@
       buyAreas.length=0; const cardW=Math.min(200, L.vw/3 - 12), cardH=126;
       for(let i=0;i<3;i++){
         const x=8+i*(cardW+6), y=y0+60, w=cardW, h=cardH;
-        fill(x,y,w,h,'#3c3c3c');
+        ctx.fillStyle='#3c3c3c'; ctx.fillRect(x,y,w,h);
         const name=shop[i], b=BASE[name];
         text(`${name} ★`, x+8, y+18, 16, '#fff');
         ctx.fillStyle='#eaeaea'; ctx.font='12px -apple-system,system-ui,sans-serif';
         const lines=[`HP: ${b.hp}   ATK: ${b.atk}`, `CRIT: ${Math.round(b.crit*100)}%   ARM: ${b.armor}`, `RES: ${b.resist}   SPD: ${b.spd}`];
         let ly=y+36; for(const ln of lines){ ctx.fillText(ln, x+8, ly); ly+=16; }
-        fill(x+8,y+h-22,w-16,18,'#2a2a2a'); text(`Buy ${BUY_COST} gold`, x+14, y+h-8, 12, C.td);
+        ctx.fillStyle='#2a2a2a'; ctx.fillRect(x+8,y+h-22,w-16,18);
+        text(`Buy ${BUY_COST} gold`, x+14, y+h-8, 12, C.td);
         buyAreas.push({x,y,w,h,i});
       }
     } else buyAreas.length=0;
 
     // top-left SHOP toggle
-    fill(shopBtn.x,shopBtn.y,shopBtn.w,shopBtn.h,'#2d2d2d');
+    ctx.fillStyle='#2d2d2d'; ctx.fillRect(shopBtn.x,shopBtn.y,shopBtn.w,shopBtn.h);
     text(SHOW_SHOP ? 'HIDE SHOP' : 'SHOW SHOP', shopBtn.x+14, shopBtn.y+34, 18, '#ffd45a');
 
     // portrait lock
