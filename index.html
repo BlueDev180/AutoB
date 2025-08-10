@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
-<title>Auto Battler (Mobile) v58</title>
+<title>Auto Battler (Mobile) v59</title>
 <style>
   html,body{margin:0;padding:0;background:#121214;height:100svh;overscroll-behavior:none;font-family:-apple-system,system-ui,sans-serif}
   canvas{position:fixed;left:0;top:0;width:100vw;height:100svh;touch-action:manipulation;display:block}
@@ -17,7 +17,7 @@
 <div id="toast"></div>
 <script>
 (() => {
-  const BUILD="v58";
+  const BUILD="v59";
 
   // ----------------- Switches & costs -----------------
   let SHOW_SHOP = true;
@@ -200,10 +200,19 @@
     }
     for(let i=projectiles.length-1;i>=0;i--) if(!projectiles[i].alive) projectiles.splice(i,1);
   }
-  function updateFX(dt){for(const s of hitSparks) s.t+=dt; for(let i=hitSparks.length-1;i>=0;i--) if(s.t>.2) hitSparks.splice(i,1);
-    for(const s of healSparks) s.t+=dt; for(let i=healSparks.length-1;i>=0;i--) if(s.t>.35) healSparks.splice(i,1);
-    for(const s of slashes) s.t+=dt; for(let i=slashes.length-1;i>=0;i--) if(s.t>.18) slashes.splice(i,1);
-    updDmg(dt);}
+
+  function updateFX(dt){
+    for(const s of hitSparks) s.t+=dt;
+    for(let i=hitSparks.length-1;i>=0;i--) if(hitSparks[i].t>.2) hitSparks.splice(i,1);
+
+    for(const s of healSparks) s.t+=dt;
+    for(let i=healSparks.length-1;i>=0;i--) if(healSparks[i].t>.35) healSparks.splice(i,1);
+
+    for(const s of slashes) s.t+=dt;
+    for(let i=slashes.length-1;i>=0;i--) if(slashes[i].t>.18) slashes.splice(i,1);
+
+    updDmg(dt);
+  }
 
   // ----------------- Merge -----------------
   function tryMerge(name,star){
@@ -247,9 +256,15 @@
     return acted;
   }
 
-  function battleTick(dt, dbg){
-    if(!playersAlive().length){ state='result'; result='lose'; return; }
-    if(!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
+  function endBattle(outcome){
+    state='result'; result=outcome;
+    // cleanup FX so result screen is clear
+    projectiles.length=0; hitSparks.length=0; healSparks.length=0; slashes.length=0; dmgTexts.length=0;
+  }
+
+  function battleTick(dt){
+    if(!playersAlive().length){ endBattle('lose'); return; }
+    if(!enemiesAlive().length){ gold += 2 + Math.floor(floorN/2); endBattle('win'); return; }
 
     { const res=new Set();
       for(const u of playersAlive()){
@@ -268,8 +283,8 @@
       }
     }
 
-    if(!playersAlive().length){ state='result'; result='lose'; return; }
-    if(!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
+    if(!playersAlive().length){ endBattle('lose'); return; }
+    if(!enemiesAlive().length){ gold += 2 + Math.floor(floorN/2); endBattle('win'); return; }
 
     { const res=new Set();
       for(const e of enemiesAlive()){
@@ -287,13 +302,9 @@
         }
       }
     }
-
-    // debug counters
-    dbg.pa = playersAlive().length;
-    dbg.ea = enemiesAlive().length;
   }
 
-  // ----------------- Input (SHOP toggle on pointerup) -----------------
+  // ----------------- Input -----------------
   const cellAtFloor=(px,py)=>({x:((px-L.originX)/L.cell)|0,y:((py-L.originY)/L.cell)|0});
   const cellAtRound=(px,py)=>({x:Math.round((px-L.originX)/L.cell),y:Math.round((py-L.originY)/L.cell)});
   const unitAtCell=(c,r)=>roster.find(u=>u.cell&&u.cell.x===c&&u.cell.y===r&&u.alive)||null;
@@ -371,7 +382,7 @@
     const y0=L.yUI;fill(0,y0,L.vw,currentUIH(),C.ui);
     sellArea={x:L.vw-168,y:y0+(SHOW_SHOP?60:8),w:160,h:72};fill(sellArea.x,sellArea.y,sellArea.w,sellArea.h,'#3a2222');text(`SELL (${preview?refundFor(preview):2}g)`,sellArea.x+22,sellArea.y+44,20,'#ff9a9a');
     if(SHOW_SHOP){rerollArea={x:L.vw-336,y:y0+8,w:160,h:52};fill(rerollArea.x,rerollArea.y,rerollArea.w,rerollArea.h,'#2d2d2d');text(`REROLL (${REROLL_COST}g)`,rerollArea.x+12,rerollArea.y+32,18,'#ffd45a');} else rerollArea={x:0,y:0,w:0,h:0};
-    startArea={x:L.vw-168,y:y0+8,w:160,h:52};fill(startArea.x,startArea.y,startArea.w,startArea.h,C.start);text('START',startArea.x+48,startArea.y+32,20,'#fff');
+    startArea={x=L.vw-168,y:y0+8,w:160,h:52};fill(startArea.x,startArea.y,startArea.w,startArea.h,C.start);text('START',startArea.x+48,startArea.y+32,20,'#fff');
     if(SHOW_SHOP) text(`GOLD: ${gold}g`,8,y0+52,18,'#ffd45a');
 
     if(SHOW_SHOP){
@@ -385,7 +396,7 @@
       }
     } else buyAreas.length=0;
 
-    // top-left SHOP toggle
+    // SHOP toggle
     fill(shopBtn.x,shopBtn.y,shopBtn.w,shopBtn.h,'#2d2d2d');text(SHOW_SHOP?'HIDE SHOP':'SHOW SHOP',shopBtn.x+14,shopBtn.y+34,18,'#ffd45a');
 
     // debug panel (top-right)
@@ -393,13 +404,12 @@
     ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(dbgX,dbgY,210,88);
     ctx.fillStyle='#9ee'; ctx.font='12px -apple-system,system-ui';
     ctx.fillText(`state: ${state}`, dbgX+8, dbgY+16);
-    ctx.fillText(`players: ${dbg.pa}  enemies: ${dbg.ea}`, dbgX+8, dbgY+32);
+    ctx.fillText(`players: ${playersAlive().length}  enemies: ${enemiesAlive().length}`, dbgX+8, dbgY+32);
     if(dbg.err) { ctx.fillStyle='#ffb8b8'; wrap(dbg.err, dbgX+8, dbgY+48, 194, 12); }
 
     if(isPortrait()){ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillRect(0,0,L.vw,L.vh);text('Rotate your device to landscape to play',(L.vw-320)/2,L.vh/2,18,'#eaeaea');}
   }
 
-  // small text wrapper used by debug
   function wrap(s, x, y, w, lh){
     const words=s.split(' '); let line='', ly=y;
     for(const word of words){
@@ -413,18 +423,17 @@
   // ----------------- Boot & loop with safety -----------------
   function boot(){state='shop';SHOW_SHOP=true;refillShop();}
   boot();
-  let last=performance.now(), dbg={pa:0,ea:0,err:''};
+  let last=performance.now(), dbg={err:''};
   function loop(ts){
     const dt=Math.min(.05,(ts-last)/1000); last=ts;
     try{
       if(!isPortrait()){
-        if(state==='battle'){ battleTick(dt,dbg); updateProjectiles(dt); updateFX(dt); }
+        if(state==='battle'){ battleTick(dt); updateProjectiles(dt); updateFX(dt); }
         else { updateFX(dt); }
       }
       draw(dt,dbg);
     }catch(e){
       dbg.err = (e&&e.message?e.message:String(e)).slice(0,180);
-      // keep drawing so we can see the error
       draw(0,dbg);
     }
     requestAnimationFrame(loop);
