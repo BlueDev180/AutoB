@@ -18,9 +18,8 @@
 <script>
 (() => {
   // ---------- Switches & Costs ----------
-  let SHOW_SHOP = true;                // top-left toggle controls this
-  const UI_H_SHOP = 196;               // bottom panel height when shop visible
-  const UI_H_COMPACT = 96;             // ...when hidden
+  let SHOW_SHOP = true;
+  const UI_H_SHOP = 196, UI_H_COMPACT = 96;
   const BUY_COST = 2, REROLL_COST = 2;
 
   // ---------- Canvas & Viewport ----------
@@ -52,8 +51,7 @@
   let L={cell:48,originX:0,originY:24,gridW:0,gridH:0,yUI:0,vw:0,vh:0};
   function layout(){
     const {w,h}=vv();
-    const TOP_PAD = 36; // room for tip + top-left toggle
-    const BTM_BUF = 2;
+    const TOP_PAD = 36, BTM_BUF = 2;
     const targetUIH = currentUIH();
     const availH = Math.max(60, h - targetUIH - TOP_PAD - BTM_BUF);
     const cell = Math.max(14, Math.min(Math.floor(availH/ROWS), Math.floor(w/COLS)));
@@ -101,7 +99,6 @@
   const roster=[], enemies=[];
   let shop=[], preview=null, shopOpacity=1;
   const buyAreas=[]; let startArea={x:0,y:0,w:0,h:0}, rerollArea={x:0,y:0,w:0,h:0}, sellArea={x:0,y:0,w:0,h:0};
-  // top-left SHOP button (single source of truth)
   let shopBtn={x:16,y:20,w:160,h:54};
 
   function refillShop(){ const k=Object.keys(BASE); shop=Array.from({length:3},()=>k[(Math.random()*k.length)|0]); }
@@ -246,7 +243,7 @@
     roster.push(m); if(m.star<3) tryMerge(name,m.star); return true;
   }
 
-  // ---------- Battle Tick (melee movement fixed) ----------
+  // ---------- Battle Tick ----------
   function battleTick(dt){
     if(!playersAlive().length){ state='result'; result='lose'; return; }
     if(!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
@@ -298,7 +295,7 @@
     }
   }
 
-  // ---------- Input ----------
+  // ---------- Input (no double-fire on iOS) ----------
   const cellAtFloor=(px,py)=>({ x: ((px-L.originX)/L.cell)|0, y: ((py-L.originY)/L.cell)|0 });
   const cellAtRound=(px,py)=>({ x: Math.round((px-L.originX)/L.cell), y: Math.round((py-L.originY)/L.cell) });
   const unitAtCell=(c,r)=> roster.find(u=>u.cell && u.cell.x===c && u.cell.y===r && u.alive) || null;
@@ -319,26 +316,32 @@
     return { x: t.clientX - rect.left, y: t.clientY - rect.top };
   }
 
-  function onPointerDown(e){
+  // Debounce so pointer+touch can’t flip twice
+  let lastToggleTs = 0;
+  function safeToggleShop(){
+    const now = performance.now();
+    if (now - lastToggleTs < 180) return; // ignore duplicates within 180ms
+    lastToggleTs = now;
+    SHOW_SHOP = !SHOW_SHOP;
+    layout(); // force recompute of UI height/positions
+    toast(SHOW_SHOP ? 'Shop shown' : 'Shop hidden');
+  }
+
+  function onDown(e){
     if(isPortrait()){ e.preventDefault(); return; }
     const p=clientToCanvas(e);
-
-    // Always allow top-left SHOP toggle (all states)
-    if(pointInRect(p.x,p.y,shopBtn)){
-      SHOW_SHOP = !SHOW_SHOP; layout(); toast(SHOW_SHOP?'Shop shown':'Shop hidden');
-      e.preventDefault(); return;
-    }
+    // Top-left toggle works in ALL states
+    if(pointInRect(p.x,p.y,shopBtn)){ safeToggleShop(); e.preventDefault(); return; }
 
     if(state==='result'){
       if(result==='win'){ floorN++; toast(`Floor ${floorN}`); }
       else { roster.length=0; enemies.length=0; gold=6; floorN=1; toast('Run reset'); }
-      result=null; state='shop'; SHOW_SHOP=true; enemies.length=0; refillShop(); e.preventDefault(); return;
+      result=null; state='shop'; SHOW_SHOP=true; refillShop(); layout(); e.preventDefault(); return;
     }
 
     if(state==='placing' && preview){ e.preventDefault(); return; }
 
     if(state==='shop' && !preview){
-      // pick up from board
       const cc=cellAtFloor(p.x,p.y);
       if(inLeftCols(cc.x,cc.y)){
         const u=unitAtCell(cc.x,cc.y);
@@ -347,13 +350,10 @@
           state='placing'; shopOpacity=.25; toast(`Picked up ${u.name} ${'★'.repeat(u.star||1)}`); e.preventDefault(); return;
         }
       }
-      // reroll
       if(SHOW_SHOP && pointInRect(p.x,p.y,rerollArea)){
-        if(gold>=REROLL_COST){ gold-=REROLL_COST; refillShop(); toast('Shop rerolled'); }
-        else toast('Not enough gold');
+        if(gold>=REROLL_COST){ gold-=REROLL_COST; refillShop(); toast('Shop rerolled'); } else toast('Not enough gold');
         e.preventDefault(); return;
       }
-      // buy
       if(SHOW_SHOP){
         for(const r of buyAreas){
           if(pointInRect(p.x,p.y,r) && gold>=BUY_COST){
@@ -363,11 +363,11 @@
           }
         }
       }
-      // start
       if(pointInRect(p.x,p.y,startArea) && roster.some(u=>u.alive&&u.cell)){ spawnEnemies(); state='battle'; e.preventDefault(); return; }
     }
   }
-  function onPointerUp(e){
+
+  function onUp(e){
     if(isPortrait()){ e.preventDefault(); return; }
     const p=clientToCanvas(e);
     if(state==='placing' && preview && pointInRect(p.x,p.y,sellArea)){
@@ -380,10 +380,14 @@
     }
   }
 
-  canvas.addEventListener('pointerdown', onPointerDown, {passive:false});
-  canvas.addEventListener('pointerup',   onPointerUp,   {passive:false});
-  canvas.addEventListener('touchstart',  onPointerDown, {passive:false});
-  canvas.addEventListener('touchend',    onPointerUp,   {passive:false});
+  // Prefer Pointer Events; only fall back to Touch if needed
+  if (window.PointerEvent){
+    canvas.addEventListener('pointerdown', onDown, {passive:false});
+    canvas.addEventListener('pointerup',   onUp,   {passive:false});
+  } else {
+    canvas.addEventListener('touchstart',  onDown, {passive:false});
+    canvas.addEventListener('touchend',    onUp,   {passive:false});
+  }
 
   // ---------- Render ----------
   function draw(dt){
@@ -455,7 +459,7 @@
       }
     } else buyAreas.length=0;
 
-    // top-left SHOP toggle (single)
+    // top-left SHOP toggle
     fill(shopBtn.x,shopBtn.y,shopBtn.w,shopBtn.h,'#2d2d2d');
     text(SHOW_SHOP ? 'HIDE SHOP' : 'SHOW SHOP', shopBtn.x+14, shopBtn.y+34, 18, '#ffd45a');
 
@@ -473,15 +477,8 @@
   function loop(ts){
     const dt=Math.min(.05,(ts-last)/1000); last=ts;
     if(!isPortrait()){
-      if(state==='battle'){
-        // make sure combat & movement always tick during battle
-        battleTick(dt);
-        updateProjectiles(dt);
-        updateFX(dt);
-      } else {
-        // still run FX outside battle so numbers fade
-        updateFX(dt);
-      }
+      if(state==='battle'){ battleTick(dt); updateProjectiles(dt); updateFX(dt); }
+      else { updateFX(dt); }
     }
     draw(dt);
     requestAnimationFrame(loop);
