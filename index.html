@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
-<title>Auto Battler (Mobile)</title>
+<title>Auto Battler (Mobile) v58</title>
 <style>
   html,body{margin:0;padding:0;background:#121214;height:100svh;overscroll-behavior:none;font-family:-apple-system,system-ui,sans-serif}
   canvas{position:fixed;left:0;top:0;width:100vw;height:100svh;touch-action:manipulation;display:block}
@@ -17,6 +17,8 @@
 <div id="toast"></div>
 <script>
 (() => {
+  const BUILD="v58";
+
   // ----------------- Switches & costs -----------------
   let SHOW_SHOP = true;
   const UI_H_SHOP = 196, UI_H_COMPACT = 96;
@@ -26,7 +28,7 @@
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha:false });
   const toastEl = document.getElementById('toast'); let toastTimer=null;
-  const toast=m=>{toastEl.textContent=m;toastEl.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('show'),1100);};
+  const toast=m=>{toastEl.textContent=m;toastEl.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('show'),1400);};
 
   const vv=()=>{const v=visualViewport;const w=Math.min(innerWidth||1e9,document.documentElement.clientWidth||1e9,v?v.width:1e9);const h=Math.min(innerHeight||1e9,document.documentElement.clientHeight||1e9,v?v.height:1e9);return {w:Math.floor(w),h:Math.floor(h)}};
   const isPortrait=()=>vv().h>vv().w;
@@ -88,7 +90,7 @@
   const occupiedAt=(x,y)=>playersAlive().some(u=>u.cell.x===x&&u.cell.y===y)||enemiesAlive().some(u=>u.cell.x===x&&u.cell.y===y);
   const key=(x,y)=>`${x},${y}`;
 
-  // Prefer “step into adjacency” when diagonal
+  // Diagonal nudge into adjacency (horizontal preference)
   function diagonalNudge(u,t,res){
     if(!t) return false;
     const dx=t.cell.x-u.cell.x, dy=t.cell.y-u.cell.y;
@@ -97,7 +99,6 @@
         if(occupiedAt(nx,ny) && !(nx===u.cell.x && ny===u.cell.y)) return false;
         if(u.lastPos && nx===u.lastPos.x && ny===u.lastPos.y) return false;
         u.lastPos={x:u.cell.x,y:u.cell.y}; u.cell.x=nx; u.cell.y=ny; u.stepCool=.14; res.add(key(nx,ny)); return true; };
-      // horizontal first (feels better), else vertical
       if(tryStep(u.cell.x+Math.sign(dx), u.cell.y)) return true;
       if(tryStep(u.cell.x, u.cell.y+Math.sign(dy))) return true;
     }
@@ -140,9 +141,7 @@
 
   function tryStepToward(u,t,res){
     if(!t||u.role!=='melee'||isAdjCross(u,t)||u.stepCool>0) return false;
-    // first: diagonal nudge into adjacency if possible
     if(diagonalNudge(u,t,res)) return true;
-    // fallback: BFS to any cross-adjacent goal
     const step=nextStepBFS(u,t,res);
     if(step){u.lastPos={x:u.cell.x,y:u.cell.y};u.cell.x=step.x;u.cell.y=step.y;u.stepCool=.18;res.add(key(step.x,step.y));return true;}
     u.stepCool=.1;return false;
@@ -217,8 +216,17 @@
     roster.push(m);if(m.star<3) tryMerge(name,m.star);return true;
   }
 
-  // ----------------- Battle tick (attack → step → attack; real-CD only) -----------------
-  function tryAct(u, isEnemy=false){
+  // ----------------- Targeting -----------------
+  function frontlineTarget(attacker,targets){
+    if(!targets.length) return null; let front;
+    if(attacker.team==='enemy'){const mx=Math.max(...targets.map(t=>t.cell.x));front=targets.filter(t=>t.cell.x===mx);}
+    else {const mn=Math.min(...targets.map(t=>t.cell.x));front=targets.filter(t=>t.cell.x===mn);}
+    const sameRow=front.filter(t=>t.cell.y===attacker.cell.y);if(sameRow.length) front=sameRow;
+    front.sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp));return front[0];
+  }
+
+  // ----------------- Battle tick (attack → step → attack) -----------------
+  function tryAct(u,isEnemy=false){
     let acted=false;
     if(u.role==='healer'){
       const pool = isEnemy ? enemiesAlive() : playersAlive();
@@ -238,19 +246,11 @@
     }
     return acted;
   }
-  function frontlineTarget(attacker,targets){
-    if(!targets.length) return null; let front;
-    if(attacker.team==='enemy'){const mx=Math.max(...targets.map(t=>t.cell.x));front=targets.filter(t=>t.cell.x===mx);}
-    else {const mn=Math.min(...targets.map(t=>t.cell.x));front=targets.filter(t=>t.cell.x===mn);}
-    const sameRow=front.filter(t=>t.cell.y===attacker.cell.y);if(sameRow.length) front=sameRow;
-    front.sort((a,b)=>(a.hp/a.maxhp)-(b.hp/b.maxhp));return front[0];
-  }
 
-  function battleTick(dt){
+  function battleTick(dt, dbg){
     if(!playersAlive().length){ state='result'; result='lose'; return; }
     if(!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
 
-    // players
     { const res=new Set();
       for(const u of playersAlive()){
         u.cool=Math.max(0,u.cool-dt); u.stepCool=Math.max(0,u.stepCool-dt);
@@ -271,7 +271,6 @@
     if(!playersAlive().length){ state='result'; result='lose'; return; }
     if(!enemiesAlive().length){ state='result'; result='win'; gold += 2 + Math.floor(floorN/2); return; }
 
-    // enemies
     { const res=new Set();
       for(const e of enemiesAlive()){
         e.cool=Math.max(0,e.cool-dt); e.stepCool=Math.max(0,e.stepCool-dt);
@@ -288,9 +287,13 @@
         }
       }
     }
+
+    // debug counters
+    dbg.pa = playersAlive().length;
+    dbg.ea = enemiesAlive().length;
   }
 
-  // ----------------- Input (robust SHOP toggle on pointerup) -----------------
+  // ----------------- Input (SHOP toggle on pointerup) -----------------
   const cellAtFloor=(px,py)=>({x:((px-L.originX)/L.cell)|0,y:((py-L.originY)/L.cell)|0});
   const cellAtRound=(px,py)=>({x:Math.round((px-L.originX)/L.cell),y:Math.round((py-L.originY)/L.cell)});
   const unitAtCell=(c,r)=>roster.find(u=>u.cell&&u.cell.x===c&&u.cell.y===r&&u.alive)||null;
@@ -345,11 +348,16 @@
   canvas.addEventListener('pointerdown',onPointerDown,{passive:false});
   canvas.addEventListener('pointerup',onPointerUp,{passive:false});
 
-  // ----------------- Render -----------------
-  function draw(dt){
+  // ----------------- Render + DEBUG -----------------
+  function draw(dt, dbg){
     const portrait=isPortrait();
     ctx.fillStyle=C.bg;ctx.fillRect(0,0,L.vw,L.vh);
     ctx.strokeStyle=C.grid;for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++)ctx.strokeRect(L.originX+c*L.cell,L.originY+r*L.cell,L.cell,L.cell);
+
+    // version tag
+    ctx.fillStyle='#7bd7ff'; ctx.font='12px -apple-system,system-ui,sans-serif';
+    ctx.fillText('Build '+BUILD, L.originX+L.gridW-72, L.originY-8);
+
     const hint=state==='result'?'Tap anywhere to continue…':state==='placing'?'Drag to place or onto SELL to sell.':'Tap a unit to move it. Use SHOP to toggle.';
     text(hint,L.originX,Math.max(16,L.originY-6),12,C.hint);
 
@@ -377,16 +385,50 @@
       }
     } else buyAreas.length=0;
 
+    // top-left SHOP toggle
     fill(shopBtn.x,shopBtn.y,shopBtn.w,shopBtn.h,'#2d2d2d');text(SHOW_SHOP?'HIDE SHOP':'SHOW SHOP',shopBtn.x+14,shopBtn.y+34,18,'#ffd45a');
+
+    // debug panel (top-right)
+    const dbgX=L.vw-220, dbgY=10;
+    ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(dbgX,dbgY,210,88);
+    ctx.fillStyle='#9ee'; ctx.font='12px -apple-system,system-ui';
+    ctx.fillText(`state: ${state}`, dbgX+8, dbgY+16);
+    ctx.fillText(`players: ${dbg.pa}  enemies: ${dbg.ea}`, dbgX+8, dbgY+32);
+    if(dbg.err) { ctx.fillStyle='#ffb8b8'; wrap(dbg.err, dbgX+8, dbgY+48, 194, 12); }
 
     if(isPortrait()){ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillRect(0,0,L.vw,L.vh);text('Rotate your device to landscape to play',(L.vw-320)/2,L.vh/2,18,'#eaeaea');}
   }
 
-  // ----------------- Boot & loop -----------------
+  // small text wrapper used by debug
+  function wrap(s, x, y, w, lh){
+    const words=s.split(' '); let line='', ly=y;
+    for(const word of words){
+      const test=line?line+' '+word:word; const m=ctx.measureText(test).width;
+      if(m>w){ ctx.fillText(line, x, ly); line=word; ly+=lh; }
+      else line=test;
+    }
+    if(line) ctx.fillText(line, x, ly);
+  }
+
+  // ----------------- Boot & loop with safety -----------------
   function boot(){state='shop';SHOW_SHOP=true;refillShop();}
   boot();
-  let last=performance.now();
-  function loop(ts){const dt=Math.min(.05,(ts-last)/1000);last=ts;if(!isPortrait()){if(state==='battle'){battleTick(dt);updateProjectiles(dt);updateFX(dt);}else{updateFX(dt);}}draw(dt);requestAnimationFrame(loop);}
+  let last=performance.now(), dbg={pa:0,ea:0,err:''};
+  function loop(ts){
+    const dt=Math.min(.05,(ts-last)/1000); last=ts;
+    try{
+      if(!isPortrait()){
+        if(state==='battle'){ battleTick(dt,dbg); updateProjectiles(dt); updateFX(dt); }
+        else { updateFX(dt); }
+      }
+      draw(dt,dbg);
+    }catch(e){
+      dbg.err = (e&&e.message?e.message:String(e)).slice(0,180);
+      // keep drawing so we can see the error
+      draw(0,dbg);
+    }
+    requestAnimationFrame(loop);
+  }
   requestAnimationFrame(loop);
 })();
 </script>
