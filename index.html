@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Bonechain – Roguelike Block Summoner (v4.0)</title>
+<title>Bonechain — Roguelike Block Summoner (v5.0)</title>
 <style>
 :root{
   color-scheme:dark;
@@ -31,12 +31,10 @@ main{display:flex;justify-content:center;padding:8px 10px}
   touch-action:none;
 }
 
-/* synergy bar */
 #synergies{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 10px;background:#141419;border-top:1px solid #262632;border-bottom:1px solid #262632}
 .sy{display:flex;align-items:center;gap:6px;background:#1a1a22;border:1px solid #2c2c35;border-radius:10px;padding:4px 8px;font-size:12px}
 .sy level{display:inline-block;background:#33384a;border-radius:6px;padding:2px 6px;margin-left:4px;color:#cde1ff}
 
-/* bottom bar */
 footer{flex-direction:column; align-items:center; padding:10px 12px;gap:10px;padding-bottom:calc(10px + var(--safeB))}
 .legend{display:flex; gap:8px; flex-wrap:wrap}
 .b{display:inline-block; padding:4px 8px; border-radius:8px; font-size:12px}
@@ -44,10 +42,10 @@ footer{flex-direction:column; align-items:center; padding:10px 12px;gap:10px;pad
 .b-AR{background:#243a27}
 .b-WR{background:#2b2740}
 .b-DB{background:#3a2b27}
-.rate{font-size:12px;opacity:.8}
+.rate{font-size:12px;opacity:.85}
 
 .bar{
-  display:grid; grid-template-columns: repeat(6, 1fr); /* 2 rows of 6 */
+  display:grid; grid-template-columns: repeat(6, 1fr);
   gap:8px; width:92vw; max-width:520px;
 }
 .block{
@@ -72,24 +70,20 @@ footer{flex-direction:column; align-items:center; padding:10px 12px;gap:10px;pad
 .choice .take{background:#2a2a31;border:1px solid #3b3b44;border-radius:8px;padding:8px 10px}
 .modal .row{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
 
-/* tutorial tip */
+/* tip */
 .tip{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(140px + var(--safeB));
   background:#141420;border:1px solid #2a2a34;border-radius:10px;padding:8px 12px;font-size:13px;color:#d7d7e4;z-index:35}
 .tip b{color:var(--hi)}
-
-/* portrait gate (if you later force portrait only) */
-/* #rotateGate{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#000c;color:#fff;font-weight:700;font-size:24px;z-index:50}
-@media (orientation:landscape){#rotateGate{display:flex}} */
 </style>
 </head>
 <body>
 <header>
-  <div class="build">Bonechain v4.0 • Portrait</div>
+  <div class="build">Bonechain v5.0 • Portrait</div>
   <div class="hud">
     <div class="chip" id="waveChip">Wave 1</div>
-    <div class="chip" id="hpChip">HP 50</div>
+    <div class="chip" id="hpChip">HP 60</div>
     <div class="chip" id="soulsChip">Souls 0</div>
-    <div class="chip rate" id="rateChip">Block: 0.8s</div>
+    <div class="chip rate" id="rateChip">Block: 0.80s</div>
     <div class="chip" id="bestChip">Best: 0</div>
   </div>
   <button id="btnPause" class="btn" aria-label="Pause">⏸</button>
@@ -123,23 +117,19 @@ footer{flex-direction:column; align-items:center; padding:10px 12px;gap:10px;pad
   </div>
 </div>
 
-<div class="tip" id="tip">Tap 1–3 matching blocks to <b>summon</b>. Clear a wave → pick a <b>relic</b>.</div>
+<div class="tip" id="tip">Tap 1–3 matching blocks to <b>summon</b>. Use 3 to <b>upgrade ★</b> that family.</div>
 
 <script>
-/*  Bonechain v4.0 — “Full game” single-file prototype
-    What’s included:
-    - Block combos (1–3) that summon/buff/spell (row-aware, preview on hold)
-    - Slow, sliding block feed; block-rate shown & modified by relics
-    - Units (ally/enemy), boss every 5 waves; enemies stop + fight when in range
-    - Relic choices after each wave; composable synergies; upgrades tweak feed & stats
-    - Clean UI chips; synergy bar; tutorial tip; localStorage: best wave
+/*  Bonechain v5.0 — Focus:
+    - ★ Upgrades from 3-block combos (persistent this run, buffs existing units)
+    - Stronger feedback: crits, damage numbers, shake, flashes, big upgrade callouts
+    - Smoother early difficulty; boss toned; auto block-rate ramps slightly each wave
 */
 
-///// CONSTANTS & CANVAS ///////////////////////////////////////////////
-const W = 405, H = 720;
-const ROWS = 18, COLS = 9;
+///// CANVAS & UI /////
+const W = 405, H = 720, ROWS = 18, COLS = 9;
 const cellW = W/COLS, cellH = H/ROWS;
-const BASE_Y = H * 0.94, BASE_HIT_Y = H * 0.93;
+const BASE_Y = H*0.94, BASE_HIT_Y = H*0.93;
 
 const cvs = document.getElementById('field');
 const ctx = cvs.getContext('2d');
@@ -157,40 +147,45 @@ const btnContinue = document.getElementById('btnContinue');
 const tip = document.getElementById('tip');
 const syBar = document.getElementById('synergies');
 
-let running = true, last = performance.now(), globalTime = 0;
+let running = true, last = performance.now(), t = 0;
 
-///// SAVE (best wave) /////////////////////////////////////////////////
-const saveKey = 'bc_meta_v40';
+// save
+const saveKey = 'bc_meta_v50';
 let meta = JSON.parse(localStorage.getItem(saveKey) || '{"best":0,"runs":0}');
 function saveMeta(){ localStorage.setItem(saveKey, JSON.stringify(meta)); }
 bestEl.textContent = 'Best: ' + meta.best;
 
-///// GAME STATE ////////////////////////////////////////////////////////
+///// GAME STATE /////
 const TEAMS = {ALLY:'ally', ENEMY:'enemy'};
 const STATE = {PLAY:'play', REWARD:'reward', GAMEOVER:'gameover'};
 let state = STATE.PLAY;
+let shakeT = 0;
 
 const game = {
-  wave: 1, necroHP: 50, souls: 0,
+  wave: 1, necroHP: 60, souls: 0,
   units: [], proj: [], fx: [],
-  spawnGate: 0.6, volleyT: 0,
-  blockRate: 0.8, // seconds per block — can be relic-modified
-  blockRateMin: 0.25,
+  spawnGate: 0.7, volleyT: 0,
+
+  // Block feed & crits
+  blockRate: 0.8, blockRateMin: 0.25,
+  critC: 0.12, critM: 2.0,
+
+  // Boss pacing
   bossEvery: 5,
-  synergies: { // track per-run counters / levels
-    Legion: 0,   // Skeleton/BoneKnight casts
-    Arrowstorm: 0, // Archer/Volley
-    Wisp: 0,     // Wraith family
-    Doom: 0      // Death Blast casts
-  },
-  relics: [] // ids of taken relics
+
+  // Stars (per family, 1–3)
+  stars: { SK:1, AR:1, WR:1, BK:1, WE:1 },
+
+  synergies: { Legion:0, Arrowstorm:0, Wisp:0, Doom:0 },
+  relics: []
 };
 
-///// BLOCK BAR (feeder + sliding + preview) ////////////////////////////
+///// BLOCK BAR (feed + slide + preview) /////
 const TYPES = ['SK','AR','WR','DB'];
 const BAR_COLS = 6, BAR_SIZE = 12;
 let blocks = [], spawnFlags = [];
 let blockTimer = 0;
+
 function addBlock(type){
   if (blocks.length >= BAR_SIZE) return false;
   blocks.push(type);
@@ -210,19 +205,16 @@ function refillInstantTo(n){ while(blocks.length < Math.min(n, BAR_SIZE)) addBlo
 function symbolFor(k){ return k==='SK'?'💀':k==='AR'?'🏹':k==='WR'?'👻':'☠️'; }
 function colorFor(k){ return k==='SK'?'#a55':k==='AR'?'#5a5':k==='WR'?'#7a67c7':'#b27b55'; }
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-
 function renderBar(){
-  bar.innerHTML = '';
+  bar.innerHTML='';
   for (let i=0;i<blocks.length;i++){
-    const k = blocks[i], d = document.createElement('div');
-    d.className = 'block';
-    d.dataset.i = i; d.dataset.k = k;
-    d.textContent = symbolFor(k);
-    d.style.borderColor = colorFor(k);
-
+    const k=blocks[i], d=document.createElement('div');
+    d.className='block';
+    d.dataset.i=i; d.dataset.k=k;
+    d.textContent=symbolFor(k);
+    d.style.borderColor=colorFor(k);
     if (spawnFlags[i]){ d.classList.add('spawn'); requestAnimationFrame(()=>d.classList.add('ready')); spawnFlags[i]=false; }
     else d.classList.add('ready');
-
     d.addEventListener('touchstart', onBlockPreview, {passive:true});
     d.addEventListener('mousedown', onBlockPreview);
     d.addEventListener('touchend', onBlockTap, {passive:true});
@@ -231,109 +223,133 @@ function renderBar(){
     d.addEventListener('touchcancel', clearPreview);
     bar.appendChild(d);
   }
-  // placeholders keep grid shape
   for (let i=blocks.length;i<BAR_SIZE;i++){
     const ph=document.createElement('div');ph.className='block';ph.style.opacity=.15;ph.style.pointerEvents='none';bar.appendChild(ph);
   }
   rateEl.textContent = 'Block: ' + game.blockRate.toFixed(2) + 's';
 }
-
-function rowBoundsOf(index){
-  const rowStart = Math.floor(index / BAR_COLS) * BAR_COLS;
-  return {rowStart, rowEnd: rowStart + BAR_COLS - 1};
-}
+function rowBoundsOf(i){ const rowStart=Math.floor(i/BAR_COLS)*BAR_COLS; return {rowStart, rowEnd:rowStart+BAR_COLS-1}; }
 function selectionForIndex(i){
-  const k = blocks[i]; if (!k) return null;
-  const {rowStart, rowEnd} = rowBoundsOf(i);
-  // contiguous run in row
-  let runStart = i, runEnd = i;
-  while (runStart-1 >= rowStart && blocks[runStart-1] === k) runStart--;
-  while (runEnd+1 <= rowEnd   && blocks[runEnd+1]   === k) runEnd++;
-  const runLen = runEnd - runStart + 1, use = Math.min(3, runLen);
-  let sliceStart = i;
-  if (use===3) sliceStart = clamp(i-1, runStart, runEnd-2);
-  else if (use===2) sliceStart = clamp(i-1, runStart, runEnd-1);
-  return {k, use, sliceStart};
+  const k=blocks[i]; if(!k) return null;
+  const {rowStart,rowEnd}=rowBoundsOf(i);
+  let a=i,b=i; while(a-1>=rowStart && blocks[a-1]===k) a--; while(b+1<=rowEnd && blocks[b+1]===k) b++;
+  const len=b-a+1, use=Math.min(3,len);
+  let s=i; if(use===3) s=clamp(i-1,a,b-2); else if(use===2) s=clamp(i-1,a,b-1);
+  return {k,use,s};
 }
 function onBlockPreview(e){
-  const target = e.currentTarget; if (!target.classList.contains('ready')) return;
-  const i = +target.dataset.i, sel = selectionForIndex(i); if (!sel) return;
+  const el=e.currentTarget; if(!el.classList.contains('ready')) return;
+  const i=+el.dataset.i, sel=selectionForIndex(i); if(!sel) return;
   clearPreview();
-  for (let j=0;j<sel.use;j++){
-    const idx = sel.sliceStart + j;
-    const el = bar.querySelector(`.block[data-i="${idx}"]`);
-    if (el) el.classList.add('preview');
-  }
+  for(let j=0;j<sel.use;j++){ const idx=sel.s+j; const el2=bar.querySelector(`.block[data-i="${idx}"]`); if(el2) el2.classList.add('preview'); }
 }
-function clearPreview(){ bar.querySelectorAll('.block.preview').forEach(el=>el.classList.remove('preview')); }
+function clearPreview(){ bar.querySelectorAll('.block.preview').forEach(e=>e.classList.remove('preview')); }
 function onBlockTap(e){
-  e.preventDefault?.();
-  if (state !== STATE.PLAY) return;
-  const target = e.currentTarget; if (!target.classList.contains('ready')) return;
-  const i = +target.dataset.i, sel = selectionForIndex(i); if (!sel) return;
-  // consume
-  blocks.splice(sel.sliceStart, sel.use); spawnFlags.splice(sel.sliceStart, sel.use);
-  clearPreview(); renderBar();
+  e.preventDefault?.(); if(state!==STATE.PLAY) return;
+  const el=e.currentTarget; if(!el.classList.contains('ready')) return;
+  const i=+el.dataset.i, sel=selectionForIndex(i); if(!sel) return;
+  blocks.splice(sel.s, sel.use); spawnFlags.splice(sel.s, sel.use); clearPreview(); renderBar();
   cast(sel.k, sel.use);
 }
 
-///// CASTING / COMBOS & SYNERGY COUNTS /////////////////////////////////
-function addSynergy(kind, amount=1){
-  if (kind==='SK' || kind==='BK') game.synergies.Legion += amount;
-  if (kind==='AR' || kind==='VOLLEY') game.synergies.Arrowstorm += amount;
-  if (kind==='WR' || kind==='WE') game.synergies.Wisp += amount;
-  if (kind==='DB') game.synergies.Doom += amount;
+///// UPGRADE / SYNERGY HELPERS /////
+function addSynergy(tag, amt=1){ if(tag==='SK'||tag==='BK') game.synergies.Legion+=amt;
+  if(tag==='AR'||tag==='VOLLEY') game.synergies.Arrowstorm+=amt;
+  if(tag==='WR'||tag==='WE') game.synergies.Wisp+=amt;
+  if(tag==='DB') game.synergies.Doom+=amt;
   renderSynergies();
 }
+function renderSynergies(){
+  syBar.innerHTML='';
+  const make=(n,v)=>{const d=document.createElement('div');d.className='sy';d.innerHTML=`<span>${n}</span><level>${v}</level>`; syBar.appendChild(d);};
+  make('Legion',game.synergies.Legion); make('Arrowstorm',game.synergies.Arrowstorm);
+  make('Wisp',game.synergies.Wisp); make('Doom',game.synergies.Doom);
+  const starsTxt=`★ SK:${game.stars.SK} AR:${game.stars.AR} WR:${game.stars.WR}`;
+  const d=document.createElement('div');d.className='sy';d.innerHTML=`<span>${starsTxt}</span>`; syBar.appendChild(d);
+}
+
+///// CASTING (with ★ upgrades on 3) /////
+function upgradeFamily(code){
+  const prev=game.stars[code]||1;
+  if(prev>=3){ fxText(W*0.5,H*0.1,`${code} MAX ★`); return; }
+  game.stars[code]=prev+1;
+  // buff existing units of that family
+  for(const u of game.units){
+    if(u.team!==TEAMS.ALLY) continue;
+    if(u.kind!==code) continue;
+    const beforePct = u.hp/u.max;
+    const mulHP = 1.5; const mulATK = 1.35; const cdMul = 0.92; // per star step (applied once here)
+    u.max = Math.round(u.max*mulHP); u.hp = Math.min(u.max, Math.round(u.max*beforePct)+Math.round(u.max*0.15));
+    u.atk = Math.round(u.atk*mulATK);
+    u.cd = Math.max(0.35, u.cd*cdMul);
+    u.anim.hit=0.4;
+  }
+  shakeT = 0.15; fxText(W*0.5,H*0.08,`${code} ★${game.stars[code]}!`);
+}
+
 function cast(k, n){
   if (k==='SK'){
-    if (n===1){ spawnSquad('Skeleton', 1); addSynergy('SK'); }
-    if (n===2){ spawnSquad('Skeleton', 2); addSynergy('SK',2); }
-    if (n===3){ spawnUnit('BoneKnight'); addSynergy('BK'); }
+    if (n===1){ spawnSquad('Skeleton',1); addSynergy('SK'); }
+    if (n===2){ spawnSquad('Skeleton',2); addSynergy('SK',2); }
+    if (n===3){ upgradeFamily('SK'); spawnUnit('BoneKnight'); addSynergy('BK'); }
   }else if (k==='AR'){
-    if (n===1){ spawnSquad('Archer', 1); addSynergy('AR'); }
-    if (n===2){ spawnSquad('Archer', 2); addSynergy('AR',2); }
-    if (n===3){ spawnSquad('Archer', 2); game.volleyT = 4; fxText(W*0.5,H*0.82,'VOLLEY!'); addSynergy('VOLLEY'); }
+    if (n===1){ spawnSquad('Archer',1); addSynergy('AR'); }
+    if (n===2){ spawnSquad('Archer',2); addSynergy('AR',2); }
+    if (n===3){ upgradeFamily('AR'); spawnSquad('Archer',2); game.volleyT=4; fxText(W*0.5,H*0.82,'VOLLEY!'); addSynergy('VOLLEY'); }
   }else if (k==='WR'){
-    if (n===1){ spawnSquad('Wraith', 1); addSynergy('WR'); }
-    if (n===2){ spawnSquad('Wraith', 2); addSynergy('WR',2); }
-    if (n===3){ spawnUnit('WraithElite'); addSynergy('WE'); }
+    if (n===1){ spawnSquad('Wraith',1); addSynergy('WR'); }
+    if (n===2){ spawnSquad('Wraith',2); addSynergy('WR',2); }
+    if (n===3){ upgradeFamily('WR'); spawnUnit('WraithElite'); addSynergy('WE'); }
   }else if (k==='DB'){
-    const r = n===1?54:n===2?82:108;
+    const r = n===1?56:n===2?84:110;
     const stun = n===3?1.2:0;
-    aoe(W*0.5, H*0.33, r, 10 + n*6, stun);
+    const slow = n===3?0.45:0; // 45% slow briefly on 3
+    aoe(W*0.5, H*0.33, r, 10 + n*6, stun, slow);
     addSynergy('DB');
   }
 }
 
-///// UNITS, STATS, SPRITE LOOK /////////////////////////////////////////
-function unit(team, kind, hp, atk, rngCells, cd, speed){
-  return {team, kind, x:0, y:0, hp, max:hp, atk, rng:rngCells, cd, tAtk:0, speed,
+///// UNITS & STATS /////
+function starScales(code){ // returns multipliers based on family star
+  const s = game.stars[code]||1;
+  const hp = 1 + 0.5*(s-1);
+  const atk = 1 + 0.35*(s-1);
+  const cd  = 1 - 0.08*(s-1);
+  const scale = 1 + 0.15*(s-1);
+  return {hp,atk,cd,scale};
+}
+function unit(team, kind, hp, atk, rngCells, cd, speed, code){
+  return {team, kind:code, x:0, y:0, hp, max:hp, atk, rng:rngCells, cd, tAtk:0, speed,
           anim:{hit:0, swing:0, bob:(Math.random()*Math.PI*2)}};
 }
+function ally(kind, baseHp, baseAtk, rng, cd, spd, code){
+  const s = starScales(code); // apply family stars
+  return unit(TEAMS.ALLY, kind, Math.round(baseHp*s.hp), Math.round(baseAtk*s.atk), rng, Math.max(0.35, cd*s.cd), spd, code);
+}
+function enemy(kind, baseHp, baseAtk, rng, cd, spd, code){
+  return unit(TEAMS.ENEMY, kind, baseHp, baseAtk, rng, cd, spd, code);
+}
 function baseUnit(kind){
-  // relic modifiers hook
-  const mod = (k,v)=>applyMods(k,v);
+  // enemies scale gently per wave for first 10 waves, then ramp
+  const w = game.wave;
+  const ehp = (a,b)=> Math.round(a + b*Math.min(w,10) + (w>10? (w-10)*b*1.2 : 0));
+  const eatk=(a,b)=> Math.round(a + b*w*0.8);
 
   switch(kind){
-    case 'Skeleton':    return unit(TEAMS.ALLY,'SK', mod('SK.hp',22), mod('SK.atk',6), 1, mod('SK.cd',0.7), mod('SK.spd',160));
-    case 'BoneKnight':  return unit(TEAMS.ALLY,'BK', mod('BK.hp',62), mod('BK.atk',11), 1, mod('BK.cd',0.85),mod('BK.spd',150));
-    case 'Archer':      return unit(TEAMS.ALLY,'AR', mod('AR.hp',16), mod('AR.atk',7), 4, mod('AR.cd',1.0), mod('AR.spd',165));
-    case 'Wraith':      return unit(TEAMS.ALLY,'WR', mod('WR.hp',14), mod('WR.atk',9), 1, mod('WR.cd',0.6), mod('WR.spd',190));
-    case 'WraithElite': return unit(TEAMS.ALLY,'WE', mod('WE.hp',26), mod('WE.atk',14),1, mod('WE.cd',0.5), mod('WE.spd',210));
+    // allies (family codes are display/logic keys)
+    case 'Skeleton':    return ally('SK', 22, 6, 1, 0.70,160,'SK');
+    case 'BoneKnight':  return ally('BK', 70,12,1, 0.80,150,'BK');
+    case 'Archer':      return ally('AR', 16, 7, 4, 1.00,165,'AR');
+    case 'Wraith':      return ally('WR', 14, 9, 1, 0.60,190,'WR');
+    case 'WraithElite': return ally('WE', 26,14, 1, 0.50,210,'WE');
+
     // enemies
-    case 'Goblin':      return unit(TEAMS.ENEMY,'EG', 16 + game.wave*0.6, 5 + game.wave*0.2, 1, 0.9, 155);
-    case 'Slinger':     return unit(TEAMS.ENEMY,'ES', 12 + game.wave*0.5, 6 + game.wave*0.25,4, 1.05,165);
-    case 'Brute':       return unit(TEAMS.ENEMY,'EB', 40 + game.wave*1.0, 9 + game.wave*0.35,1, 1.0,135);
-    case 'Boss':        return unit(TEAMS.ENEMY,'BO', 140 + game.wave*5, 12 + game.wave*0.6, 2, 0.85,120);
+    case 'Goblin':      return enemy('EG', ehp(12,1.6), eatk(4,0.25), 1, 0.95,155,'EG');
+    case 'Slinger':     return enemy('ES', ehp(10,1.4), eatk(5,0.28), 4, 1.05,165,'ES');
+    case 'Brute':       return enemy('EB', ehp(28,2.4), eatk(7,0.35), 1, 1.00,135,'EB');
+    case 'Boss':        return enemy('BO', ehp(110,6.0), eatk(9,0.6),  2, 0.90,120,'BO');
   }
-  return unit(TEAMS.ENEMY,'EG', 16, 5, 1, 1, 155);
-}
-function applyMods(key, val){
-  // simple multiplicative mod from relics
-  let mult = 1;
-  for(const r of activeRelics) if (r.mod && r.mod[key]) mult *= r.mod[key];
-  return Math.max(1, val*mult);
+  return enemy('EG', ehp(12,1.6), eatk(4,0.25), 1, 0.95,155,'EG');
 }
 function spawnUnit(kind){
   const u = baseUnit(kind);
@@ -348,50 +364,44 @@ function spawnUnit(kind){
 }
 function spawnSquad(kind, n){ for(let i=0;i<n;i++) spawnUnit(kind); }
 
-///// WAVES & BOSSES /////////////////////////////////////////////////////
+///// WAVES /////
 function spawnWave(n){
-  // basic ramp + boss every N
-  const bossWave = n % game.bossEvery === 0;
-  if (bossWave){
+  if (n % game.bossEvery === 0){
     spawnUnit('Boss');
-    for(let i=0;i<2+Math.floor(n/5);i++) spawnUnit('Brute');
+    for(let i=0;i<1+Math.floor(n/5);i++) spawnUnit('Brute');
   }else{
-    let g = 4 + Math.floor(n*1.1);
-    let s = Math.floor(n/2);
-    let b = Math.floor((n-1)/3);
+    const g = 3 + Math.floor(n*0.9);
+    const s = Math.floor((n-1)/3);
+    const b = Math.floor((n-1)/4);
     for(let i=0;i<g;i++) spawnUnit('Goblin');
     for(let i=0;i<s;i++) spawnUnit('Slinger');
     for(let i=0;i<b;i++) spawnUnit('Brute');
   }
 }
 
-///// AOE SPELL /////////////////////////////////////////////////////////
-function aoe(xc, yc, r, dmg, stun){
+///// SPELLS /////
+function aoe(xc,yc,r,dmg,stun=0,slow=0){
   fxRing(xc,yc,r);
   for(const u of game.units){
     if (u.team!==TEAMS.ENEMY || u.hp<=0) continue;
-    const dx = u.x - xc, dy = u.y - yc;
+    const dx=u.x-xc, dy=u.y-yc;
     if (Math.hypot(dx,dy) <= r){
-      u.hp -= applySpellMods(dmg); u.anim.hit = 0.2;
+      applyDamage(null,u,dmg,'spell');
       u.tAtk = Math.max(u.tAtk, stun||0);
+      if (slow>0){ u.slowT = Math.max(u.slowT||0, 1.0); u.slowPct=slow; }
       fxHit(u.x,u.y);
     }
   }
-}
-function applySpellMods(dmg){
-  let val = dmg;
-  for(const r of activeRelics) if (r.addSpellDmg) val += r.addSpellDmg;
-  for(const r of activeRelics) if (r.mulSpellDmg) val *= r.mulSpellDmg;
-  return val;
+  shakeT = Math.max(shakeT, 0.08);
 }
 
-///// TARGETING HELPERS /////////////////////////////////////////////////
+///// TARGETING /////
 function nearest(u, team){
   let best=null, bd=1e9;
   for(const v of game.units){
     if (v.team!==team || v.hp<=0) continue;
     const d = Math.abs(v.x-u.x)+Math.abs(v.y-u.y);
-    if (d<bd){bd=d; best=v;}
+    if (d<bd){ bd=d; best=v; }
   }
   return best;
 }
@@ -401,151 +411,172 @@ function nearestPointTarget(p){
   for(const u of game.units){
     if (u.team!==want || u.hp<=0) continue;
     const d = Math.abs(u.x-p.x)+Math.abs(u.y-p.y);
-    if (d<bd){bd=d; best=u;}
+    if (d<bd){ bd=d; best=u; }
   }
   return best;
 }
 
-///// COMBAT LOOP ////////////////////////////////////////////////////////
+///// DAMAGE / CRIT / FEEDBACK /////
+function showNum(x,y,txt,color){ game.fx.push({type:'num',x,y,t:0.9,yo:0,color,txt}); }
+function applyDamage(attacker, target, base, type='phys'){
+  let dmg = base;
+  if (type!=='spell'){ // crits on weapon hits
+    if (Math.random()<game.critC){ dmg*=game.critM; showNum(target.x,target.y,'✦'+Math.round(dmg),'#ffd45a'); shakeT=Math.max(shakeT,0.06); }
+    else showNum(target.x,target.y,'-'+Math.round(dmg),'#ffffff');
+  }else{
+    showNum(target.x,target.y,'-'+Math.round(dmg),'#7ecbff');
+  }
+  target.hp -= dmg;
+  target.anim.hit = 0.2;
+}
+
+///// COMBAT LOOP /////
 function shoot(u, target, dmg){
   const ang = Math.atan2(target.y-u.y, target.x-u.x);
   let mult = 1;
   if (game.volleyT>0 && u.kind==='AR') mult *= 1.8;
   for(const r of activeRelics) if (r.mulProjDmg) mult *= r.mulProjDmg;
-  game.proj.push({x:u.x, y:u.y, vx:320*Math.cos(ang), vy:320*Math.sin(ang), dmg:dmg*mult, team:u.team, life:1.6});
+  game.proj.push({x:u.x, y:u.y, vx:340*Math.cos(ang), vy:340*Math.sin(ang), dmg:dmg*mult, team:u.team, life:1.6});
   u.anim.swing = 0.18;
 }
 function step(dt){
   if (!running) return;
+  t += dt;
 
-  globalTime += dt;
-
-  // block feeding
+  // feed blocks
   scheduleRefill(dt);
 
-  if (game.spawnGate>0){
-    game.spawnGate -= dt;
-    if (game.spawnGate<=0) spawnWave(game.wave);
-  }
-  if (game.volleyT>0) game.volleyT = Math.max(0, game.volleyT - dt);
+  // spawn waves
+  if (game.spawnGate>0){ game.spawnGate-=dt; if (game.spawnGate<=0) spawnWave(game.wave); }
+  if (game.volleyT>0) game.volleyT=Math.max(0,game.volleyT-dt);
 
   // units
   for(const u of game.units){
     if (u.hp<=0) continue;
+
     // decay fx
-    if (u.anim.hit>0) u.anim.hit = Math.max(0, u.anim.hit - dt);
-    if (u.anim.swing>0) u.anim.swing = Math.max(0, u.anim.swing - dt);
+    if (u.anim.hit>0) u.anim.hit=Math.max(0,u.anim.hit-dt);
+    if (u.anim.swing>0) u.anim.swing=Math.max(0,u.anim.swing-dt);
+    if (u.slowT>0){ u.slowT=Math.max(0,u.slowT-dt); } // slow timer
+
+    const speedMod = (u.slowT>0) ? (1 - (u.slowPct||0)) : 1;
 
     if (u.team===TEAMS.ALLY){
-      const e = nearest(u, TEAMS.ENEMY); if (!e) continue;
-      const dx = e.x - u.x, dy = e.y - u.y, dist = Math.hypot(dx,dy);
-      const rngPx = u.rng * cellH * 0.9; u.tAtk -= dt;
+      const e=nearest(u,TEAMS.ENEMY); if(!e) continue;
+      const dx=e.x-u.x, dy=e.y-u.y, dist=Math.hypot(dx,dy);
+      const rngPx = u.rng*cellH*0.9; u.tAtk -= dt;
 
-      if (dist <= rngPx){
-        if (u.tAtk<=0){
-          if (u.rng>1) shoot(u, e, u.atk);
-          else { e.hp -= u.atk; fxHit(e.x,e.y); u.anim.swing = 0.12; }
-          u.tAtk = u.cd;
+      if(dist<=rngPx){
+        if(u.tAtk<=0){
+          if(u.rng>1) shoot(u,e,u.atk);
+          else{ applyDamage(u,e,u.atk,'phys'); u.anim.swing=0.12; }
+          u.tAtk=u.cd;
         }
       }else{
-        const sp = u.speed * dt;
-        u.x += sp * Math.sign(dx) * 0.6;
-        u.y += sp * Math.sign(dy);
+        const sp=u.speed*dt*speedMod;
+        u.x += sp*Math.sign(dx)*0.6; u.y += sp*Math.sign(dy);
       }
     }else{
-      const a = nearest(u, TEAMS.ALLY);
-      const tx = a? a.x : u.x, ty = a? a.y : BASE_Y;
-      const dx = tx - u.x, dy = ty - u.y, dist = Math.hypot(dx,dy);
-      const rngPx = u.rng * cellH * 0.9; u.tAtk -= dt;
+      const a=nearest(u,TEAMS.ALLY);
+      const tx=a? a.x : u.x, ty=a? a.y : BASE_Y;
+      const dx=tx-u.x, dy=ty-u.y, dist=Math.hypot(dx,dy);
+      const rngPx=u.rng*cellH*0.9; u.tAtk-=dt;
 
-      if (a && dist <= rngPx){
-        if (u.tAtk<=0){
-          if (u.rng>1) shoot(u, a, u.atk);
-          else { a.hp -= u.atk; fxHit(a.x,a.y); u.anim.swing = 0.12; }
-          u.tAtk = u.cd;
+      if(a && dist<=rngPx){
+        if(u.tAtk<=0){
+          if(u.rng>1) shoot(u,a,u.atk);
+          else{ applyDamage(u,a,u.atk,'phys'); u.anim.swing=0.12; }
+          u.tAtk=u.cd;
         }
-      }else if (!a && u.y >= BASE_HIT_Y){
-        u.y = Math.min(u.y, BASE_Y);
-        if (u.tAtk<=0){
-          let baseDmg = u.atk;
-          for(const r of activeRelics) if (r.baseDR) baseDmg *= (1-r.baseDR); // base damage reduction relic
-          game.necroHP -= baseDmg; fxText(W*0.5, H*0.95, '-'+Math.round(baseDmg));
-          u.tAtk = u.cd;
+      }else if(!a && u.y>=BASE_HIT_Y){
+        u.y=Math.min(u.y,BASE_Y);
+        if(u.tAtk<=0){
+          let baseD=u.atk; for(const r of activeRelics) if(r.baseDR) baseD*=(1-r.baseDR);
+          game.necroHP -= baseD; showNum(W*0.5,H*0.95,'-'+Math.round(baseD),'#ff8a8a'); u.tAtk=u.cd; shakeT=Math.max(shakeT,0.05);
         }
       }else{
-        const sp = u.speed * dt;
-        u.x += sp * Math.sign(dx) * 0.4;
-        u.y += Math.abs(sp);
+        const sp=u.speed*dt*speedMod;
+        u.x += sp*Math.sign(dx)*0.4; u.y += Math.abs(sp);
       }
     }
     // clamp
-    u.x = Math.max(8, Math.min(W-8, u.x));
-    u.y = Math.max(8, Math.min(H-8, u.y));
+    u.x=Math.max(8,Math.min(W-8,u.x)); u.y=Math.max(8,Math.min(H-8,u.y));
   }
 
   // projectiles
   for(const p of game.proj){
-    p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt;
-    if (p.life<=0) p.dead = true;
-    const tgt = nearestPointTarget(p);
-    if (tgt && Math.hypot(tgt.x-p.x,tgt.y-p.y) < 8){
-      tgt.hp -= p.dmg; fxHit(tgt.x,tgt.y); tgt.anim.hit = 0.2; p.dead = true;
-    }
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
+    if(p.life<=0) p.dead=true;
+    const tgt=nearestPointTarget(p);
+    if(tgt && Math.hypot(tgt.x-p.x,tgt.y-p.y)<8){ applyDamage(null,tgt,p.dmg,'phys'); p.dead=true; shakeT=Math.max(shakeT,0.02); }
   }
-  game.proj = game.proj.filter(p=>!p.dead);
+  game.proj=game.proj.filter(p=>!p.dead);
 
   // cleanup
-  for(const u of game.units) if (u.hp<=0 || u.y > H+24) u.dead = true;
-  game.units = game.units.filter(u=>!u.dead);
+  for(const u of game.units) if(u.hp<=0 || u.y>H+24) u.dead=true;
+  game.units=game.units.filter(u=>!u.dead);
 
   // wave clear / defeat
   const enemiesLeft = game.units.some(u=>u.team===TEAMS.ENEMY);
-  if (!enemiesLeft && game.spawnGate<=0){ onWaveClear(); }
-  if (game.necroHP<=0){ onDefeat(); }
+  if(!enemiesLeft && game.spawnGate<=0){ onWaveClear(); }
+  if(game.necroHP<=0){ onDefeat(); }
 
-  // HUD
-  hpEl.textContent = 'HP ' + Math.max(0,Math.round(game.necroHP));
-  soulsEl.textContent = 'Souls ' + game.souls;
+  hpEl.textContent='HP '+Math.max(0,Math.round(game.necroHP));
+  soulsEl.textContent='Souls '+game.souls;
 }
 
-///// FX & RENDER ////////////////////////////////////////////////////////
-function fxHit(x,y){ game.fx.push({x,y,t:0.15,type:'hit'}); }
-function fxRing(x,y,r){ game.fx.push({x,y,t:0.4, r, type:'ring'}); }
-function fxText(x,y,txt){ game.fx.push({x,y,t:1.0, text:txt, type:'text', yo:0}); }
+///// FX & DRAW /////
+function fxHit(x,y){ game.fx.push({type:'hit',x,y,t:0.15}); }
+function fxRing(x,y,r){ game.fx.push({type:'ring',x,y,t:0.4,r}); }
+function fxText(x,y,txt){ game.fx.push({type:'text',x,y,t:1.0,yo:0,txt}); }
 
 function drawUnit(u){
-  const ally = u.team===TEAMS.ALLY;
-  const baseColor = (u.kind==='AR') ? '#7ed0ff'
-                   : (u.kind==='WR'||u.kind==='WE') ? '#b69aff'
-                   : (u.kind==='BK') ? '#e0c078'
-                   : (u.kind==='BO') ? '#ff7a7a'
-                   : (ally ? '#5ed892' : '#e06a6a');
-  const bob = Math.sin(globalTime*3 + u.anim.bob) * 1.5;
-  const elite = (u.kind==='BK'||u.kind==='WE'||u.kind==='BO'||u.kind==='EB');
-  const scale = elite ? 1.26 : 1.0;
-  const glow = elite ? 0.25 : 0;
+  const ally=u.team===TEAMS.ALLY;
+  let baseColor = ally ? '#5ed892' : '#e06a6a';
+  if(u.kind==='AR') baseColor='#7ed0ff';
+  if(u.kind==='WR'||u.kind==='WE') baseColor='#b69aff';
+  if(u.kind==='BK') baseColor='#e0c078';
+  if(u.kind==='BO') baseColor='#ff7a7a';
 
-  ctx.save(); ctx.translate(u.x, u.y + bob);
-  if (glow>0){ ctx.fillStyle = baseColor + '33'; ctx.beginPath(); ctx.arc(0,0, 16*scale+3, 0, Math.PI*2); ctx.fill(); }
-  const size = 16*scale * (1 + u.anim.hit*0.28);
-  ctx.fillStyle = baseColor;
-  ctx.beginPath();
-  ctx.moveTo(0, -size*0.8);
-  ctx.lineTo(size*0.8, 0);
-  ctx.lineTo(0, size*0.8);
-  ctx.lineTo(-size*0.8, 0);
-  ctx.closePath();
-  ctx.fill();
+  const bob=Math.sin(t*3+u.anim.bob)*1.5;
 
-  if (u.anim.swing>0){
-    ctx.strokeStyle = '#fff9'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0,0, size*0.9, -0.9, -0.9 + u.anim.swing*6); ctx.stroke();
+  // elite/large via family stars
+  const famScale = (u.kind==='SK'||u.kind==='AR'||u.kind==='WR') ? (1 + 0.15*(game.stars[u.kind]-1)) : 1;
+  const bossScale = (u.kind==='BK'||u.kind==='WE'||u.kind==='EB'||u.kind==='BO') ? 1.22 : 1;
+  const scale = famScale * bossScale;
+
+  ctx.save();
+  if(shakeT>0){ ctx.translate((Math.random()-0.5)*4,(Math.random()-0.5)*4); }
+  ctx.translate(u.x, u.y + bob);
+
+  // glow
+  if(u.kind==='BK'||u.kind==='WE'||u.kind==='BO'){
+    ctx.fillStyle=baseColor+'33'; ctx.beginPath(); ctx.arc(0,0, 16*scale+3,0,Math.PI*2); ctx.fill();
   }
+
+  const size=16*scale*(1+u.anim.hit*0.28);
+  ctx.fillStyle=baseColor;
+  ctx.beginPath();
+  ctx.moveTo(0,-size*0.8);
+  ctx.lineTo(size*0.8,0);
+  ctx.lineTo(0,size*0.8);
+  ctx.lineTo(-size*0.8,0);
+  ctx.closePath(); ctx.fill();
+
+  if(u.anim.swing>0){
+    ctx.strokeStyle='#fff9'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(0,0,size*0.9,-0.9,-0.9+u.anim.swing*6); ctx.stroke();
+  }
+
+  // stars (for allied families)
+  if(ally && (u.kind==='SK'||u.kind==='AR'||u.kind==='WR')){
+    const s=game.stars[u.kind]; ctx.fillStyle='#ffd45a'; ctx.font='12px system-ui'; ctx.textAlign='center';
+    ctx.fillText('★'.repeat(s),0,-size*1.2);
+  }
+
   // hp
-  ctx.fillStyle = '#2a2a2a';
-  ctx.fillRect(-10, size*0.9, 20, 3.5);
-  ctx.fillStyle = '#7cf470';
-  ctx.fillRect(-10, size*0.9, 20*(u.hp/u.max), 3.5);
+  ctx.fillStyle='#2a2a2a'; ctx.fillRect(-10,size*0.9,20,3.5);
+  ctx.fillStyle='#7cf470'; ctx.fillRect(-10,size*0.9,20*(u.hp/u.max),3.5);
 
   ctx.restore();
 }
@@ -553,176 +584,137 @@ function drawUnit(u){
 function draw(){
   ctx.clearRect(0,0,W,H);
   // grid
-  ctx.strokeStyle = '#1e1e24';
+  ctx.strokeStyle='#1e1e24';
   for(let r=1;r<ROWS;r++){ ctx.beginPath(); ctx.moveTo(0,r*cellH); ctx.lineTo(W,r*cellH); ctx.stroke(); }
   for(let c=1;c<COLS;c++){ ctx.beginPath(); ctx.moveTo(c*cellW,0); ctx.lineTo(c*cellW,H); ctx.stroke(); }
   // baseline
-  ctx.fillStyle = '#24242c'; ctx.fillRect(W*0.05, BASE_Y, W*0.9, 4);
+  ctx.fillStyle='#24242c'; ctx.fillRect(W*0.05, BASE_Y, W*0.9, 4);
 
   for(const u of game.units) drawUnit(u);
 
   // projectiles
-  ctx.fillStyle = '#fff';
+  ctx.fillStyle='#fff';
   for(const p of game.proj){ ctx.beginPath(); ctx.arc(p.x,p.y,2.6,0,Math.PI*2); ctx.fill(); }
 
   // fx
   for(const f of game.fx){
-    f.t -= 1/60;
-    if (f.type==='hit'){ ctx.strokeStyle = '#fff8'; ctx.strokeRect(f.x-10,f.y-10,20,20); }
-    else if(f.type==='ring'){ ctx.strokeStyle = '#ffdd77aa'; ctx.beginPath(); ctx.arc(f.x,f.y, f.r*(1-f.t/0.4), 0, Math.PI*2); ctx.stroke(); }
-    else if(f.type==='text'){ f.yo -= 0.7; ctx.fillStyle = '#ffd45a'; ctx.font='bold 16px system-ui'; ctx.textAlign='center'; ctx.fillText(f.text, f.x, f.y + f.yo); }
+    f.t-=1/60;
+    if(f.type==='hit'){ ctx.strokeStyle='#fff8'; ctx.strokeRect(f.x-10,f.y-10,20,20); }
+    else if(f.type==='ring'){ ctx.strokeStyle='#7ecbff99'; ctx.beginPath(); ctx.arc(f.x,f.y, f.r*(1-f.t/0.4),0,Math.PI*2); ctx.stroke(); }
+    else if(f.type==='text'){ f.y -= 0.7; ctx.fillStyle='#ffd45a'; ctx.font='bold 16px system-ui'; ctx.textAlign='center'; ctx.fillText(f.txt,f.x,f.y); }
+    else if(f.type==='num'){ f.y -= 0.6; ctx.fillStyle=f.color; ctx.font='bold 14px system-ui'; ctx.textAlign='center'; ctx.fillText(f.txt,f.x,f.y); }
   }
   game.fx = game.fx.filter(f=>f.t>0);
+
+  if(shakeT>0) shakeT=Math.max(0,shakeT-1/60);
 }
 
-///// RELICS & SYNERGIES ////////////////////////////////////////////////
+///// RELICS /////
 const RELIC_POOL = [
-  // block rate & economy
-  {id:'quickHands', title:'Quick Hands', desc:'Blocks feed 25% faster.', take:()=>{ game.blockRate = Math.max(game.blockRateMin, game.blockRate*0.75);} },
-  {id:'darkDeal', title:'Dark Deal', desc:'+2 Souls now, -10% max HP.', take:()=>{ game.souls += 2; game.necroHP = Math.min(game.necroHP, (hpMax()*0.9)); hpEl.textContent='HP '+Math.round(game.necroHP);}},
-
-  // unit damage/health (mods map keys)
-  {id:'steelBones', title:'Steel Bones', desc:'Skeletons +20% HP.', mod:{'SK.hp':1.2,'BK.hp':1.1}},
-  {id:'poisonWisp', title:'Poison Wisps', desc:'Wraith attacks +25% damage.', mod:{'WR.atk':1.25,'WE.atk':1.25}},
-  {id:'fletching', title:'Fine Fletching', desc:'Archer attacks +20%.', mod:{'AR.atk':1.2}},
-  {id:'knightOrder', title:'Knight’s Oath', desc:'Bone Knights +30% HP, -10% CD.', mod:{'BK.hp':1.3,'BK.cd':0.9}},
-
-  // spells & base defense
-  {id:'soulflare', title:'Soulflare', desc:'+6 Death Blast damage.', addSpellDmg:6},
-  {id:'arcaneFocus', title:'Arcane Focus', desc:'Spell damage x1.2.', mulSpellDmg:1.2},
-  {id:'wardingSigil', title:'Warding Sigil', desc:'Base damage taken -20%.', baseDR:0.2},
-
-  // projectiles
-  {id:'razorTips', title:'Razor Tips', desc:'Projectile damage x1.15.', mulProjDmg:1.15},
-
-  // synergy escalators
-  {id:'legionDrums', title:'Legion Drums', desc:'Every 5 Skeleton casts this run → +1 Skeleton (free).'},
-  {id:'arrowChorus', title:'Arrow Chorus', desc:'AR-3 (Volley) also grants +10% Ally atk for 5s after it ends.'},
-  {id:'doomChill', title:'Doom Chill', desc:'Death Blast 3 briefly slows enemies.'}
+  {id:'quickHands', title:'Quick Hands', desc:'Blocks feed 25% faster.', take:()=>{ game.blockRate=Math.max(game.blockRateMin, game.blockRate*0.75);} },
+  {id:'tempo', title:'Tempo', desc:'Each wave: block feed -0.03s (min 0.25s).', take:()=>{ tempoActive=true; }},
+  {id:'steelBones', title:'Steel Bones', desc:'Skeletons +25% HP.', mod:{'SK.hp':1.25}},
+  {id:'fletching', title:'Fine Fletching', desc:'Archer damage +20%.', mod:{'AR.atk':1.20}},
+  {id:'poisonWisp', title:'Poison Wisps', desc:'Wraith damage +25%.', mod:{'WR.atk':1.25,'WE.atk':1.25}},
+  {id:'knightOath', title:'Knight’s Oath', desc:'Bone Knight +30% HP, -10% CD.', mod:{'BK.hp':1.30,'BK.cd':0.90}},
+  {id:'soulflare', title:'Soulflare', desc:'+6 spell damage.', addSpellDmg:6},
+  {id:'arcane', title:'Arcane Focus', desc:'Spell damage x1.2.', mulSpellDmg:1.2},
+  {id:'razor', title:'Razor Tips', desc:'Projectile damage x1.15.', mulProjDmg:1.15},
+  {id:'ward', title:'Warding Sigil', desc:'Base damage taken -20%.', baseDR:0.2},
+  {id:'battleCry', title:'Battle Cry', desc:'On ★ upgrade, heal allies 20%.', onUpgradeHeal:0.2}
 ];
-let activeRelics = [];
+let activeRelics = [], tempoActive=false;
 
 function applyRelic(r){
   activeRelics.push(r);
   if (r.take) r.take();
-  renderSynergies(); // also re-draw synergy chips (list active relics subtly)
 }
-function hpMax(){ return 50 + 0; } // placeholder for later meta upgrades
-
-function renderSynergies(){
-  // simple readout: synergy counters & active relic count
-  syBar.innerHTML = '';
-  const make = (name, val)=>{ const d=document.createElement('div');d.className='sy';d.innerHTML=`<span>${name}</span><level>${val}</level>`; syBar.appendChild(d); };
-  make('Legion', game.synergies.Legion);
-  make('Arrowstorm', game.synergies.Arrowstorm);
-  make('Wisp', game.synergies.Wisp);
-  make('Doom', game.synergies.Doom);
-
-  // small count of relics
-  const r=document.createElement('div');r.className='sy';r.innerHTML=`<span>Relics</span><level>${activeRelics.length}</level>`; syBar.appendChild(r);
+function applyMods(key,val){
+  let mult=1;
+  for(const r of activeRelics) if(r.mod && r.mod[key]) mult*=r.mod[key];
+  return Math.max(1, val*mult);
 }
+function hpMax(){ return 60; }
 
-///// WAVE CLEAR → REWARD MODAL /////////////////////////////////////////
+///// WAVE CLEAR / REWARD /////
 function onWaveClear(){
-  // payout, escalate, show reward choices
+  // gentle end-of-wave recovery & pacing
   game.souls += 2 + Math.floor(game.wave/3);
-  soulsEl.textContent = 'Souls ' + game.souls;
-  fxText(W*0.5, H*0.08, `WAVE ${game.wave} CLEAR!`);
+  game.necroHP = Math.min(hpMax(), game.necroHP + 4);
 
-  state = STATE.REWARD;
-  running = false;
-  openReward();
+  // heal allies a bit & clear slows
+  for(const u of game.units){ if(u.team===TEAMS.ALLY){ u.hp=Math.min(u.max,u.hp+Math.round(u.max*0.35)); u.slowT=0; } }
+
+  soulsEl.textContent='Souls '+game.souls; fxText(W*0.5,H*0.08,`WAVE ${game.wave} CLEAR!`);
+  state=STATE.REWARD; running=false; openReward();
+}
+function pickRelics(k=3){
+  const pool = RELIC_POOL.filter(r=>!activeRelics.find(a=>a.id===r.id));
+  const picks=[];
+  while(picks.length<k && pool.length>0){ const i=(Math.random()*pool.length)|0; picks.push(pool.splice(i,1)[0]); }
+  return picks;
 }
 function openReward(){
   modalWrap.style.display='flex';
-  document.getElementById('modalTitle').textContent = `Choose a Relic (Wave ${game.wave})`;
-  choiceList.innerHTML = '';
-
-  // pick 3 distinct relics (weighted lightly: more “core” early)
-  const pool = RELIC_POOL.filter(r=>!activeRelics.find(a=>a.id===r.id));
-  const picks = [];
-  while(picks.length<3 && pool.length>0){
-    const i = (Math.random()*pool.length)|0;
-    picks.push(pool.splice(i,1)[0]);
-  }
-
+  document.getElementById('modalTitle').textContent=`Choose a Relic (Wave ${game.wave})`;
+  choiceList.innerHTML='';
+  const picks = pickRelics(3);
   picks.forEach(r=>{
-    const row=document.createElement('div');row.className='choice';
-    const left=document.createElement('div');left.style.flex='1';
-    const title=document.createElement('div');title.className='title';title.textContent=r.title;
-    const desc=document.createElement('div');desc.className='desc';desc.textContent=r.desc;
-    left.appendChild(title); left.appendChild(desc);
-
-    const take=document.createElement('button');take.className='take';take.textContent='Take';
-    take.onclick=()=>{ applyRelic(r); closeReward(true); };
-
-    row.appendChild(left); row.appendChild(take);
-    choiceList.appendChild(row);
+    const row=document.createElement('div'); row.className='choice';
+    row.innerHTML = `<div style="flex:1">
+      <div class="title">${r.title}</div>
+      <div class="desc">${r.desc}</div>
+    </div>`;
+    const btn=document.createElement('button'); btn.className='take'; btn.textContent='Take';
+    btn.onclick=()=>{ applyRelic(r); closeReward(true); };
+    row.appendChild(btn); choiceList.appendChild(row);
   });
-
-  btnSkip.onclick=()=>{ game.souls += 1; closeReward(true); };
+  btnSkip.onclick=()=>{ game.souls+=1; closeReward(true); };
   btnContinue.onclick=()=> closeReward(false);
 }
-function closeReward(proceed){
-  modalWrap.style.display='none';
-  state = STATE.PLAY;
-  running = true;
-
-  // start next wave
+function closeReward(){
+  modalWrap.style.display='none'; state=STATE.PLAY; running=true;
   game.wave++;
-  waveEl.textContent = 'Wave ' + game.wave;
-  game.spawnGate = 0.9;
+  // tiny pacing tweaks per wave
+  if (tempoActive) game.blockRate=Math.max(game.blockRateMin, game.blockRate-0.03);
+  else game.blockRate=Math.max(game.blockRateMin, game.blockRate-0.01);
+  rateEl.textContent='Block: '+game.blockRate.toFixed(2)+'s';
 
-  // tiny bonus: inject one guaranteed block (still feeds with slide)
-  addBlock(Math.random()<0.5?'SK':'AR');
-  renderBar();
+  waveEl.textContent='Wave '+game.wave;
+  game.spawnGate=0.9;
+
+  // ensure some blocks are incoming
+  addBlock(Math.random()<0.5?'SK':'AR'); renderBar();
 }
 
-///// DEFEAT / GAME OVER ////////////////////////////////////////////////
+///// DEFEAT /////
 function onDefeat(){
   running=false; state=STATE.GAMEOVER;
-  fxText(W*0.5, H*0.5, 'DEFEAT');
-  meta.best = Math.max(meta.best, game.wave-1); meta.runs++; saveMeta();
-  bestEl.textContent = 'Best: ' + meta.best;
-
-  // quick restart prompt via reward modal UI
-  modalWrap.style.display='flex';
-  document.getElementById('modalTitle').textContent = `Defeat • Reached Wave ${game.wave-1}`;
-  choiceList.innerHTML = '';
-  const row=document.createElement('div');row.className='choice';
+  fxText(W*0.5,H*0.5,'DEFEAT');
+  meta.best=Math.max(meta.best, game.wave-1); meta.runs++; saveMeta(); bestEl.textContent='Best: '+meta.best;
+  modalWrap.style.display='flex'; document.getElementById('modalTitle').textContent=`Defeat • Reached Wave ${game.wave-1}`;
+  choiceList.innerHTML=''; const row=document.createElement('div'); row.className='choice';
   row.innerHTML = `<div><div class="title">Run it back?</div><div class="desc">Best wave: ${meta.best} • Runs: ${meta.runs}</div></div>`;
-  choiceList.appendChild(row);
-  btnSkip.textContent = 'Quit';
-  btnContinue.textContent = 'Restart';
-  btnSkip.onclick = ()=>location.reload();
-  btnContinue.onclick = ()=>location.reload();
+  choiceList.appendChild(row); btnSkip.textContent='Quit'; btnContinue.textContent='Restart';
+  btnSkip.onclick=()=>location.reload(); btnContinue.onclick=()=>location.reload();
 }
 
-///// LOOP & UI /////////////////////////////////////////////////////////
+///// LOOP /////
 function loop(now){
-  const dt = Math.min((now-last)/1000, 1/30); last = now;
+  const dt=Math.min((now-last)/1000,1/30); last=now;
   if (running) step(dt);
   draw();
   requestAnimationFrame(loop);
 }
-btnPause.onclick = ()=>{
-  if (state!==STATE.PLAY) return;
-  running = !running; btnPause.textContent = running?'⏸':'▶️';
-  tip.style.display = running?'block':'none';
-};
+btnPause.onclick=()=>{ if(state!==STATE.PLAY) return; running=!running; btnPause.textContent=running?'⏸':'▶️'; tip.style.display=running?'block':'none'; };
 
-///// BOOT //////////////////////////////////////////////////////////////
+///// BOOT /////
 function boot(){
   renderSynergies();
-  refillInstantTo(6); // seed top row
-  renderBar();
-  waveEl.textContent = 'Wave ' + game.wave;
-  hpEl.textContent = 'HP ' + game.necroHP;
-  soulsEl.textContent = 'Souls ' + game.souls;
+  refillInstantTo(6); renderBar();
+  waveEl.textContent='Wave '+game.wave; hpEl.textContent='HP '+game.necroHP; soulsEl.textContent='Souls '+game.souls';
   requestAnimationFrame(loop);
-
-  // fade tip after a few seconds
-  setTimeout(()=> tip.style.display='none', 5000);
+  setTimeout(()=> tip.style.display='none', 5500);
 }
 boot();
 </script>
