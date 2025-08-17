@@ -1,276 +1,730 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>Auto Battler – r2a-sprite-safe</title>
+<meta charset="utf-8" />
+<meta name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>Bonechain – Roguelike Block Summoner (v4.0)</title>
 <style>
-  html,body{margin:0;height:100svh;background:#121214;overscroll-behavior:none;font-family:-apple-system,system-ui,sans-serif}
-  canvas{position:fixed;inset:0;display:block;touch-action:manipulation}
-  .boot{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#eaeaea;gap:8px}
-  .tag{color:#7bd7ff;font-size:12px}
-  .err{background:#1a0000}.err .msg{max-width:92vw;color:#ffb8b8;white-space:pre-wrap;text-align:center}
+:root{
+  color-scheme:dark;
+  --bg:#0f0f11; --ui:#18181b; --grid:#202024; --hi:#ffd45a;
+  --safeB: env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+html,body{margin:0;background:var(--bg);font-family:-apple-system,system-ui,Segoe UI,Roboto;color:#eee;min-height:100dvh;overflow-x:hidden}
+
+header,footer{
+  background:var(--ui); color:#eaeaea; display:flex; align-items:center; gap:12px;
+  padding:10px 14px; position:relative;
+}
+header{justify-content:space-between}
+.build{color:#7bd7ff;font-size:12px}
+.hud{display:flex;gap:10px;flex-wrap:wrap}
+.hud .chip{background:#24242c;border:1px solid #32323a;border-radius:10px;padding:4px 10px;font-size:12px}
+.btn{background:#2a2a31;color:#fff;border:1px solid #3b3b44;border-radius:8px;padding:8px 12px}
+
+main{display:flex;justify-content:center;padding:8px 10px}
+#field{
+  width:80vw; height:auto; aspect-ratio:9/16;
+  max-height:65dvh; background:#121216; border:1px solid #2a2a31; border-radius:12px;
+  touch-action:none;
+}
+
+/* synergy bar */
+#synergies{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 10px;background:#141419;border-top:1px solid #262632;border-bottom:1px solid #262632}
+.sy{display:flex;align-items:center;gap:6px;background:#1a1a22;border:1px solid #2c2c35;border-radius:10px;padding:4px 8px;font-size:12px}
+.sy level{display:inline-block;background:#33384a;border-radius:6px;padding:2px 6px;margin-left:4px;color:#cde1ff}
+
+/* bottom bar */
+footer{flex-direction:column; align-items:center; padding:10px 12px;gap:10px;padding-bottom:calc(10px + var(--safeB))}
+.legend{display:flex; gap:8px; flex-wrap:wrap}
+.b{display:inline-block; padding:4px 8px; border-radius:8px; font-size:12px}
+.b-SK{background:#3a2727}
+.b-AR{background:#243a27}
+.b-WR{background:#2b2740}
+.b-DB{background:#3a2b27}
+.rate{font-size:12px;opacity:.8}
+
+.bar{
+  display:grid; grid-template-columns: repeat(6, 1fr); /* 2 rows of 6 */
+  gap:8px; width:92vw; max-width:520px;
+}
+.block{
+  background:#23232a; border:2px solid #35353f; border-radius:12px; padding:12px 0;
+  text-align:center; font-weight:800; color:#fff; user-select:none;
+  box-shadow: inset 0 0 0 2px #0002;
+  transform: translateY(0); opacity:1;
+  transition: transform .22s ease-out, opacity .22s ease-out;
+}
+.block.spawn{ transform: translateY(12px); opacity:0; pointer-events:none; }
+.block.spawn.ready{ transform: translateY(0); opacity:1; pointer-events:auto; }
+.block.preview{ outline:3px dashed #fff9 }
+
+/* modal */
+.modalWrap{position:fixed;inset:0;background:#0009;display:none;align-items:center;justify-content:center;z-index:40}
+.modal{background:#17171d;border:1px solid #2c2c35;border-radius:14px;padding:14px;max-width:560px;width:92vw;box-shadow:0 20px 60px #000c}
+.modal h2{margin:0 0 8px 0;font-size:18px}
+.choiceList{display:grid;gap:10px}
+.choice{background:#1d1d24;border:1px solid #2e2e38;border-radius:12px;padding:10px;display:flex;justify-content:space-between;align-items:center}
+.choice .title{font-weight:700}
+.choice .desc{font-size:12px;opacity:.85;margin-top:4px}
+.choice .take{background:#2a2a31;border:1px solid #3b3b44;border-radius:8px;padding:8px 10px}
+.modal .row{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+
+/* tutorial tip */
+.tip{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(140px + var(--safeB));
+  background:#141420;border:1px solid #2a2a34;border-radius:10px;padding:8px 12px;font-size:13px;color:#d7d7e4;z-index:35}
+.tip b{color:var(--hi)}
+
+/* portrait gate (if you later force portrait only) */
+/* #rotateGate{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#000c;color:#fff;font-weight:700;font-size:24px;z-index:50}
+@media (orientation:landscape){#rotateGate{display:flex}} */
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
-<div id="boot" class="boot">
-  <div class="tag">Build r2a-sprite-safe</div>
-  <div>Loading…</div>
-  <div class="msg"></div>
+<header>
+  <div class="build">Bonechain v4.0 • Portrait</div>
+  <div class="hud">
+    <div class="chip" id="waveChip">Wave 1</div>
+    <div class="chip" id="hpChip">HP 50</div>
+    <div class="chip" id="soulsChip">Souls 0</div>
+    <div class="chip rate" id="rateChip">Block: 0.8s</div>
+    <div class="chip" id="bestChip">Best: 0</div>
+  </div>
+  <button id="btnPause" class="btn" aria-label="Pause">⏸</button>
+</header>
+
+<main>
+  <canvas id="field" width="405" height="720" aria-label="battlefield"></canvas>
+</main>
+
+<div id="synergies"></div>
+
+<footer>
+  <div class="legend">
+    <span class="b b-SK">💀 SKEL</span>
+    <span class="b b-AR">🏹 ARCH</span>
+    <span class="b b-WR">👻 WRAITH</span>
+    <span class="b b-DB">☠️ BLAST</span>
+  </div>
+  <div id="blockBar" class="bar" aria-label="skill blocks"></div>
+</footer>
+
+<!-- reward modal -->
+<div id="modalWrap" class="modalWrap" role="dialog" aria-modal="true">
+  <div class="modal">
+    <h2 id="modalTitle">Choose a Relic</h2>
+    <div class="choiceList" id="choiceList"></div>
+    <div class="row">
+      <button class="btn" id="btnSkip">Skip (+1 Soul)</button>
+      <button class="btn" id="btnContinue">Continue</button>
+    </div>
+  </div>
 </div>
 
+<div class="tip" id="tip">Tap 1–3 matching blocks to <b>summon</b>. Clear a wave → pick a <b>relic</b>.</div>
+
 <script>
-(function(){
-  var BUILD="r2a-sprite-safe";
-  var boot=document.getElementById('boot'); var bootMsg=boot.querySelector('.msg');
-  var ok=()=>boot.style.display='none';
-  var fail=e=>{boot.classList.add('err'); bootMsg.textContent=(e&&(e.stack||e.message))?(e.stack||e.message):String(e);};
+/*  Bonechain v4.0 — “Full game” single-file prototype
+    What’s included:
+    - Block combos (1–3) that summon/buff/spell (row-aware, preview on hold)
+    - Slow, sliding block feed; block-rate shown & modified by relics
+    - Units (ally/enemy), boss every 5 waves; enemies stop + fight when in range
+    - Relic choices after each wave; composable synergies; upgrades tweak feed & stats
+    - Clean UI chips; synergy bar; tutorial tip; localStorage: best wave
+*/
 
-  try{
-    // ----- Canvas (mobile-safe) -----
-    var canvas=document.getElementById('c');
-    var ctx=canvas.getContext('2d',{alpha:false});
-    var DPR=Math.min(window.devicePixelRatio||1,1.25); // tighter DPR to keep RAM low
-    function vv(){var v=visualViewport;var w=Math.min(innerWidth||1e9,document.documentElement.clientWidth||1e9,v?v.width:1e9);var h=Math.min(innerHeight||1e9,document.documentElement.clientHeight||1e9,v?v.height:1e9);return {w:Math.floor(w),h:Math.floor(h)}}
-    function setSize(){var s=vv();canvas.width=Math.floor(s.w*DPR);canvas.height=Math.floor(s.h*DPR);canvas.style.width=s.w+'px';canvas.style.height=s.h+'px';ctx.setTransform(DPR,0,0,DPR,0,0);}
-    addEventListener('resize',setSize,{passive:true}); addEventListener('orientationchange',setSize,{passive:true});
-    if(visualViewport){ visualViewport.addEventListener('resize',setSize,{passive:true}); }
-    setSize();
+///// CONSTANTS & CANVAS ///////////////////////////////////////////////
+const W = 405, H = 720;
+const ROWS = 18, COLS = 9;
+const cellW = W/COLS, cellH = H/ROWS;
+const BASE_Y = H * 0.94, BASE_HIT_Y = H * 0.93;
 
-    // ----- Layout (computed on resize only) -----
-    var COLS=5, ROWS=3, SHOW_SHOP=true, UI_SHOP=196, UI_COMPACT=96;
-    function uiH(){return SHOW_SHOP?UI_SHOP:UI_COMPACT;}
-    var L={cell:48,originX:0,originY:24,gridW:0,gridH:0,yUI:0,vw:0,vh:0};
-    function layout(){var s=vv(),TOP=36,BTM=2,availH=Math.max(60,s.h-uiH()-TOP-BTM);
-      var cell=Math.max(18,Math.min(Math.floor(availH/ROWS),Math.floor(s.w/COLS)));
-      var gw=COLS*cell,gh=ROWS*cell,ox=Math.floor((s.w-gw)/2),oy=Math.floor((s.h-uiH()-gh)/2);
-      oy=Math.max(12,Math.min(oy,s.h-uiH()-gh-8)); var yUI=s.h-uiH()-BTM; yUI=Math.max(oy+gh+8,yUI);
-      L={cell:cell,originX:ox,originY:oy,gridW:gw,gridH:gh,yUI:yUI,vw:s.w,vh:s.h};}
-    layout();
-    addEventListener('resize',layout,{passive:true});
-    if(visualViewport){visualViewport.addEventListener('resize',layout,{passive:true});}
+const cvs = document.getElementById('field');
+const ctx = cvs.getContext('2d');
+const waveEl = document.getElementById('waveChip');
+const hpEl = document.getElementById('hpChip');
+const soulsEl = document.getElementById('soulsChip');
+const rateEl = document.getElementById('rateChip');
+const bestEl = document.getElementById('bestChip');
+const btnPause = document.getElementById('btnPause');
+const bar = document.getElementById('blockBar');
+const modalWrap = document.getElementById('modalWrap');
+const choiceList = document.getElementById('choiceList');
+const btnSkip = document.getElementById('btnSkip');
+const btnContinue = document.getElementById('btnContinue');
+const tip = document.getElementById('tip');
+const syBar = document.getElementById('synergies');
 
-    // ----- Colors -----
-    var C={bg:'#121214',grid:'#2b2b2b',ui:'#1e1e1e',hp:'#e43a3a',text:'#eaeaea',accent:'#ffd45a',start:'#7a50a0'};
+let running = true, last = performance.now(), globalTime = 0;
 
-    // ----- Tiny spritesheet on an offscreen canvas (no dataURL) -----
-    var SHEET={cv:null,ctx:null,tile:16,atlas:{}};
-    function px(p,x,y,w,h,c){p.fillStyle=c;p.fillRect(x,y,w,h);}
-    function drawB(p,x,y,f,clip){px(p,x+3,y+4,10,8,'#c8503c');px(p,x+5,y+3,6,2,'#8e3a2c');var bob=(clip==='idle')?(f%2):((clip==='walk')?((f&1)?1:0):1);px(p,x+6,y+1+bob,4,3,'#e7d7c9'); if(clip==='attack'&&f>=2){px(p,x+12,y+4,3,1,'#ffe9a6');px(p,x+12,y+3,3,1,'#fff');}}
-    function drawA(p,x,y,f,clip){px(p,x+4,y+5,8,7,'#50c85a');var bob=(clip==='idle')?(f%2):((clip==='walk')?((f&1)?1:0):1);px(p,x+6,y+2+bob,4,3,'#e7d7c9');px(p,x+2,y+6,2,6,'#a07c3a'); if(clip==='attack'&&f>=2)px(p,x+11,y+6,3,1,'#ffe9a6');}
-    function drawC(p,x,y,f,clip){px(p,x+4,y+5,8,7,'#78b4dc');var bob=(clip==='idle')?(f%2):((clip==='walk')?((f&1)?1:0):1);px(p,x+6,y+2+bob,4,3,'#e7d7c9');px(p,x+2,y+4,2,8,'#b9b9b9'); if(clip==='attack'&&f>=2)px(p,x+11,y+6,2,2,'#a6f5c7');}
-    function drawE(p,x,y,f,clip){px(p,x+3,y+4,10,8,'#b3b3b3');var bob=(clip==='idle')?(f%2):((clip==='walk')?((f&1)?1:0):1);px(p,x+6,y+2+bob,4,3,'#d2d2d2'); if(clip==='attack'&&f>=2)px(p,x+1,y+5,3,1,'#ffb27c');}
-    function buildSheet(){
-      var tile=16, frames=4, blocks=4, rowsPerUnit=4; // 3 clips + spacer
-      SHEET.cv=document.createElement('canvas'); SHEET.cv.width=frames*tile*blocks; SHEET.cv.height=rowsPerUnit*tile*blocks;
-      SHEET.ctx=SHEET.cv.getContext('2d',{alpha:true}); var p=SHEET.ctx; p.imageSmoothingEnabled=false;
-      var clips=['idle','walk','attack'];
-      function block(unitIndex,drawfn){
-        var baseX=unitIndex*frames*tile, baseY=unitIndex*rowsPerUnit*tile;
-        for(var c=0;c<clips.length;c++) for(var f=0;f<frames;f++){var dx=baseX+f*tile, dy=baseY+c*tile; p.clearRect(dx,dy,tile,tile); drawfn(p,dx,dy,f,clips[c]);}
-        SHEET.atlas[unitIndex]={ idle:Array.from({length:4},(_,f)=>({x:baseX+f*tile,y:baseY+0*tile,w:tile,h:tile})),
-                                 walk:Array.from({length:4},(_,f)=>({x:baseX+f*tile,y:baseY+1*tile,w:tile,h:tile})),
-                                 attack:Array.from({length:4},(_,f)=>({x:baseX+f*tile,y:baseY+2*tile,w:tile,h:tile})) };
-      }
-      block(0,drawB); block(1,drawA); block(2,drawC); block(3,drawE);
+///// SAVE (best wave) /////////////////////////////////////////////////
+const saveKey = 'bc_meta_v40';
+let meta = JSON.parse(localStorage.getItem(saveKey) || '{"best":0,"runs":0}');
+function saveMeta(){ localStorage.setItem(saveKey, JSON.stringify(meta)); }
+bestEl.textContent = 'Best: ' + meta.best;
+
+///// GAME STATE ////////////////////////////////////////////////////////
+const TEAMS = {ALLY:'ally', ENEMY:'enemy'};
+const STATE = {PLAY:'play', REWARD:'reward', GAMEOVER:'gameover'};
+let state = STATE.PLAY;
+
+const game = {
+  wave: 1, necroHP: 50, souls: 0,
+  units: [], proj: [], fx: [],
+  spawnGate: 0.6, volleyT: 0,
+  blockRate: 0.8, // seconds per block — can be relic-modified
+  blockRateMin: 0.25,
+  bossEvery: 5,
+  synergies: { // track per-run counters / levels
+    Legion: 0,   // Skeleton/BoneKnight casts
+    Arrowstorm: 0, // Archer/Volley
+    Wisp: 0,     // Wraith family
+    Doom: 0      // Death Blast casts
+  },
+  relics: [] // ids of taken relics
+};
+
+///// BLOCK BAR (feeder + sliding + preview) ////////////////////////////
+const TYPES = ['SK','AR','WR','DB'];
+const BAR_COLS = 6, BAR_SIZE = 12;
+let blocks = [], spawnFlags = [];
+let blockTimer = 0;
+function addBlock(type){
+  if (blocks.length >= BAR_SIZE) return false;
+  blocks.push(type);
+  spawnFlags[blocks.length-1] = true;
+  return true;
+}
+function scheduleRefill(dt){
+  blockTimer -= dt;
+  if (blockTimer <= 0 && blocks.length < BAR_SIZE){
+    const k = TYPES[(Math.random()*TYPES.length)|0];
+    addBlock(k);
+    blockTimer = game.blockRate;
+    renderBar();
+  }
+}
+function refillInstantTo(n){ while(blocks.length < Math.min(n, BAR_SIZE)) addBlock(TYPES[(Math.random()*TYPES.length)|0]); }
+function symbolFor(k){ return k==='SK'?'💀':k==='AR'?'🏹':k==='WR'?'👻':'☠️'; }
+function colorFor(k){ return k==='SK'?'#a55':k==='AR'?'#5a5':k==='WR'?'#7a67c7':'#b27b55'; }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+function renderBar(){
+  bar.innerHTML = '';
+  for (let i=0;i<blocks.length;i++){
+    const k = blocks[i], d = document.createElement('div');
+    d.className = 'block';
+    d.dataset.i = i; d.dataset.k = k;
+    d.textContent = symbolFor(k);
+    d.style.borderColor = colorFor(k);
+
+    if (spawnFlags[i]){ d.classList.add('spawn'); requestAnimationFrame(()=>d.classList.add('ready')); spawnFlags[i]=false; }
+    else d.classList.add('ready');
+
+    d.addEventListener('touchstart', onBlockPreview, {passive:true});
+    d.addEventListener('mousedown', onBlockPreview);
+    d.addEventListener('touchend', onBlockTap, {passive:true});
+    d.addEventListener('mouseup', onBlockTap);
+    d.addEventListener('mouseleave', clearPreview);
+    d.addEventListener('touchcancel', clearPreview);
+    bar.appendChild(d);
+  }
+  // placeholders keep grid shape
+  for (let i=blocks.length;i<BAR_SIZE;i++){
+    const ph=document.createElement('div');ph.className='block';ph.style.opacity=.15;ph.style.pointerEvents='none';bar.appendChild(ph);
+  }
+  rateEl.textContent = 'Block: ' + game.blockRate.toFixed(2) + 's';
+}
+
+function rowBoundsOf(index){
+  const rowStart = Math.floor(index / BAR_COLS) * BAR_COLS;
+  return {rowStart, rowEnd: rowStart + BAR_COLS - 1};
+}
+function selectionForIndex(i){
+  const k = blocks[i]; if (!k) return null;
+  const {rowStart, rowEnd} = rowBoundsOf(i);
+  // contiguous run in row
+  let runStart = i, runEnd = i;
+  while (runStart-1 >= rowStart && blocks[runStart-1] === k) runStart--;
+  while (runEnd+1 <= rowEnd   && blocks[runEnd+1]   === k) runEnd++;
+  const runLen = runEnd - runStart + 1, use = Math.min(3, runLen);
+  let sliceStart = i;
+  if (use===3) sliceStart = clamp(i-1, runStart, runEnd-2);
+  else if (use===2) sliceStart = clamp(i-1, runStart, runEnd-1);
+  return {k, use, sliceStart};
+}
+function onBlockPreview(e){
+  const target = e.currentTarget; if (!target.classList.contains('ready')) return;
+  const i = +target.dataset.i, sel = selectionForIndex(i); if (!sel) return;
+  clearPreview();
+  for (let j=0;j<sel.use;j++){
+    const idx = sel.sliceStart + j;
+    const el = bar.querySelector(`.block[data-i="${idx}"]`);
+    if (el) el.classList.add('preview');
+  }
+}
+function clearPreview(){ bar.querySelectorAll('.block.preview').forEach(el=>el.classList.remove('preview')); }
+function onBlockTap(e){
+  e.preventDefault?.();
+  if (state !== STATE.PLAY) return;
+  const target = e.currentTarget; if (!target.classList.contains('ready')) return;
+  const i = +target.dataset.i, sel = selectionForIndex(i); if (!sel) return;
+  // consume
+  blocks.splice(sel.sliceStart, sel.use); spawnFlags.splice(sel.sliceStart, sel.use);
+  clearPreview(); renderBar();
+  cast(sel.k, sel.use);
+}
+
+///// CASTING / COMBOS & SYNERGY COUNTS /////////////////////////////////
+function addSynergy(kind, amount=1){
+  if (kind==='SK' || kind==='BK') game.synergies.Legion += amount;
+  if (kind==='AR' || kind==='VOLLEY') game.synergies.Arrowstorm += amount;
+  if (kind==='WR' || kind==='WE') game.synergies.Wisp += amount;
+  if (kind==='DB') game.synergies.Doom += amount;
+  renderSynergies();
+}
+function cast(k, n){
+  if (k==='SK'){
+    if (n===1){ spawnSquad('Skeleton', 1); addSynergy('SK'); }
+    if (n===2){ spawnSquad('Skeleton', 2); addSynergy('SK',2); }
+    if (n===3){ spawnUnit('BoneKnight'); addSynergy('BK'); }
+  }else if (k==='AR'){
+    if (n===1){ spawnSquad('Archer', 1); addSynergy('AR'); }
+    if (n===2){ spawnSquad('Archer', 2); addSynergy('AR',2); }
+    if (n===3){ spawnSquad('Archer', 2); game.volleyT = 4; fxText(W*0.5,H*0.82,'VOLLEY!'); addSynergy('VOLLEY'); }
+  }else if (k==='WR'){
+    if (n===1){ spawnSquad('Wraith', 1); addSynergy('WR'); }
+    if (n===2){ spawnSquad('Wraith', 2); addSynergy('WR',2); }
+    if (n===3){ spawnUnit('WraithElite'); addSynergy('WE'); }
+  }else if (k==='DB'){
+    const r = n===1?54:n===2?82:108;
+    const stun = n===3?1.2:0;
+    aoe(W*0.5, H*0.33, r, 10 + n*6, stun);
+    addSynergy('DB');
+  }
+}
+
+///// UNITS, STATS, SPRITE LOOK /////////////////////////////////////////
+function unit(team, kind, hp, atk, rngCells, cd, speed){
+  return {team, kind, x:0, y:0, hp, max:hp, atk, rng:rngCells, cd, tAtk:0, speed,
+          anim:{hit:0, swing:0, bob:(Math.random()*Math.PI*2)}};
+}
+function baseUnit(kind){
+  // relic modifiers hook
+  const mod = (k,v)=>applyMods(k,v);
+
+  switch(kind){
+    case 'Skeleton':    return unit(TEAMS.ALLY,'SK', mod('SK.hp',22), mod('SK.atk',6), 1, mod('SK.cd',0.7), mod('SK.spd',160));
+    case 'BoneKnight':  return unit(TEAMS.ALLY,'BK', mod('BK.hp',62), mod('BK.atk',11), 1, mod('BK.cd',0.85),mod('BK.spd',150));
+    case 'Archer':      return unit(TEAMS.ALLY,'AR', mod('AR.hp',16), mod('AR.atk',7), 4, mod('AR.cd',1.0), mod('AR.spd',165));
+    case 'Wraith':      return unit(TEAMS.ALLY,'WR', mod('WR.hp',14), mod('WR.atk',9), 1, mod('WR.cd',0.6), mod('WR.spd',190));
+    case 'WraithElite': return unit(TEAMS.ALLY,'WE', mod('WE.hp',26), mod('WE.atk',14),1, mod('WE.cd',0.5), mod('WE.spd',210));
+    // enemies
+    case 'Goblin':      return unit(TEAMS.ENEMY,'EG', 16 + game.wave*0.6, 5 + game.wave*0.2, 1, 0.9, 155);
+    case 'Slinger':     return unit(TEAMS.ENEMY,'ES', 12 + game.wave*0.5, 6 + game.wave*0.25,4, 1.05,165);
+    case 'Brute':       return unit(TEAMS.ENEMY,'EB', 40 + game.wave*1.0, 9 + game.wave*0.35,1, 1.0,135);
+    case 'Boss':        return unit(TEAMS.ENEMY,'BO', 140 + game.wave*5, 12 + game.wave*0.6, 2, 0.85,120);
+  }
+  return unit(TEAMS.ENEMY,'EG', 16, 5, 1, 1, 155);
+}
+function applyMods(key, val){
+  // simple multiplicative mod from relics
+  let mult = 1;
+  for(const r of activeRelics) if (r.mod && r.mod[key]) mult *= r.mod[key];
+  return Math.max(1, val*mult);
+}
+function spawnUnit(kind){
+  const u = baseUnit(kind);
+  if (u.team===TEAMS.ALLY){
+    u.x = W*0.2 + Math.random()*W*0.6;
+    u.y = H*0.78 + (Math.random()*cellH - cellH/2);
+  }else{
+    u.x = W*0.15 + Math.random()*W*0.7;
+    u.y = H*0.06 + (Math.random()*cellH*1.5 - cellH*0.75);
+  }
+  game.units.push(u);
+}
+function spawnSquad(kind, n){ for(let i=0;i<n;i++) spawnUnit(kind); }
+
+///// WAVES & BOSSES /////////////////////////////////////////////////////
+function spawnWave(n){
+  // basic ramp + boss every N
+  const bossWave = n % game.bossEvery === 0;
+  if (bossWave){
+    spawnUnit('Boss');
+    for(let i=0;i<2+Math.floor(n/5);i++) spawnUnit('Brute');
+  }else{
+    let g = 4 + Math.floor(n*1.1);
+    let s = Math.floor(n/2);
+    let b = Math.floor((n-1)/3);
+    for(let i=0;i<g;i++) spawnUnit('Goblin');
+    for(let i=0;i<s;i++) spawnUnit('Slinger');
+    for(let i=0;i<b;i++) spawnUnit('Brute');
+  }
+}
+
+///// AOE SPELL /////////////////////////////////////////////////////////
+function aoe(xc, yc, r, dmg, stun){
+  fxRing(xc,yc,r);
+  for(const u of game.units){
+    if (u.team!==TEAMS.ENEMY || u.hp<=0) continue;
+    const dx = u.x - xc, dy = u.y - yc;
+    if (Math.hypot(dx,dy) <= r){
+      u.hp -= applySpellMods(dmg); u.anim.hit = 0.2;
+      u.tAtk = Math.max(u.tAtk, stun||0);
+      fxHit(u.x,u.y);
     }
-    buildSheet();
+  }
+}
+function applySpellMods(dmg){
+  let val = dmg;
+  for(const r of activeRelics) if (r.addSpellDmg) val += r.addSpellDmg;
+  for(const r of activeRelics) if (r.mulSpellDmg) val *= r.mulSpellDmg;
+  return val;
+}
 
-    // ----- Units / state -----
-    var BASE={Brawler:{hp:120,atk:18,spd:1.0,range:1,role:'melee',armor:10,resist:5,color:'#c8503c'},
-              Archer:{hp:70,atk:25,spd:0.8,range:5,role:'ranged',armor:4,resist:4,color:'#50c85a'},
-              Cleric:{hp:80,atk:8,spd:1.0,range:5,role:'healer',armor:6,resist:12,color:'#78b4dc'}};
-    function starMul(s){return s===1?1:s===2?1.4:1.8;}
-    function scaled(b,s){return {hp:Math.round(b.hp*starMul(s)),atk:Math.round(b.atk*starMul(s)),spd:b.spd,range:b.range,role:b.role,armor:Math.round(b.armor*starMul(s)),resist:Math.round(b.resist*starMul(s)),color:b.color};}
-    function mkUnit(name,team,cell,star){if(!star)star=1;var s=scaled(BASE[name],star);
-      return {name,team,cell,star,alive:true,maxhp:s.hp,hp:s.hp,atk:s.atk,spd:s.spd,range:s.range,role:s.role,armor:s.armor,resist:s.resist,color:s.color,
-              lastPos:null,cool:0,stepCool:0,anim:{clip:'idle',t:0,fps:8,frame:0,flip:(team==='enemy')},move:null};}
+///// TARGETING HELPERS /////////////////////////////////////////////////
+function nearest(u, team){
+  let best=null, bd=1e9;
+  for(const v of game.units){
+    if (v.team!==team || v.hp<=0) continue;
+    const d = Math.abs(v.x-u.x)+Math.abs(v.y-u.y);
+    if (d<bd){bd=d; best=v;}
+  }
+  return best;
+}
+function nearestPointTarget(p){
+  const want = p.team===TEAMS.ALLY ? TEAMS.ENEMY : TEAMS.ALLY;
+  let best=null, bd=1e9;
+  for(const u of game.units){
+    if (u.team!==want || u.hp<=0) continue;
+    const d = Math.abs(u.x-p.x)+Math.abs(u.y-p.y);
+    if (d<bd){bd=d; best=u;}
+  }
+  return best;
+}
 
-    var gold=6,floorN=1,state='shop',result=null;
-    var roster=[],enemies=[],shop=[],preview=null;
-    var buyAreas=[],startArea={x:0,y:0,w:0,h:0},rerollArea={x:0,y:0,w:0,h:0},sellArea={x:0,y:0,w:0,h:0};
-    var shopBtn={x:16,y:20,w:160,h:54},BUY_COST=2,REROLL_COST=2;
+///// COMBAT LOOP ////////////////////////////////////////////////////////
+function shoot(u, target, dmg){
+  const ang = Math.atan2(target.y-u.y, target.x-u.x);
+  let mult = 1;
+  if (game.volleyT>0 && u.kind==='AR') mult *= 1.8;
+  for(const r of activeRelics) if (r.mulProjDmg) mult *= r.mulProjDmg;
+  game.proj.push({x:u.x, y:u.y, vx:320*Math.cos(ang), vy:320*Math.sin(ang), dmg:dmg*mult, team:u.team, life:1.6});
+  u.anim.swing = 0.18;
+}
+function step(dt){
+  if (!running) return;
 
-    function refillShop(){var k=Object.keys(BASE);shop=[];for(var i=0;i<3;i++)shop.push(k[(Math.random()*k.length)|0]);}
-    function spawnEnemies(){enemies=[];var count=(floorN===1)?2:3,cols=[4,3,4,3];
-      for(var i=0;i<count;i++){var hp=(floorN===1)?80:Math.floor(90+floorN*8),atk=(floorN===1)?10:Math.floor(10+floorN*3);
-        enemies.push({name:'Enemy',team:'enemy',cell:{x:cols[i%cols.length],y:i%3},star:1,alive:true,maxhp:hp,hp:hp,atk:atk,spd:1.0,range:1,role:'melee',armor:5+floorN,resist:3+((floorN/2)|0),lastPos:null,cool:0,stepCool:0,anim:{clip:'idle',t:0,fps:8,frame:0,flip:true},move:null});}}
+  globalTime += dt;
 
-    // ----- Helpers -----
-    var fill=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h);};
-    var text=(t,x,y,s=16,c=C.text)=>{ctx.fillStyle=c;ctx.font=s+'px -apple-system,system-ui';ctx.fillText(t,x,y);};
-    var pointInRect=(x,y,r)=>x>=r.x&&y>=r.y&&x<=r.x+r.w&&y<=r.y+r.h;
-    function playersAlive(){var a=[];for(var i=0;i<roster.length;i++){var u=roster[i];if(u.alive&&u.cell)a.push(u);}return a;}
-    function enemiesAlive(){var a=[];for(var i=0;i<enemies.length;i++){var u=enemies[i];if(u.alive)a.push(u);}return a;}
-    function unitAtCell(c,r){for(var i=0;i<roster.length;i++){var u=roster[i];if(u.cell&&u.cell.x===c&&u.cell.y===r&&u.alive)return u;}return null;}
-    var inLeftCols=(c,r)=>c>=0&&c<=1&&r>=0&&r<3;
-    function occupiedAt(x,y){var a=playersAlive().concat(enemiesAlive());for(var i=0;i<a.length;i++){var u=a[i];if(u.cell.x===x&&u.cell.y===y)return true;}return false;}
-    var phys=(d,a)=>d*(100/(100+Math.max(0,a)));
-    var mag=(d,r)=>d*(100/(100+Math.max(0,r)));
-    var isAdj=(a,b)=>a&&b&&(Math.abs(a.cell.x-b.cell.x)+Math.abs(a.cell.y-b.cell.y)===1);
+  // block feeding
+  scheduleRefill(dt);
 
-    // ----- Anim helpers -----
-    function setClip(u,clip,fps){if(u.anim.clip!==clip){u.anim.clip=clip;u.anim.t=0;u.anim.frame=0;u.anim.fps=fps||8;}}
-    function updAnim(u,dt){u.anim.t+=dt;u.anim.frame=((u.anim.t*u.anim.fps)|0)%4;}
-    function ease(t){return 1-(1-t)*(1-t);}
-    function renderPos(u){if(!u.move)return{cx:u.cell.x,cy:u.cell.y};u.move.t=Math.min(u.move.t+u.move.dt,u.move.dur);var a=ease(u.move.t/u.move.dur);
-      var cx=u.move.from.x*(1-a)+u.move.to.x*a, cy=u.move.from.y*(1-a)+u.move.to.y*a; if(u.move.t>=u.move.dur){u.move=null;setClip(u,'idle',6);} return{cx,cy};}
-    function startMove(u,tox,toy,dt){u.move={t:0,dt:dt,dur:0.14,from:{x:u.cell.x,y:u.cell.y},to:{x:tox,y:toy}};setClip(u,'walk',8);}
+  if (game.spawnGate>0){
+    game.spawnGate -= dt;
+    if (game.spawnGate<=0) spawnWave(game.wave);
+  }
+  if (game.volleyT>0) game.volleyT = Math.max(0, game.volleyT - dt);
 
-    // ----- Pathing & combat -----
-    function diagonalNudge(u,t,res){
-      var dx=t.cell.x-u.cell.x,dy=t.cell.y-u.cell.y;
-      if(Math.abs(dx)===1&&Math.abs(dy)===1){
-        var nx=u.cell.x+Math.sign(dx),ny=u.cell.y;
-        if(nx>=0&&nx<COLS&&ny>=0&&ny<ROWS&&(!occupiedAt(nx,ny)||(nx===u.cell.x&&ny===u.cell.y))){
-          if(!(u.lastPos&&u.lastPos.x===nx&&u.lastPos.y===ny)){u.lastPos={x:u.cell.x,y:u.cell.y};startMove(u,nx,ny,0);u.cell.x=nx;u.cell.y=ny;u.stepCool=.14;res[nx+','+ny]=1;return true;}
+  // units
+  for(const u of game.units){
+    if (u.hp<=0) continue;
+    // decay fx
+    if (u.anim.hit>0) u.anim.hit = Math.max(0, u.anim.hit - dt);
+    if (u.anim.swing>0) u.anim.swing = Math.max(0, u.anim.swing - dt);
+
+    if (u.team===TEAMS.ALLY){
+      const e = nearest(u, TEAMS.ENEMY); if (!e) continue;
+      const dx = e.x - u.x, dy = e.y - u.y, dist = Math.hypot(dx,dy);
+      const rngPx = u.rng * cellH * 0.9; u.tAtk -= dt;
+
+      if (dist <= rngPx){
+        if (u.tAtk<=0){
+          if (u.rng>1) shoot(u, e, u.atk);
+          else { e.hp -= u.atk; fxHit(e.x,e.y); u.anim.swing = 0.12; }
+          u.tAtk = u.cd;
         }
-        nx=u.cell.x;ny=u.cell.y+Math.sign(dy);
-        if(nx>=0&&nx<COLS&&ny>=0&&ny<ROWS&&(!occupiedAt(nx,ny)||(nx===u.cell.x&&ny===u.cell.y))){
-          if(!(u.lastPos&&u.lastPos.x===nx&&u.lastPos.y===ny)){u.lastPos={x:u.cell.x,y:u.cell.y};startMove(u,nx,ny,0);u.cell.x=nx;u.cell.y=ny;u.stepCool=.14;res[nx+','+ny]=1;return true;}
+      }else{
+        const sp = u.speed * dt;
+        u.x += sp * Math.sign(dx) * 0.6;
+        u.y += sp * Math.sign(dy);
+      }
+    }else{
+      const a = nearest(u, TEAMS.ALLY);
+      const tx = a? a.x : u.x, ty = a? a.y : BASE_Y;
+      const dx = tx - u.x, dy = ty - u.y, dist = Math.hypot(dx,dy);
+      const rngPx = u.rng * cellH * 0.9; u.tAtk -= dt;
+
+      if (a && dist <= rngPx){
+        if (u.tAtk<=0){
+          if (u.rng>1) shoot(u, a, u.atk);
+          else { a.hp -= u.atk; fxHit(a.x,a.y); u.anim.swing = 0.12; }
+          u.tAtk = u.cd;
         }
-      }
-      return false;
-    }
-    function nextStepBFS(u,t,res){
-      var st={x:u.cell.x,y:u.cell.y},tx=t.cell.x,ty=t.cell.y;
-      var goals=[],dirs=[[1,0],[-1,0],[0,1],[0,-1]];
-      for(var i=0;i<dirs.length;i++){var gx=tx+dirs[i][0],gy=ty+dirs[i][1];if(gx<0||gx>=COLS||gy<0||gy>=ROWS)continue;
-        if(!occupiedAt(gx,gy)||(gx===st.x&&gy===st.y))goals.push({x:gx,y:gy});}
-      if(!goals.length)return null;
-      var q=[st],came={};came[st.x+','+st.y]=null;
-      function valid(nx,ny){if(nx<0||nx>=COLS||ny<0||ny>=ROWS)return false; if(occupiedAt(nx,ny)&&!(nx===st.x&&ny===st.y))return false; if(res[nx+','+ny]&&!(nx===st.x&&ny===st.y))return false; if(u.lastPos&&u.lastPos.x===nx&&u.lastPos.y===ny)return false; return true;}
-      while(q.length){
-        var cur=q.shift(); for(var g=0;g<goals.length;g++){if(goals[g].x===cur.x&&goals[g].y===cur.y){var path=[cur],k=cur.x+','+cur.y;while(came[k]){var p=came[k];path.push(p);k=p.x+','+p.y;}path.reverse();return path[1]||null;}}
-        for(var d=0;d<dirs.length;d++){var nx=cur.x+dirs[d][0],ny=cur.y+dirs[d][1],nk=nx+','+ny;if(came[nk])continue;if(!valid(nx,ny))continue;came[nk]=cur;q.push({x:nx,y:ny});}
-      } return null;
-    }
-    function frontlineTarget(attacker,targets){
-      if(!targets.length)return null; var i,front;
-      if(attacker.team==='enemy'){var mx=-1e9;for(i=0;i<targets.length;i++)mx=Math.max(mx,targets[i].cell.x);front=[];for(i=0;i<targets.length;i++)if(targets[i].cell.x===mx)front.push(targets[i]);}
-      else{var mn=1e9;for(i=0;i<targets.length;i++)mn=Math.min(mn,targets[i].cell.x);front=[];for(i=0;i<targets.length;i++)if(targets[i].cell.x===mn)front.push(targets[i]);}
-      var same=[];for(i=0;i<front.length;i++)if(front[i].cell.y===attacker.cell.y)same.push(front[i]);if(same.length)front=same;
-      front.sort(function(a,b){return(a.hp/a.maxhp)-(b.hp/b.maxhp)});return front[0];
-    }
-    function stepToward(u,t,res,dt){
-      if(!t||u.role!=='melee'||isAdj(u,t)||u.stepCool>0)return false;
-      if(diagonalNudge(u,t,res))return true;
-      var s=nextStepBFS(u,t,res); if(s){u.lastPos={x:u.cell.x,y:u.cell.y};startMove(u,s.x,s.y,dt);u.cell.x=s.x;u.cell.y=s.y;u.stepCool=.18;res[s.x+','+s.y]=1;return true;}
-      u.stepCool=.1;return false;
-    }
-    function act(u,isEnemy){
-      var foes=isEnemy?playersAlive():enemiesAlive(); var t=frontlineTarget(u,foes); if(!t) return false;
-      if(u.role==='melee'){ if(isAdj(u,t)){ setClip(u,'attack',12); var dmg=Math.max(1,Math.round(phys(u.atk,t.armor))); t.hp-=dmg; if(t.hp<=0)t.alive=false; return true; } return false; }
-      if(u.role==='ranged'){ var d2=Math.max(1,Math.round(phys(u.atk,t.armor))); t.hp-=d2; if(t.hp<=0)t.alive=false; setClip(u,'attack',10); return true; }
-      // cleric
-      var pool=isEnemy?enemiesAlive():playersAlive(); pool.sort(function(a,b){return(a.hp/a.maxhp)-(b.hp/b.maxhp)}); var p=pool[0];
-      if(p && p.hp<p.maxhp){ p.hp=Math.min(p.maxhp,p.hp+20); setClip(u,'attack',10); return true; }
-      var md=Math.max(1,Math.round(mag(Math.max(4,Math.floor(u.atk*0.5)),t.resist))); t.hp-=md; if(t.hp<=0)t.alive=false; setClip(u,'attack',10); return true;
-    }
-
-    // ----- Economy / merge -----
-    function refundFor(u){return !u?BUY_COST:(u.star===1?2:u.star===2?6:18);}
-    function tryMerge(name,star){
-      var copies=[];for(var i=0;i<roster.length;i++){var u=roster[i];if(u.name===name&&u.star===star)copies.push(u);}
-      if(copies.length<3)return false; var keep=null; for(var k=0;k<copies.length;k++){if(copies[k].cell){keep=copies[k];break;}} if(!keep)keep=copies[0];
-      var keepCell=keep.cell?{x:keep.cell.x,y:keep.cell.y}:null; var removed=0; for(var i=roster.length-1;i>=0&&removed<3;i--){var u=roster[i];if(u.name===name&&u.star===star){roster.splice(i,1);removed++;}}
-      var m=mkUnit(name,'player',keepCell,star+1); if(m.name==='Archer'&&m.star>=2)m.atk=Math.round(m.atk*1.10); roster.push(m); if(m.star<3)tryMerge(name,m.star); return true;
-    }
-
-    // ----- Battle driver -----
-    function battleTick(dt){
-      if(!playersAlive().length){state='result';result='lose';return;}
-      if(!enemiesAlive().length){state='result';result='win';gold+=2+Math.floor(floorN/2);return;}
-      var used={},pa=playersAlive();
-      for(var i=0;i<pa.length;i++){var u=pa[i];u.cool=Math.max(0,u.cool-dt);u.stepCool=Math.max(0,u.stepCool-dt);updAnim(u,dt);
-        if(!u.move&&u.anim.clip!=='attack')setClip(u,'idle',6);
-        if(u.cool<=0){var did=act(u,false); if(!did&&u.role==='melee'){var t=frontlineTarget(u,enemiesAlive());stepToward(u,t,used,dt);did=act(u,false);} u.cool=did?(1/u.spd):0.12;}
-        else if(u.role==='melee'){var t2=frontlineTarget(u,enemiesAlive());stepToward(u,t2,used,dt);}
-      }
-      if(!playersAlive().length){state='result';result='lose';return;}
-      if(!enemiesAlive().length){state='result';result='win';gold+=2+Math.floor(floorN/2);return;}
-      used={}; var ea=enemiesAlive();
-      for(var j=0;j<ea.length;j++){var e=ea[j];e.cool=Math.max(0,e.cool-dt);e.stepCool=Math.max(0,e.stepCool-dt);updAnim(e,dt);
-        if(!e.move&&e.anim.clip!=='attack')setClip(e,'idle',6);
-        if(e.cool<=0){var did2=act(e,true); if(!did2&&e.role==='melee'){var t3=frontlineTarget(e,playersAlive());stepToward(e,t3,used,dt);did2=act(e,true);} e.cool=did2?(1/e.spd):0.12;}
-        else if(e.role==='melee'){var t4=frontlineTarget(e,playersAlive());stepToward(e,t4,used,dt);}
+      }else if (!a && u.y >= BASE_HIT_Y){
+        u.y = Math.min(u.y, BASE_Y);
+        if (u.tAtk<=0){
+          let baseDmg = u.atk;
+          for(const r of activeRelics) if (r.baseDR) baseDmg *= (1-r.baseDR); // base damage reduction relic
+          game.necroHP -= baseDmg; fxText(W*0.5, H*0.95, '-'+Math.round(baseDmg));
+          u.tAtk = u.cd;
+        }
+      }else{
+        const sp = u.speed * dt;
+        u.x += sp * Math.sign(dx) * 0.4;
+        u.y += Math.abs(sp);
       }
     }
+    // clamp
+    u.x = Math.max(8, Math.min(W-8, u.x));
+    u.y = Math.max(8, Math.min(H-8, u.y));
+  }
 
-    // ----- Input & UI -----
-    function clientToCanvas(e){var r=canvas.getBoundingClientRect();var t=e.changedTouches?e.changedTouches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top};}
-    function cellAtFloor(px,py){return{x:((px-L.originX)/L.cell)|0,y:((py-L.originY)/L.cell)|0};}
-    function cellAtRound(px,py){return{x:Math.round((px-L.originX)/L.cell),y:Math.round((py-L.originY)/L.cell)};}
-    function placeExactAt(c,r){if(!(c>=0&&c<=1&&r>=0&&r<ROWS))return false;if(unitAtCell(c,r))return false;preview.cell={x:c,y:r};roster.push(preview);tryMerge(preview.name,preview.star||1);preview=null;state='shop';return true;}
-    function startBattle(){if(!roster.some(function(u){return u.alive&&u.cell;}))return;spawnEnemies();playersAlive().forEach(u=>u.cool=0);enemiesAlive().forEach(e=>e.cool=0);state='battle';}
-    canvas.addEventListener('pointerdown',e=>e.preventDefault(),{passive:false});
-    canvas.addEventListener('pointerup',function(e){
-      var p=clientToCanvas(e);
-      if(pointInRect(p.x,p.y,shopBtn)){SHOW_SHOP=!SHOW_SHOP;layout();e.preventDefault();return;}
-      if(state==='result'){if(result==='win'){floorN++;}else{roster=[];enemies=[];gold=6;floorN=1;}result=null;state='shop';SHOW_SHOP=true;refillShop();layout();e.preventDefault();return;}
-      if(state==='placing'&&preview){
-        if(pointInRect(p.x,p.y,sellArea)){gold+=refundFor(preview);preview=null;state='shop';e.preventDefault();return;}
-        var cr=cellAtRound(p.x,p.y);var cx=Math.max(0,Math.min(COLS-1,cr.x)),cy=Math.max(0,Math.min(ROWS-1,cr.y));placeExactAt(cx,cy);e.preventDefault();return;
-      }
-      if(state==='shop'&&!preview){
-        var cc=cellAtFloor(p.x,p.y);
-        if(inLeftCols(cc.x,cc.y)){var u=unitAtCell(cc.x,cc.y);if(u){var idx=roster.indexOf(u);if(idx>=0)roster.splice(idx,1);preview=u;preview._fromPickup=true;state='placing';e.preventDefault();return;}}
-        if(SHOW_SHOP&&pointInRect(p.x,p.y,rerollArea)){if(gold>=REROLL_COST){gold-=REROLL_COST;refillShop();}e.preventDefault();return;}
-        if(SHOW_SHOP){for(var i=0;i<buyAreas.length;i++){var r=buyAreas[i];if(pointInRect(p.x,p.y,r)&&gold>=BUY_COST){gold-=BUY_COST;preview=mkUnit(shop[r.i],'player',null,1);preview._fromPickup=false;state='placing';e.preventDefault();return;}}}
-        if(pointInRect(p.x,p.y,startArea)){startBattle();e.preventDefault();return;}
-      }
-    },{passive:false});
-
-    // ----- Draw -----
-    function drawUnit(u){
-      if(!u.alive||!u.cell)return;
-      var p=renderPos(u), gx=L.originX+p.cx*L.cell, gy=L.originY+p.cy*L.cell;
-      var w=L.cell-20, hpw=Math.max(0,Math.floor(w*Math.max(0,u.hp)/u.maxhp));
-      ctx.fillStyle='#333'; ctx.fillRect(gx+10,gy+L.cell-28,w,6); ctx.fillStyle=C.hp; ctx.fillRect(gx+10,gy+L.cell-28,hpw,6);
-      var idx=(u.team==='enemy')?3:(u.name==='Brawler'?0:(u.name==='Archer'?1:2));
-      var list=SHEET.atlas[idx][u.anim.clip], fr=list[u.anim.frame], pad=4, size=L.cell-pad*2;
-      ctx.imageSmoothingEnabled=false;
-      if(u.anim.flip){ctx.save();ctx.translate(gx+pad+size,gy+pad);ctx.scale(-1,1);ctx.drawImage(SHEET.cv,fr.x,fr.y,fr.w,fr.h,0,0,size,size);ctx.restore();}
-      else{ctx.drawImage(SHEET.cv,fr.x,fr.y,fr.w,fr.h,gx+pad,gy+pad,size,size);}
+  // projectiles
+  for(const p of game.proj){
+    p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt;
+    if (p.life<=0) p.dead = true;
+    const tgt = nearestPointTarget(p);
+    if (tgt && Math.hypot(tgt.x-p.x,tgt.y-p.y) < 8){
+      tgt.hp -= p.dmg; fxHit(tgt.x,tgt.y); tgt.anim.hit = 0.2; p.dead = true;
     }
+  }
+  game.proj = game.proj.filter(p=>!p.dead);
 
-    // UI rectangles (recomputed in draw)
-    var startArea={},rerollArea={},sellArea={};
-    function draw(){
-      ctx.fillStyle=C.bg; ctx.fillRect(0,0,canvas.width/DPR,canvas.height/DPR);
-      ctx.strokeStyle=C.grid; for(var c=0;c<COLS;c++)for(var r=0;r<ROWS;r++)ctx.strokeRect(L.originX+c*L.cell,L.originY+r*L.cell,L.cell,L.cell);
-      ctx.fillStyle='#7bd7ff'; ctx.font='12px -apple-system,system-ui'; ctx.fillText('Build '+BUILD, L.originX+L.gridW-72, L.originY-8);
-      // units
-      for(var i=0;i<roster.length;i++)drawUnit(roster[i]);
-      for(var j=0;j<enemies.length;j++)drawUnit(enemies[j]);
-      // UI
-      var y0=L.yUI; fill(0,y0,L.vw,uiH(),C.ui);
-      sellArea={x:L.vw-168,y:y0+(SHOW_SHOP?60:8),w:160,h:72}; fill(sellArea.x,sellArea.y,sellArea.w,sellArea.h,'#3a2222'); text('SELL ('+(preview?refundFor(preview):2)+'g)', sellArea.x+22, sellArea.y+44, 20, '#ff9a9a');
-      startArea={x:L.vw-168,y:y0+8,w:160,h:52}; fill(startArea.x,startArea.y,startArea.w,startArea.h,C.start); text('START',startArea.x+48,startArea.y+32,20,'#fff');
-      if(SHOW_SHOP){rerollArea={x:L.vw-336,y:y0+8,w:160,h:52}; fill(rerollArea.x,rerollArea.y,rerollArea.w,rerollArea.h,'#2b2b2b'); text('REROLL (2g)',rerollArea.x+18,rerollArea.y+32,18,C.accent);} else rerollArea={x:0,y:0,w:0,h:0};
-      if(SHOW_SHOP) text('GOLD: '+gold+'g',8,y0+52,18,C.accent);
-      buyAreas.length=0;
-      if(SHOW_SHOP){
-        var cardW=Math.min(200,L.vw/3-12),cardH=120;
-        for(var i=0;i<3;i++){var x=8+i*(cardW+6),y=y0+60,w=cardW,h=cardH;fill(x,y,w,h,'#3a3a3a');
-          var name=shop[i],b=BASE[name]; text(name+' ★',x+8,y+18,16,'#fff'); ctx.fillStyle='#eaeaea'; ctx.font='12px -apple-system,system-ui';
-          ctx.fillText('HP: '+b.hp+'   ATK: '+b.atk,x+8,y+36); ctx.fillText('ARM: '+b.armor+'   RES: '+b.resist,x+8,y+52);
-          fill(x+8,y+h-22,w-16,18,'#2a2a2a'); text('Buy 2 gold',x+14,y+h-8,12,C.accent); buyAreas.push({x,y,w,h,i});}
-      }
-      fill(shopBtn.x,shopBtn.y,shopBtn.w,shopBtn.h,'#2b2b2b'); text(SHOW_SHOP?'HIDE SHOP':'SHOW SHOP',shopBtn.x+14,shopBtn.y+34,18,C.accent);
-      var hint=(state==='result')?'Tap to continue…':(state==='placing'?'Tap to place / SELL.':'Tap a unit to move it. Use SHOP to toggle.'); text(hint,L.originX,Math.max(16,L.originY-6),12,'#9ee');
-    }
+  // cleanup
+  for(const u of game.units) if (u.hp<=0 || u.y > H+24) u.dead = true;
+  game.units = game.units.filter(u=>!u.dead);
 
-    // ----- Loop -----
-    function bootGame(){refillShop();ok();}
-    bootGame();
-    var last=performance.now();
-    function loop(ts){var dt=Math.min(.05,(ts-last)/1000);last=ts; if(state==='battle')battleTick(dt); draw(); requestAnimationFrame(loop);}
-    requestAnimationFrame(loop);
+  // wave clear / defeat
+  const enemiesLeft = game.units.some(u=>u.team===TEAMS.ENEMY);
+  if (!enemiesLeft && game.spawnGate<=0){ onWaveClear(); }
+  if (game.necroHP<=0){ onDefeat(); }
 
-  }catch(e){ fail(e); }
-})();
+  // HUD
+  hpEl.textContent = 'HP ' + Math.max(0,Math.round(game.necroHP));
+  soulsEl.textContent = 'Souls ' + game.souls;
+}
+
+///// FX & RENDER ////////////////////////////////////////////////////////
+function fxHit(x,y){ game.fx.push({x,y,t:0.15,type:'hit'}); }
+function fxRing(x,y,r){ game.fx.push({x,y,t:0.4, r, type:'ring'}); }
+function fxText(x,y,txt){ game.fx.push({x,y,t:1.0, text:txt, type:'text', yo:0}); }
+
+function drawUnit(u){
+  const ally = u.team===TEAMS.ALLY;
+  const baseColor = (u.kind==='AR') ? '#7ed0ff'
+                   : (u.kind==='WR'||u.kind==='WE') ? '#b69aff'
+                   : (u.kind==='BK') ? '#e0c078'
+                   : (u.kind==='BO') ? '#ff7a7a'
+                   : (ally ? '#5ed892' : '#e06a6a');
+  const bob = Math.sin(globalTime*3 + u.anim.bob) * 1.5;
+  const elite = (u.kind==='BK'||u.kind==='WE'||u.kind==='BO'||u.kind==='EB');
+  const scale = elite ? 1.26 : 1.0;
+  const glow = elite ? 0.25 : 0;
+
+  ctx.save(); ctx.translate(u.x, u.y + bob);
+  if (glow>0){ ctx.fillStyle = baseColor + '33'; ctx.beginPath(); ctx.arc(0,0, 16*scale+3, 0, Math.PI*2); ctx.fill(); }
+  const size = 16*scale * (1 + u.anim.hit*0.28);
+  ctx.fillStyle = baseColor;
+  ctx.beginPath();
+  ctx.moveTo(0, -size*0.8);
+  ctx.lineTo(size*0.8, 0);
+  ctx.lineTo(0, size*0.8);
+  ctx.lineTo(-size*0.8, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  if (u.anim.swing>0){
+    ctx.strokeStyle = '#fff9'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0,0, size*0.9, -0.9, -0.9 + u.anim.swing*6); ctx.stroke();
+  }
+  // hp
+  ctx.fillStyle = '#2a2a2a';
+  ctx.fillRect(-10, size*0.9, 20, 3.5);
+  ctx.fillStyle = '#7cf470';
+  ctx.fillRect(-10, size*0.9, 20*(u.hp/u.max), 3.5);
+
+  ctx.restore();
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // grid
+  ctx.strokeStyle = '#1e1e24';
+  for(let r=1;r<ROWS;r++){ ctx.beginPath(); ctx.moveTo(0,r*cellH); ctx.lineTo(W,r*cellH); ctx.stroke(); }
+  for(let c=1;c<COLS;c++){ ctx.beginPath(); ctx.moveTo(c*cellW,0); ctx.lineTo(c*cellW,H); ctx.stroke(); }
+  // baseline
+  ctx.fillStyle = '#24242c'; ctx.fillRect(W*0.05, BASE_Y, W*0.9, 4);
+
+  for(const u of game.units) drawUnit(u);
+
+  // projectiles
+  ctx.fillStyle = '#fff';
+  for(const p of game.proj){ ctx.beginPath(); ctx.arc(p.x,p.y,2.6,0,Math.PI*2); ctx.fill(); }
+
+  // fx
+  for(const f of game.fx){
+    f.t -= 1/60;
+    if (f.type==='hit'){ ctx.strokeStyle = '#fff8'; ctx.strokeRect(f.x-10,f.y-10,20,20); }
+    else if(f.type==='ring'){ ctx.strokeStyle = '#ffdd77aa'; ctx.beginPath(); ctx.arc(f.x,f.y, f.r*(1-f.t/0.4), 0, Math.PI*2); ctx.stroke(); }
+    else if(f.type==='text'){ f.yo -= 0.7; ctx.fillStyle = '#ffd45a'; ctx.font='bold 16px system-ui'; ctx.textAlign='center'; ctx.fillText(f.text, f.x, f.y + f.yo); }
+  }
+  game.fx = game.fx.filter(f=>f.t>0);
+}
+
+///// RELICS & SYNERGIES ////////////////////////////////////////////////
+const RELIC_POOL = [
+  // block rate & economy
+  {id:'quickHands', title:'Quick Hands', desc:'Blocks feed 25% faster.', take:()=>{ game.blockRate = Math.max(game.blockRateMin, game.blockRate*0.75);} },
+  {id:'darkDeal', title:'Dark Deal', desc:'+2 Souls now, -10% max HP.', take:()=>{ game.souls += 2; game.necroHP = Math.min(game.necroHP, (hpMax()*0.9)); hpEl.textContent='HP '+Math.round(game.necroHP);}},
+
+  // unit damage/health (mods map keys)
+  {id:'steelBones', title:'Steel Bones', desc:'Skeletons +20% HP.', mod:{'SK.hp':1.2,'BK.hp':1.1}},
+  {id:'poisonWisp', title:'Poison Wisps', desc:'Wraith attacks +25% damage.', mod:{'WR.atk':1.25,'WE.atk':1.25}},
+  {id:'fletching', title:'Fine Fletching', desc:'Archer attacks +20%.', mod:{'AR.atk':1.2}},
+  {id:'knightOrder', title:'Knight’s Oath', desc:'Bone Knights +30% HP, -10% CD.', mod:{'BK.hp':1.3,'BK.cd':0.9}},
+
+  // spells & base defense
+  {id:'soulflare', title:'Soulflare', desc:'+6 Death Blast damage.', addSpellDmg:6},
+  {id:'arcaneFocus', title:'Arcane Focus', desc:'Spell damage x1.2.', mulSpellDmg:1.2},
+  {id:'wardingSigil', title:'Warding Sigil', desc:'Base damage taken -20%.', baseDR:0.2},
+
+  // projectiles
+  {id:'razorTips', title:'Razor Tips', desc:'Projectile damage x1.15.', mulProjDmg:1.15},
+
+  // synergy escalators
+  {id:'legionDrums', title:'Legion Drums', desc:'Every 5 Skeleton casts this run → +1 Skeleton (free).'},
+  {id:'arrowChorus', title:'Arrow Chorus', desc:'AR-3 (Volley) also grants +10% Ally atk for 5s after it ends.'},
+  {id:'doomChill', title:'Doom Chill', desc:'Death Blast 3 briefly slows enemies.'}
+];
+let activeRelics = [];
+
+function applyRelic(r){
+  activeRelics.push(r);
+  if (r.take) r.take();
+  renderSynergies(); // also re-draw synergy chips (list active relics subtly)
+}
+function hpMax(){ return 50 + 0; } // placeholder for later meta upgrades
+
+function renderSynergies(){
+  // simple readout: synergy counters & active relic count
+  syBar.innerHTML = '';
+  const make = (name, val)=>{ const d=document.createElement('div');d.className='sy';d.innerHTML=`<span>${name}</span><level>${val}</level>`; syBar.appendChild(d); };
+  make('Legion', game.synergies.Legion);
+  make('Arrowstorm', game.synergies.Arrowstorm);
+  make('Wisp', game.synergies.Wisp);
+  make('Doom', game.synergies.Doom);
+
+  // small count of relics
+  const r=document.createElement('div');r.className='sy';r.innerHTML=`<span>Relics</span><level>${activeRelics.length}</level>`; syBar.appendChild(r);
+}
+
+///// WAVE CLEAR → REWARD MODAL /////////////////////////////////////////
+function onWaveClear(){
+  // payout, escalate, show reward choices
+  game.souls += 2 + Math.floor(game.wave/3);
+  soulsEl.textContent = 'Souls ' + game.souls;
+  fxText(W*0.5, H*0.08, `WAVE ${game.wave} CLEAR!`);
+
+  state = STATE.REWARD;
+  running = false;
+  openReward();
+}
+function openReward(){
+  modalWrap.style.display='flex';
+  document.getElementById('modalTitle').textContent = `Choose a Relic (Wave ${game.wave})`;
+  choiceList.innerHTML = '';
+
+  // pick 3 distinct relics (weighted lightly: more “core” early)
+  const pool = RELIC_POOL.filter(r=>!activeRelics.find(a=>a.id===r.id));
+  const picks = [];
+  while(picks.length<3 && pool.length>0){
+    const i = (Math.random()*pool.length)|0;
+    picks.push(pool.splice(i,1)[0]);
+  }
+
+  picks.forEach(r=>{
+    const row=document.createElement('div');row.className='choice';
+    const left=document.createElement('div');left.style.flex='1';
+    const title=document.createElement('div');title.className='title';title.textContent=r.title;
+    const desc=document.createElement('div');desc.className='desc';desc.textContent=r.desc;
+    left.appendChild(title); left.appendChild(desc);
+
+    const take=document.createElement('button');take.className='take';take.textContent='Take';
+    take.onclick=()=>{ applyRelic(r); closeReward(true); };
+
+    row.appendChild(left); row.appendChild(take);
+    choiceList.appendChild(row);
+  });
+
+  btnSkip.onclick=()=>{ game.souls += 1; closeReward(true); };
+  btnContinue.onclick=()=> closeReward(false);
+}
+function closeReward(proceed){
+  modalWrap.style.display='none';
+  state = STATE.PLAY;
+  running = true;
+
+  // start next wave
+  game.wave++;
+  waveEl.textContent = 'Wave ' + game.wave;
+  game.spawnGate = 0.9;
+
+  // tiny bonus: inject one guaranteed block (still feeds with slide)
+  addBlock(Math.random()<0.5?'SK':'AR');
+  renderBar();
+}
+
+///// DEFEAT / GAME OVER ////////////////////////////////////////////////
+function onDefeat(){
+  running=false; state=STATE.GAMEOVER;
+  fxText(W*0.5, H*0.5, 'DEFEAT');
+  meta.best = Math.max(meta.best, game.wave-1); meta.runs++; saveMeta();
+  bestEl.textContent = 'Best: ' + meta.best;
+
+  // quick restart prompt via reward modal UI
+  modalWrap.style.display='flex';
+  document.getElementById('modalTitle').textContent = `Defeat • Reached Wave ${game.wave-1}`;
+  choiceList.innerHTML = '';
+  const row=document.createElement('div');row.className='choice';
+  row.innerHTML = `<div><div class="title">Run it back?</div><div class="desc">Best wave: ${meta.best} • Runs: ${meta.runs}</div></div>`;
+  choiceList.appendChild(row);
+  btnSkip.textContent = 'Quit';
+  btnContinue.textContent = 'Restart';
+  btnSkip.onclick = ()=>location.reload();
+  btnContinue.onclick = ()=>location.reload();
+}
+
+///// LOOP & UI /////////////////////////////////////////////////////////
+function loop(now){
+  const dt = Math.min((now-last)/1000, 1/30); last = now;
+  if (running) step(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+btnPause.onclick = ()=>{
+  if (state!==STATE.PLAY) return;
+  running = !running; btnPause.textContent = running?'⏸':'▶️';
+  tip.style.display = running?'block':'none';
+};
+
+///// BOOT //////////////////////////////////////////////////////////////
+function boot(){
+  renderSynergies();
+  refillInstantTo(6); // seed top row
+  renderBar();
+  waveEl.textContent = 'Wave ' + game.wave;
+  hpEl.textContent = 'HP ' + game.necroHP;
+  soulsEl.textContent = 'Souls ' + game.souls;
+  requestAnimationFrame(loop);
+
+  // fade tip after a few seconds
+  setTimeout(()=> tip.style.display='none', 5000);
+}
+boot();
 </script>
 </body>
 </html>
