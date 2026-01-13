@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Rogue War Autobattler</title>
+  <title>Rogue War TFT Roguelike</title>
   <style>
     :root{
       --bg:#0b0e14;
@@ -47,7 +47,7 @@
     body[data-screen="planning"] .screenPlanning{ display:flex; }
     body[data-screen="battle"] .screenBattle{ display:flex; }
 
-    /* ===== Toast override (no queue) ===== */
+    /* ===== Toast (override) ===== */
     #toast{
       position:fixed;
       left:50%;
@@ -77,14 +77,8 @@
       text-overflow: ellipsis;
     }
     #toast.show{ opacity: 1; transform: translateX(-50%) translateY(0px); }
-    #toast.good{
-      border-color: rgba(85,211,138,0.70);
-      box-shadow: 0 0 0 1px rgba(85,211,138,0.12) inset;
-    }
-    #toast.bad{
-      border-color: rgba(255,92,122,0.70);
-      box-shadow: 0 0 0 1px rgba(255,92,122,0.12) inset;
-    }
+    #toast.good{ border-color: rgba(85,211,138,0.70); box-shadow: 0 0 0 1px rgba(85,211,138,0.12) inset; }
+    #toast.bad{ border-color: rgba(255,92,122,0.70); box-shadow: 0 0 0 1px rgba(255,92,122,0.12) inset; }
 
     .panel{
       background:var(--panel);
@@ -134,10 +128,7 @@
       border-color: rgba(106,166,255,0.85);
       box-shadow: 0 0 0 1px rgba(106,166,255,0.20) inset;
     }
-    .btnGhost{
-      background:#121a2c;
-      border-color:#24345b;
-    }
+    .btnGhost{ background:#121a2c; border-color:#24345b; }
 
     .pill{
       border:1px solid var(--b2);
@@ -148,44 +139,15 @@
       color:#b9c6e6;
       white-space:nowrap;
     }
+    .pillGood{ border-color: rgba(85,211,138,0.75); color:#c9ffe2; }
+    .pillBad{ border-color: rgba(255,92,122,0.75); color:#ffd0d9; }
 
     /* ===== MENU ===== */
-    .menuWrap{
-      flex:1 1 auto;
-      min-height:0;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      overflow:hidden;
-      justify-content:center;
-    }
-    .menuCard{
-      width:min(520px, 100%);
-      margin:0 auto;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-    }
-    .menuTitle{
-      font-size:18px;
-      font-weight:1200;
-      letter-spacing:0.4px;
-      color:#d6e4ff;
-      margin-bottom:2px;
-      text-align:center;
-    }
-    .menuSub{
-      font-size:12px;
-      color:var(--muted);
-      text-align:center;
-      line-height:1.35;
-      margin-bottom:6px;
-    }
-    .menuBtns{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-    }
+    .menuWrap{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; overflow:hidden; justify-content:center; }
+    .menuCard{ width:min(520px, 100%); margin:0 auto; display:flex; flex-direction:column; gap:10px; }
+    .menuTitle{ font-size:18px; font-weight:1200; letter-spacing:0.4px; color:#d6e4ff; margin-bottom:2px; text-align:center; }
+    .menuSub{ font-size:12px; color:var(--muted); text-align:center; line-height:1.35; margin-bottom:6px; }
+    .menuBtns{ display:flex; flex-direction:column; gap:10px; }
     .howto{
       display:none;
       background:rgba(12,18,32,0.92);
@@ -199,22 +161,10 @@
     body[data-howto="open"] .howto{ display:block; }
 
     /* ===== PLANNING ===== */
-    .planningWrap{
-      flex:1 1 auto;
-      min-height:0;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      overflow:hidden;
-    }
+    .planningWrap{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; overflow:hidden; }
     .topPlanning{ flex:0 0 auto; }
     .topGrid{ display:grid; grid-template-columns: 1fr; gap:10px; }
-    .phaseRow{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-    }
+    .phaseRow{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
     .phaseLabel{
       font-weight:1100;
       font-size:12px;
@@ -227,14 +177,8 @@
       white-space:nowrap;
     }
 
-    .statStrip{
-      display:grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap:8px;
-    }
-    @media (max-width: 420px){
-      .statStrip{ grid-template-columns: repeat(2, minmax(0,1fr)); }
-    }
+    .statStrip{ display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:8px; }
+    @media (max-width: 420px){ .statStrip{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
     .statTile{
       background:var(--panel2);
       border:1px solid var(--b);
@@ -245,49 +189,20 @@
       gap:2px;
       min-height:64px;
     }
-    .statTile .lab{
-      font-size:11px;
-      color:#b9c6e6;
-      font-weight:900;
-      letter-spacing:0.3px;
-    }
-    .statTile .val{
-      font-size:20px;
-      font-weight:1200;
-      color:var(--text);
-      line-height:1.05;
-    }
+    .statTile .lab{ font-size:11px; color:#b9c6e6; font-weight:900; letter-spacing:0.3px; }
+    .statTile .val{ font-size:20px; font-weight:1200; color:var(--text); line-height:1.05; }
 
-    .actionRow{
-      display:grid;
-      grid-template-columns: 1fr 1.2fr;
-      gap:8px;
-    }
-    @media (max-width: 420px){
-      .actionRow{ grid-template-columns: 1fr 1fr; }
-    }
+    .actionRow{ display:grid; grid-template-columns: 1fr 1.2fr; gap:8px; }
+    @media (max-width: 420px){ .actionRow{ grid-template-columns: 1fr 1fr; } }
 
-    .planningBody{
-      flex:1 1 auto;
-      min-height:0;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      overflow:hidden;
-    }
-    .shopPanel{ flex: 1 1 60%; min-height:0; display:flex; flex-direction:column; }
-    .armyPanel{ flex: 1 1 40%; min-height:0; display:flex; flex-direction:column; }
+    .planningBody{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; overflow:hidden; }
+    .shopPanel{ flex: 1 1 58%; min-height:0; display:flex; flex-direction:column; }
+    .armyPanel{ flex: 1 1 42%; min-height:0; display:flex; flex-direction:column; }
 
     .shop{
-      flex:1 1 auto;
-      min-height:0;
-      display:flex;
-      gap:10px;
-      overflow-x:auto;
-      overflow-y:hidden;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width:none;
-      padding-bottom:2px;
+      flex:1 1 auto; min-height:0; display:flex; gap:10px;
+      overflow-x:auto; overflow-y:hidden;
+      -webkit-overflow-scrolling: touch; scrollbar-width:none; padding-bottom:2px;
     }
     .shop::-webkit-scrollbar{ display:none; }
     .card{
@@ -336,7 +251,7 @@
       border:1px solid var(--b2);
       border-radius:12px;
       padding:10px 12px;
-      min-width: 150px;
+      min-width: 160px;
       display:flex;
       flex-direction:column;
       gap:4px;
@@ -348,14 +263,18 @@
     .chip .s{ font-size:12px; color:#cfe0ff; opacity:.95; }
     .chip .m{ font-size:12px; color:var(--muted); }
 
-    /* ===== BATTLE ===== */
-    .battleWrap{
-      flex:1 1 auto;
-      min-height:0;
+    .synergyPanel{
+      margin-top:8px;
+      padding-top:8px;
+      border-top:1px solid rgba(42,58,99,0.45);
       display:flex;
-      flex-direction:column;
-      overflow:hidden;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
     }
+
+    /* ===== BATTLE ===== */
+    .battleWrap{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
     .battleCanvasWrap{
       flex:1 1 auto;
       min-height:0;
@@ -378,24 +297,9 @@
       gap:10px;
       pointer-events:none;
     }
-    .overlayTop .left{
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-      min-width:0;
-      pointer-events:none;
-    }
-    .overlayTop .right{
-      display:flex;
-      gap:8px;
-      align-items:center;
-      pointer-events:none;
-    }
-    .overlayTop .left .pill{
-      white-space:normal;
-      line-height:1.15;
-      max-width: 76vw;
-    }
+    .overlayTop .left{ display:flex; flex-direction:column; gap:8px; min-width:0; pointer-events:none; }
+    .overlayTop .right{ display:flex; gap:8px; align-items:center; pointer-events:none; }
+    .overlayTop .left .pill{ white-space:normal; line-height:1.15; max-width: 76vw; }
     .overlayTop button{ pointer-events:auto; }
 
     .resultBox{
@@ -410,29 +314,98 @@
       padding:14px;
       backdrop-filter: blur(10px);
       display:none;
+      z-index: 30;
     }
     body[data-result="show"] .resultBox{ display:block; }
-    .resultBox .rTitle{
-      font-weight:1200;
-      font-size:16px;
-      margin-bottom:6px;
+    .resultBox .rTitle{ font-weight:1200; font-size:16px; margin-bottom:6px; }
+    .resultBox .rText{ font-size:13px; color:var(--muted); margin-bottom:10px; line-height:1.35; }
+    .resultBox .rBtns{ display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+
+    /* ===== Fullscreen overlays (Augments/Items/Nodes/Events/Inventory) ===== */
+    .fsOverlay{
+      position:fixed;
+      inset:0;
+      z-index: 20000;
+      padding: calc(env(safe-area-inset-top) + 10px) 10px calc(env(safe-area-inset-bottom) + 10px) 10px;
+      background: rgba(6,8,12,0.78);
+      backdrop-filter: blur(10px);
+      display:none;
+      overflow:hidden;
     }
-    .resultBox .rText{
-      font-size:13px;
-      color:var(--muted);
-      margin-bottom:10px;
-      line-height:1.35;
-    }
-    .resultBox .rBtns{
+    body[data-overlay="augment"] #ovAugment{ display:block; }
+    body[data-overlay="item"] #ovItem{ display:block; }
+    body[data-overlay="node"] #ovNode{ display:block; }
+    body[data-overlay="event"] #ovEvent{ display:block; }
+    body[data-overlay="inventory"] #ovInventory{ display:block; }
+
+    .ovCard{
+      height:100%;
+      max-width: 560px;
+      margin:0 auto;
       display:flex;
-      gap:8px;
-      justify-content:flex-end;
-      flex-wrap:wrap;
+      flex-direction:column;
+      gap:10px;
+      overflow:hidden;
+    }
+    .ovHeader{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .ovTitle{ font-size:16px; font-weight:1200; color:#d6e4ff; }
+    .ovSub{ font-size:12px; color:var(--muted); line-height:1.35; }
+    .ovBody{
+      flex:1 1 auto;
+      min-height:0;
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .vStack{
+      flex:1 1 auto;
+      min-height:0;
+      overflow:auto;
+      -webkit-overflow-scrolling: touch;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      padding-bottom:2px;
+    }
+    .choiceCard{
+      background: rgba(12,18,32,0.92);
+      border: 1px solid rgba(42,58,99,0.95);
+      border-radius: 14px;
+      padding: 12px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .choiceCard .name{ font-weight:1200; }
+    .choiceCard .desc{ font-size:12px; color:var(--muted); line-height:1.35; }
+    .choiceCard button{ width:100%; }
+
+    .twoCols{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      min-height:0;
+      flex:1 1 auto;
+      overflow:hidden;
+    }
+    .invList{
+      min-height:0;
+      overflow:auto;
+      -webkit-overflow-scrolling:touch;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
     }
 
     @media (max-width: 380px){
       .card{ flex-basis: 195px; }
-      .chip{ min-width: 142px; }
+      .chip{ min-width: 150px; }
       button{ padding:12px 12px; }
       .statTile .val{ font-size:19px; }
       #toast{ font-size:13px; }
@@ -440,8 +413,104 @@
   </style>
 </head>
 
-<body data-screen="menu" data-result="hide" data-howto="closed">
+<body data-screen="menu" data-result="hide" data-howto="closed" data-overlay="none">
   <div id="toast" role="status" aria-live="polite"></div>
+
+  <!-- ===== Fullscreen overlays ===== -->
+  <div class="fsOverlay" id="ovAugment" aria-hidden="true">
+    <div class="ovCard">
+      <div class="panel">
+        <div class="ovHeader">
+          <div>
+            <div class="ovTitle">Choose an Augment</div>
+            <div class="ovSub">Pick 1. It lasts for the entire run.</div>
+          </div>
+        </div>
+      </div>
+      <div class="ovBody">
+        <div class="vStack" id="augmentChoices"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fsOverlay" id="ovItem" aria-hidden="true">
+    <div class="ovCard">
+      <div class="panel">
+        <div class="ovHeader">
+          <div>
+            <div class="ovTitle" id="itemRewardTitle">Item Found</div>
+            <div class="ovSub" id="itemRewardSub">Add it to your inventory, then equip in Planning.</div>
+          </div>
+          <button id="btnItemContinue" class="btnPrimary" style="min-height:40px; padding:10px 12px;">Continue</button>
+        </div>
+      </div>
+      <div class="ovBody">
+        <div class="choiceCard" id="itemRewardCard"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fsOverlay" id="ovNode" aria-hidden="true">
+    <div class="ovCard">
+      <div class="panel">
+        <div class="ovHeader">
+          <div>
+            <div class="ovTitle">Choose Next Node</div>
+            <div class="ovSub">Battle for progress, Elite for better rewards, or Event for risk/reward.</div>
+          </div>
+        </div>
+      </div>
+      <div class="ovBody">
+        <div class="vStack" id="nodeChoices"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fsOverlay" id="ovEvent" aria-hidden="true">
+    <div class="ovCard">
+      <div class="panel">
+        <div class="ovHeader">
+          <div>
+            <div class="ovTitle">Event</div>
+            <div class="ovSub">Pick one outcome.</div>
+          </div>
+        </div>
+      </div>
+      <div class="ovBody">
+        <div class="vStack" id="eventChoices"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fsOverlay" id="ovInventory" aria-hidden="true">
+    <div class="ovCard">
+      <div class="panel">
+        <div class="ovHeader">
+          <div>
+            <div class="ovTitle">Inventory</div>
+            <div class="ovSub" id="invHint">Tap an item, then tap a unit to equip.</div>
+          </div>
+          <button id="btnInvClose" class="btnPrimary" style="min-height:40px; padding:10px 12px;">Close</button>
+        </div>
+      </div>
+      <div class="ovBody twoCols">
+        <div class="panel" style="min-height:0; overflow:hidden;">
+          <div class="panelTop">
+            <div class="panelTitle">Items</div>
+            <div class="hint" id="invCount">0</div>
+          </div>
+          <div class="invList" id="invItems"></div>
+        </div>
+        <div class="panel" style="min-height:0; overflow:hidden;">
+          <div class="panelTop">
+            <div class="panelTitle">Units</div>
+            <div class="hint" id="invUnitsCount">0</div>
+          </div>
+          <div class="invList" id="invUnits"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="app">
 
@@ -450,7 +519,7 @@
       <div class="menuWrap">
         <div class="menuCard panel">
           <div class="menuTitle">ROGUE WAR</div>
-          <div class="menuSub">Buy units, merge 3-of-a-kind, fight, and survive. Units can die permanently.</div>
+          <div class="menuSub">TFT roguelike: traits, augments, items, permadeath.</div>
 
           <div class="menuBtns">
             <button id="btnNewGame" class="btnPrimary">New Game</button>
@@ -460,11 +529,12 @@
 
           <div class="howto" id="howtoBox">
             <div style="font-weight:1000; margin-bottom:6px;">How to Play</div>
-            <div>1) Buy units from the shop (purchases remove that offer).</div>
-            <div>2) 3 of the same unit + star level merges into a higher star.</div>
-            <div>3) Start Fight. Ranged units fire projectiles; melee units swing.</div>
-            <div>4) Permadeath: units that die in battle are removed from your roster.</div>
-            <div>5) Win for more gold. Lose HP on defeat. Survive as long as you can.</div>
+            <div>1) Buy units (buying removes the offer).</div>
+            <div>2) 3-of-a-kind merges → ★ up.</div>
+            <div>3) Traits give bonuses at breakpoints.</div>
+            <div>4) Augments every 3 rounds (and from elites).</div>
+            <div>5) Items drop and can be equipped (1 slot per unit).</div>
+            <div>6) Permadeath: units that die in battle are removed.</div>
           </div>
         </div>
       </div>
@@ -480,6 +550,7 @@
               <div class="phaseLabel">PLANNING</div>
               <div style="display:flex; gap:8px; align-items:center;">
                 <div class="pill" id="unitsPill">Units: 0</div>
+                <button id="btnInventory" class="btnGhost" style="min-height:40px; padding:10px 12px;">Inventory</button>
                 <button id="btnMenu" class="btnGhost" style="min-height:40px; padding:10px 12px;">Menu</button>
               </div>
             </div>
@@ -504,7 +575,7 @@
             </div>
 
             <div class="actionRow">
-              <button id="btnReroll">Reroll (2g)</button>
+              <button id="btnReroll">Reroll</button>
               <button id="btnStart" class="btnPrimary">Start Fight</button>
             </div>
           </div>
@@ -514,7 +585,6 @@
           <div class="panel shopPanel">
             <div class="panelTop">
               <div class="panelTitle">Shop</div>
-              <!-- UPDATED -->
               <div class="hint">3-of-a-kind merges → ★ up</div>
             </div>
             <div class="shop" id="shop"></div>
@@ -526,6 +596,7 @@
               <div class="pill">Permadeath ON</div>
             </div>
             <div class="armyBar" id="armyBar"></div>
+            <div class="synergyPanel" id="synergyPanel"></div>
           </div>
         </div>
 
@@ -540,11 +611,11 @@
 
           <div class="overlayTop">
             <div class="left">
-              <div class="pill">BATTLE</div>
+              <div class="pill" id="battleNodePill">BATTLE</div>
               <div class="pill" id="battleStats">Round 1 • Gold 10 • HP 20 • Streak 0</div>
             </div>
             <div class="right">
-              <button id="btnNext" disabled>Next Round</button>
+              <button id="btnNext" disabled>Next</button>
             </div>
           </div>
 
@@ -552,7 +623,7 @@
             <div class="rTitle" id="resultTitle">Result</div>
             <div class="rText" id="resultText">...</div>
             <div class="rBtns">
-              <button id="btnResultNext" class="btnPrimary" disabled>Next Round</button>
+              <button id="btnResultNext" class="btnPrimary" disabled>Next</button>
             </div>
           </div>
 
@@ -575,7 +646,7 @@ window.addEventListener("error", (e) => {
   document.body.appendChild(box);
 });
 
-/* ===== Toast override (no queue) ===== */
+/* ===== Toast (override, no queue) ===== */
 const toastEl = document.getElementById("toast");
 let toastTimer = null;
 function showToast(text, type="info"){
@@ -589,64 +660,173 @@ function showToast(text, type="info"){
   toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1000);
 }
 
-/* ===== Save/Load ===== */
-const SAVE_KEY = "roguewar_save_v1";
-function serializeState(){
-  return {
-    v: 1,
-    ended: (S.hp <= 0),
-    round: S.round,
-    gold: S.gold,
-    hp: S.hp,
-    streak: S.streak,
-    army: S.army.map(u => ({ id:u.id, name:u.name, star:u.star })),
-  };
-}
-function saveGame(){
-  try{
-    localStorage.setItem(SAVE_KEY, JSON.stringify(serializeState()));
-    refreshContinueBtn();
-  }catch(e){}
-}
-function clearSave(){
-  try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
-  refreshContinueBtn();
-}
-function loadGame(){
-  try{
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return false;
-    const data = JSON.parse(raw);
-    if (!data || data.v !== 1) return false;
-    if (data.ended) return false;
+/* ===== Helpers ===== */
+function rndId(){ return (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random()).slice(2); }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function chance(p){ return Math.random() < p; }
 
-    S.round = data.round ?? 1;
-    S.gold = data.gold ?? 10;
-    S.hp = data.hp ?? 20;
-    S.streak = data.streak ?? 0;
-    S.army = (data.army || []).map(a => makeUnit(a.name, a.star, "player", a.id));
-    rerollShop(true);
-    renderAll();
-    setScreen("planning");
-    setPhase("planning");
-    showToast("Continued run", "info");
-    return true;
-  }catch(e){
-    return false;
-  }
-}
-
-/* -------- Data -------- */
+/* ===== Definitions ===== */
 const UNIT_POOL = [
-  { name:"Brawler",  cost:1, hp: 260, atk: 18, spd: 1.00, range: 18,  role:"Front"    },
-  { name:"Knight",   cost:2, hp: 320, atk: 22, spd: 1.05, range: 18,  role:"Front"    },
-  { name:"Archer",   cost:1, hp: 180, atk: 26, spd: 0.95, range: 150, role:"Back"     },
-  { name:"Mage",     cost:2, hp: 170, atk: 34, spd: 1.15, range: 160, role:"Mage"     },
-  { name:"Assassin", cost:3, hp: 190, atk: 46, spd: 0.75, range: 22,  role:"Skirmish" },
+  { name:"Brawler",  cost:1, hp: 260, atk: 18, spd: 1.00, range: 18,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" },
+  { name:"Knight",   cost:2, hp: 320, atk: 22, spd: 1.05, range: 18,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" },
+  { name:"Archer",   cost:1, hp: 180, atk: 26, spd: 0.95, range: 150, role:"Back",     classTag:"Ranger",  originTag:"Wilds"   },
+  { name:"Mage",     cost:2, hp: 170, atk: 34, spd: 1.15, range: 160, role:"Mage",     classTag:"Mage",    originTag:"Cult"    },
+  { name:"Assassin", cost:3, hp: 190, atk: 46, spd: 0.75, range: 22,  role:"Skirmish", classTag:"Rogue",   originTag:"Wilds"   },
 ];
 
-function rndId(){ return (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random()).slice(2); }
+const ITEMS = {
+  I1:{ id:"I1", name:"Sword",      desc:"+20% ATK",                apply:(c)=>{ c.atk = Math.round(c.atk*1.20); } },
+  I2:{ id:"I2", name:"Shield",     desc:"+25% Max HP",             apply:(c)=>{ c.maxHP = Math.round(c.maxHP*1.25); c.hp = c.maxHP; } },
+  I3:{ id:"I3", name:"Bowstring",  desc:"+15% atk speed (ranged)", apply:(c)=>{ if (isRangedUnit(c)) c.spd = c.spd*0.85; } },
+  I4:{ id:"I4", name:"Scope",      desc:"+30 range",               apply:(c)=>{ c.range += 30; } },
+  I5:{ id:"I5", name:"Vamp Charm", desc:"10% lifesteal",           apply:(c)=>{ c.lifesteal = 0.10; } },
+  I6:{ id:"I6", name:"Bomb",       desc:"First hit splashes",      apply:(c)=>{ c.bombReady = true; } },
+};
 
+const AUGMENTS = {
+  A1:{ id:"A1", name:"Rich Get Richer", desc:"+3g now, +1g each round", pickNow:(S)=>{ S.gold += 3; }, },
+  A2:{ id:"A2", name:"High Roller", desc:"Reroll costs 1g", },
+  A3:{ id:"A3", name:"Windfall", desc:"+8g now", pickNow:(S)=>{ S.gold += 8; }, },
+
+  A4:{ id:"A4", name:"Scoped Weapons", desc:"Ranged +35 range", },
+  A5:{ id:"A5", name:"Second Wind", desc:"Once per unit: below 30% HP → heal 20%", },
+  A6:{ id:"A6", name:"Knife’s Edge", desc:"+20% dmg, -10% max HP", },
+  A7:{ id:"A7", name:"Thick Skin", desc:"Warriors +10% dmg reduction", },
+  A8:{ id:"A8", name:"Rapid Fire", desc:"Rangers attack 12% faster", },
+
+  A9:{ id:"A9", name:"Warrior Crest", desc:"+1 Warrior trait", },
+  A10:{ id:"A10", name:"Ranger Crest", desc:"+1 Ranger trait", },
+  A11:{ id:"A11", name:"Mage Crest", desc:"+1 Mage trait", },
+  A12:{ id:"A12", name:"Rogue Crest", desc:"+1 Rogue trait", },
+};
+
+const EVENTS = [
+  {
+    id:"E1", name:"Duplicate", desc:"Duplicate a random unit, lose 3 HP",
+    apply:(S)=>{
+      if (!S.army.length){ showToast("No units to duplicate", "bad"); return; }
+      const u = pick(S.army);
+      S.army.push(makeUnit(u.name, u.star, "player"));
+      S.hp = Math.max(0, S.hp - 3);
+      showToast(`Duplicated ${u.name} ★${u.star} (-3 HP)`, "info");
+    }
+  },
+  {
+    id:"E2", name:"Gold Rush", desc:"+10g, next battle enemies +15% HP",
+    apply:(S)=>{
+      S.gold += 10;
+      S.nextEnemyMod = { hpMult: 1.15, atkMult: 1.0 };
+      showToast("Gold Rush (+10g) — next battle tougher", "info");
+    }
+  },
+  {
+    id:"E3", name:"Heal", desc:"+6 HP, lose 4g (if possible)",
+    apply:(S)=>{
+      S.hp += 6;
+      const loss = Math.min(4, S.gold);
+      S.gold -= loss;
+      showToast(`Healed +6 HP (-${loss}g)`, "good");
+    }
+  },
+];
+
+/* ===== State ===== */
+const SAVE_KEY_V2 = "roguewar_save_v2";
+const SAVE_KEY_V1 = "roguewar_save_v1";
+
+const S = {
+  round: 1,
+  gold: 10,
+  hp: 20,
+  streak: 0,
+
+  shop: [],
+  army: [],
+
+  augments: [],
+  items: [],            // inventory items (objects {id,type})
+  node: { type:"battle", isElite:false },
+  nextEnemyMod: null,   // one-battle mod
+
+  overlay: "none",      // none|augment|item|node|event|inventory
+  overlayQueue: [],
+
+  // combat
+  P: [],
+  E: [],
+  projectiles: [],
+  screen: "menu",
+  phase: "planning",
+  combatRunning: false,
+};
+
+const el = {
+  // menu
+  btnNewGame: document.getElementById("btnNewGame"),
+  btnContinue: document.getElementById("btnContinue"),
+  btnHowTo: document.getElementById("btnHowTo"),
+
+  // planning
+  roundVal: document.getElementById("roundVal"),
+  goldVal: document.getElementById("goldVal"),
+  hpVal: document.getElementById("hpVal"),
+  streakVal: document.getElementById("streakVal"),
+  unitsPill: document.getElementById("unitsPill"),
+  btnMenu: document.getElementById("btnMenu"),
+  btnInventory: document.getElementById("btnInventory"),
+  btnStart: document.getElementById("btnStart"),
+  btnReroll: document.getElementById("btnReroll"),
+  shop: document.getElementById("shop"),
+  armyBar: document.getElementById("armyBar"),
+  synergyPanel: document.getElementById("synergyPanel"),
+
+  // battle
+  battleNodePill: document.getElementById("battleNodePill"),
+  battleStats: document.getElementById("battleStats"),
+  btnNext: document.getElementById("btnNext"),
+  resultTitle: document.getElementById("resultTitle"),
+  resultText: document.getElementById("resultText"),
+  btnResultNext: document.getElementById("btnResultNext"),
+  canvas: document.getElementById("battle"),
+
+  // overlays
+  augmentChoices: document.getElementById("augmentChoices"),
+  itemRewardCard: document.getElementById("itemRewardCard"),
+  btnItemContinue: document.getElementById("btnItemContinue"),
+  nodeChoices: document.getElementById("nodeChoices"),
+  eventChoices: document.getElementById("eventChoices"),
+  invItems: document.getElementById("invItems"),
+  invUnits: document.getElementById("invUnits"),
+  invCount: document.getElementById("invCount"),
+  invUnitsCount: document.getElementById("invUnitsCount"),
+  invHint: document.getElementById("invHint"),
+  btnInvClose: document.getElementById("btnInvClose"),
+};
+
+function hasAug(id){ return S.augments.includes(id); }
+
+/* ===== UI state ===== */
+function setOverlay(name){
+  S.overlay = name;
+  document.body.dataset.overlay = name;
+  updateButtons();
+}
+function queueOverlay(name, payload=null){
+  S.overlayQueue.push({ name, payload });
+}
+function nextOverlay(){
+  const x = S.overlayQueue.shift();
+  if (!x){ setOverlay("none"); return; }
+  if (x.name === "augment") openAugmentPick();
+  else if (x.name === "item") openItemReward(x.payload);
+  else if (x.name === "node") openNodeSelect();
+  else if (x.name === "event") openEventSelect();
+  else if (x.name === "inventory") openInventory();
+  else setOverlay("none");
+}
+
+/* ===== Colors/shapes ===== */
 function getClassColor(role){
   if (role === "Front")    return { fill:"#5c86c9", fx:"#8cc0ff" };
   if (role === "Back")     return { fill:"#55d38a", fx:"#78f0ad" };
@@ -665,6 +845,7 @@ function isRangedUnit(u){
   return (u.role === "Back" || u.role === "Mage" || u.range >= 100);
 }
 
+/* ===== Unit creation ===== */
 function makeUnit(name, star=1, side="player", forcedId=null){
   const t = UNIT_POOL.find(u=>u.name===name);
   const hpMult = 1 + (star-1)*0.75;
@@ -678,22 +859,26 @@ function makeUnit(name, star=1, side="player", forcedId=null){
     star,
     side,
     role: t.role,
+    classTag: t.classTag,
+    originTag: t.originTag,
+
     shape: roleToShape(t.role),
     classFill: clr.fill,
     classFx: clr.fx,
+
     maxHP,
     hp: maxHP,
     atk: Math.round(t.atk * atkMult),
     spd: t.spd,
     range: t.range,
-    x: 0, y: 0,
-    cd: 0,
-    alive: true,
-    swingT: 0,
-    aimA: 0
+
+    item: null, // {id,type}
+
+    // runtime
+    x:0,y:0, cd:0, alive:true,
+    swingT:0, aimA:0,
   };
 }
-
 function makeOffer(template){
   return {
     offerId: rndId(),
@@ -703,58 +888,106 @@ function makeOffer(template){
     atk: template.atk,
     spd: template.spd,
     range: template.range,
-    role: template.role
+    role: template.role,
+    classTag: template.classTag,
+    originTag: template.originTag,
   };
 }
 
-const S = {
-  round: 1,
-  gold: 10,
-  hp: 20,
-  streak: 0,
+/* ===== Save/Load ===== */
+function serializeState(){
+  return {
+    v: 2,
+    ended: (S.hp <= 0),
+    round: S.round,
+    gold: S.gold,
+    hp: S.hp,
+    streak: S.streak,
+    augments: S.augments.slice(),
+    items: S.items.slice(),
+    node: S.node,
+    nextEnemyMod: S.nextEnemyMod,
+    army: S.army.map(u => ({
+      id:u.id, name:u.name, star:u.star,
+      item:u.item,
+      classTag:u.classTag,
+      originTag:u.originTag,
+    })),
+  };
+}
+function saveGame(){
+  try{ localStorage.setItem(SAVE_KEY_V2, JSON.stringify(serializeState())); }catch(e){}
+  refreshContinueBtn();
+}
+function clearSave(){
+  try{ localStorage.removeItem(SAVE_KEY_V2); }catch(e){}
+  refreshContinueBtn();
+}
+function loadGame(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY_V2);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || data.v !== 2 || data.ended) return false;
 
-  shop: [],
-  army: [],
+    S.round = data.round ?? 1;
+    S.gold = data.gold ?? 10;
+    S.hp = data.hp ?? 20;
+    S.streak = data.streak ?? 0;
+    S.augments = Array.isArray(data.augments) ? data.augments : [];
+    S.items = Array.isArray(data.items) ? data.items : [];
+    S.node = data.node || {type:"battle", isElite:false};
+    S.nextEnemyMod = data.nextEnemyMod || null;
 
-  P: [],
-  E: [],
-  projectiles: [],
-  screen: "menu",
-  phase: "planning",
-  combatRunning: false,
-};
+    S.army = (data.army || []).map(a=>{
+      const u = makeUnit(a.name, a.star, "player", a.id);
+      u.item = a.item || null;
+      // ensure tags exist
+      u.classTag = a.classTag || UNIT_POOL.find(t=>t.name===u.name)?.classTag || u.classTag;
+      u.originTag = a.originTag || UNIT_POOL.find(t=>t.name===u.name)?.originTag || u.originTag;
+      return u;
+    });
 
-const el = {
-  btnNewGame: document.getElementById("btnNewGame"),
-  btnContinue: document.getElementById("btnContinue"),
-  btnHowTo: document.getElementById("btnHowTo"),
-  howtoBox: document.getElementById("howtoBox"),
+    rerollShop(true);
+    renderAll();
+    setScreen("planning");
+    setPhase("planning");
+    showToast("Continued run", "info");
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+// v1 migration (best-effort)
+function tryMigrateV1(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY_V1);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || data.ended) return false;
 
-  roundVal: document.getElementById("roundVal"),
-  goldVal: document.getElementById("goldVal"),
-  hpVal: document.getElementById("hpVal"),
-  streakVal: document.getElementById("streakVal"),
-  unitsPill: document.getElementById("unitsPill"),
-  btnMenu: document.getElementById("btnMenu"),
+    S.round = data.round ?? 1;
+    S.gold = data.gold ?? 10;
+    S.hp = data.hp ?? 20;
+    S.streak = data.streak ?? 0;
+    S.augments = [];
+    S.items = [];
+    S.node = {type:"battle", isElite:false};
+    S.nextEnemyMod = null;
 
-  shop: document.getElementById("shop"),
-  armyBar: document.getElementById("armyBar"),
-  btnStart: document.getElementById("btnStart"),
-  btnReroll: document.getElementById("btnReroll"),
-
-  battleStats: document.getElementById("battleStats"),
-  btnNext: document.getElementById("btnNext"),
-  resultBox: document.getElementById("resultBox"),
-  resultTitle: document.getElementById("resultTitle"),
-  resultText: document.getElementById("resultText"),
-  btnResultNext: document.getElementById("btnResultNext"),
-
-  canvas: document.getElementById("battle")
-};
+    S.army = (data.army || []).map(a => makeUnit(a.name, a.star, "player", a.id));
+    rerollShop(true);
+    saveGame();
+    refreshContinueBtn();
+    return true;
+  }catch(e){
+    return false;
+  }
+}
 
 function refreshContinueBtn(){
   try{
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(SAVE_KEY_V2);
     if (!raw){ el.btnContinue.disabled = true; return; }
     const data = JSON.parse(raw);
     el.btnContinue.disabled = !data || data.ended;
@@ -763,23 +996,7 @@ function refreshContinueBtn(){
   }
 }
 
-function renderStats(){
-  el.roundVal.textContent = S.round;
-  el.goldVal.textContent = S.gold;
-  el.hpVal.textContent = S.hp;
-  el.streakVal.textContent = S.streak;
-  el.unitsPill.textContent = `Units: ${S.army.length}`;
-  el.battleStats.textContent = `Round ${S.round} • Gold ${S.gold} • HP ${S.hp} • Streak ${S.streak}`;
-}
-
-function updateButtons(){
-  el.btnStart.disabled = !(S.screen === "planning") || (S.army.length === 0);
-  el.btnReroll.disabled = !(S.screen === "planning");
-  const canAdvance = (S.screen === "battle" && S.phase === "result" && S.hp > 0);
-  el.btnNext.disabled = !canAdvance;
-  el.btnResultNext.disabled = !canAdvance;
-}
-
+/* ===== Screen state ===== */
 function setScreen(screen){
   S.screen = screen;
   document.body.dataset.screen = screen;
@@ -794,12 +1011,100 @@ function setPhase(phase){
   updateButtons();
 }
 
-/* ===== SHOP ===== */
+function renderStats(){
+  el.roundVal.textContent = S.round;
+  el.goldVal.textContent = S.gold;
+  el.hpVal.textContent = S.hp;
+  el.streakVal.textContent = S.streak;
+  el.unitsPill.textContent = `Units: ${S.army.length}`;
+  el.battleStats.textContent = `Round ${S.round} • Gold ${S.gold} • HP ${S.hp} • Streak ${S.streak}`;
+  el.battleNodePill.textContent = S.node.isElite ? "ELITE" : (S.node.type || "BATTLE").toUpperCase();
+  el.btnReroll.textContent = `Reroll (${hasAug("A2") ? 1 : 2}g)`;
+}
+
+function updateButtons(){
+  const overlayOpen = (S.overlay !== "none");
+  el.btnStart.disabled = overlayOpen || !(S.screen === "planning") || (S.army.length === 0);
+  el.btnReroll.disabled = overlayOpen || !(S.screen === "planning");
+  el.btnInventory.disabled = !(S.screen === "planning");
+  el.btnMenu.disabled = !(S.screen === "planning");
+
+  const canAdvance = (!overlayOpen && S.screen === "battle" && S.phase === "result" && S.hp > 0);
+  el.btnNext.disabled = !canAdvance;
+  el.btnResultNext.disabled = !canAdvance;
+}
+
+/* ===== Traits ===== */
+function getTraitCounts(units){
+  const c = { Warrior:0, Ranger:0, Mage:0, Rogue:0, Kingdom:0, Wilds:0, Cult:0 };
+  for (const u of units){
+    if (u.classTag && c[u.classTag] != null) c[u.classTag]++;
+    if (u.originTag && c[u.originTag] != null) c[u.originTag]++;
+  }
+  // crests add +1
+  if (hasAug("A9")) c.Warrior++;
+  if (hasAug("A10")) c.Ranger++;
+  if (hasAug("A11")) c.Mage++;
+  if (hasAug("A12")) c.Rogue++;
+  return c;
+}
+
+function traitTier(name, count){
+  const tiers = {
+    Warrior:[2,4],
+    Ranger:[2,4],
+    Mage:[2,3],
+    Rogue:[2,3],
+    Kingdom:[2,3],
+    Wilds:[2,3],
+    Cult:[2,3],
+  }[name] || [];
+  let t = 0;
+  for (const req of tiers) if (count >= req) t++;
+  const nextReq = tiers[t] ?? null;
+  return { tier:t, nextReq };
+}
+
+/* ===== Synergy panel UI ===== */
+function renderSynergies(){
+  el.synergyPanel.innerHTML = "";
+  const counts = getTraitCounts(S.army);
+  const order = ["Warrior","Ranger","Mage","Rogue","Kingdom","Wilds","Cult"];
+
+  const lines = [];
+  for (const k of order){
+    const n = counts[k] || 0;
+    if (!n) continue;
+    const t = traitTier(k, n);
+    const active = t.tier > 0;
+    const text = active
+      ? `${k}: ${n} (ACTIVE)`
+      : `${k}: ${n} (Next: ${t.nextReq || "—"})`;
+    lines.push({k,n,active,text});
+  }
+
+  const shown = lines.slice(0,4);
+  for (const L of shown){
+    const span = document.createElement("div");
+    span.className = "pill " + (L.active ? "pillGood" : "");
+    span.textContent = L.text;
+    el.synergyPanel.appendChild(span);
+  }
+  if (lines.length > 4){
+    const more = document.createElement("div");
+    more.className = "pill";
+    more.textContent = `+${lines.length-4} more`;
+    el.synergyPanel.appendChild(more);
+  }
+}
+
+/* ===== Shop ===== */
 function rerollShop(free=false){
+  const cost = hasAug("A2") ? 1 : 2;
   if (!free){
-    if (S.gold < 2){ showToast("Not enough gold", "bad"); return; }
-    S.gold -= 2;
-    showToast("Shop rerolled (-2g)", "info");
+    if (S.gold < cost){ showToast("Not enough gold", "bad"); return; }
+    S.gold -= cost;
+    showToast(`Shop rerolled (-${cost}g)`, "info");
   }
 
   const r = S.round;
@@ -809,8 +1114,7 @@ function rerollShop(free=false){
     return u.cost===1?2 : u.cost===2?5 : 4;
   });
   const total = weights.reduce((a,b)=>a+b,0);
-
-  function pick(){
+  function pickTemplate(){
     let x = Math.random()*total;
     for (let i=0;i<UNIT_POOL.length;i++){
       x -= weights[i];
@@ -819,7 +1123,7 @@ function rerollShop(free=false){
     return UNIT_POOL[0];
   }
 
-  S.shop = Array.from({length:5}, ()=> makeOffer(pick()));
+  S.shop = Array.from({length:5}, ()=> makeOffer(pickTemplate()));
   renderAll();
   saveGame();
 }
@@ -831,8 +1135,9 @@ function buyOffer(offerId){
   if (S.gold < offer.cost){ showToast("Not enough gold", "bad"); return; }
 
   S.gold -= offer.cost;
-  S.army.push(makeUnit(offer.name, 1, "player"));
-  S.shop.splice(idx, 1);
+  const u = makeUnit(offer.name, 1, "player");
+  S.army.push(u);
+  S.shop.splice(idx, 1); // remove purchased offer
 
   showToast(`${offer.name} ★1 recruited`, "info");
   mergeAllSafe();
@@ -840,7 +1145,7 @@ function buyOffer(offerId){
   saveGame();
 }
 
-/* ===== MERGE ===== */
+/* ===== Merge ===== */
 function mergeAllSafe(){
   let didMerge = true;
   const mergeMessages = [];
@@ -871,7 +1176,8 @@ function mergeAllSafe(){
     S.army = S.army.filter(u => !consumeSet.has(u.id));
 
     const newStar = Math.min(3, chosen.star + 1);
-    S.army.push(makeUnit(chosen.name, newStar, "player"));
+    const nu = makeUnit(chosen.name, newStar, "player");
+    S.army.push(nu);
 
     mergeMessages.push(`Merged: ${chosen.name} ★${chosen.star} → ★${newStar}`);
     didMerge = true;
@@ -882,7 +1188,7 @@ function mergeAllSafe(){
   }
 }
 
-/* ===== RENDER ===== */
+/* ===== Render ===== */
 function renderShop(){
   el.shop.innerHTML = "";
   if (!S.shop.length){
@@ -907,13 +1213,14 @@ function renderShop(){
     badge.style.background = clr.fill;
     h.appendChild(badge);
 
+    const tags = `${offer.classTag}/${offer.originTag}`;
     const l1 = document.createElement("div");
     l1.className="line";
     l1.textContent = `HP ${offer.hp} • ATK ${offer.atk} • ${offer.role}`;
 
     const l2 = document.createElement("div");
     l2.className="line";
-    l2.textContent = `Range ${offer.range}px • Speed ${offer.spd}s`;
+    l2.textContent = `${tags} • Range ${offer.range}px • Spd ${offer.spd}s`;
 
     const btn = document.createElement("button");
     btn.textContent = "Buy";
@@ -930,7 +1237,7 @@ function renderShop(){
 
 function renderArmy(){
   el.armyBar.innerHTML = "";
-  if (S.army.length === 0){
+  if (!S.army.length){
     const chip = document.createElement("div");
     chip.className="chip";
     chip.style.opacity="0.85";
@@ -939,15 +1246,18 @@ function renderArmy(){
     el.armyBar.appendChild(chip);
     return;
   }
+
   for (const u of S.army){
     const clr = getClassColor(u.role);
     const chip = document.createElement("div");
     chip.className="chip";
     chip.style.borderLeftColor = clr.fill;
+
+    const itemTxt = u.item ? ` • ${ITEMS[u.item.type]?.name || "Item"}` : "";
     chip.innerHTML = `
       <div class="t">${u.name} ${"★".repeat(u.star)}</div>
-      <div class="s">${u.maxHP} HP • ${u.atk} ATK</div>
-      <div class="m">${u.role}</div>
+      <div class="s">${u.maxHP} HP • ${u.atk} ATK${itemTxt}</div>
+      <div class="m">${u.classTag}/${u.originTag}</div>
     `;
     el.armyBar.appendChild(chip);
   }
@@ -957,13 +1267,13 @@ function renderAll(){
   renderStats();
   renderShop();
   renderArmy();
+  renderSynergies();
   updateButtons();
 }
 
-/* ===== BATTLEFIELD ===== */
+/* ===== Canvas ===== */
 const ctx = el.canvas.getContext("2d");
 let W=0, H=0;
-
 function resizeCanvas(){
   const rect = el.canvas.getBoundingClientRect();
   const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
@@ -974,6 +1284,7 @@ function resizeCanvas(){
 }
 window.addEventListener("resize", resizeCanvas);
 
+/* ===== Combat cloning + bonuses ===== */
 function cloneForCombat(rosterU, side){
   const c = JSON.parse(JSON.stringify(rosterU));
   c.side = side;
@@ -983,32 +1294,151 @@ function cloneForCombat(rosterU, side){
   c.swingT = 0;
   c.aimA = 0;
   c.rosterId = rosterU.id;
+
+  // combat-only stats/flags
+  c.moveMult = 1.0;
+  c.damageReduction = 0.0;
+  c.regenPerSec = 0.0;
+  c.lifesteal = 0.0;
+  c.bombReady = false;
+  c.firstHitBonus = 0.0;
+  c.firstHitReady = true;
+  c.secondWindUsed = false;
+  c.shield = 0;
+  c.shieldTimer = 0;
+
   return c;
 }
 
-function spawnEnemyWave(){
-  const r = S.round;
-  const enemyCount = Math.min(14, 3 + Math.floor(r/2));
-  S.E = [];
-  for (let i=0;i<enemyCount;i++){
-    const bag = [];
-    for (const t of UNIT_POOL){
-      const w =
-        r <= 2 ? (t.cost===1?6 : t.cost===2?2 : 1) :
-        r <= 5 ? (t.cost===1?4 : t.cost===2?4 : 2) :
-                 (t.cost===1?2 : t.cost===2?5 : 4);
-      for (let k=0;k<w;k++) bag.push(t);
-    }
-    const pick = bag[Math.floor(Math.random()*bag.length)];
-    const star = (r >= 6 && Math.random()<0.35) ? 2 : 1;
-    S.E.push(makeUnit(pick.name, star, "enemy"));
+function applyRunBonusesToClone(c, counts){
+  // === CLASS BONUSES ===
+  // Warrior (2/4): +15% / +35% maxHP
+  {
+    const n = counts.Warrior || 0;
+    let mult = 1.0;
+    if (n >= 4) mult = 1.35;
+    else if (n >= 2) mult = 1.15;
+    c.maxHP = Math.round(c.maxHP * mult);
+    c.hp = c.maxHP;
   }
+
+  // Ranger (2/4): spd *0.90 / 0.75
+  {
+    const n = counts.Ranger || 0;
+    if (n >= 4) c.spd = c.spd * 0.75;
+    else if (n >= 2) c.spd = c.spd * 0.90;
+  }
+
+  // Mage (2/3): +15% / +30% dmg
+  {
+    const n = counts.Mage || 0;
+    if (n >= 3) c.atk = Math.round(c.atk * 1.30);
+    else if (n >= 2) c.atk = Math.round(c.atk * 1.15);
+  }
+
+  // Rogue (2/3): first hit +20% / +45% and move +10% / +20%
+  {
+    const n = counts.Rogue || 0;
+    if (n >= 3){ c.firstHitBonus = 0.45; c.moveMult *= 1.20; }
+    else if (n >= 2){ c.firstHitBonus = 0.20; c.moveMult *= 1.10; }
+  }
+
+  // === ORIGINS ===
+  // Kingdom (2/3): frontline dmg reduction 10% / 20%
+  {
+    const n = counts.Kingdom || 0;
+    if (c.role === "Front"){
+      if (n >= 3) c.damageReduction += 0.20;
+      else if (n >= 2) c.damageReduction += 0.10;
+    }
+  }
+
+  // Wilds (2/3): regen 1.5% / 3% maxHP per sec
+  {
+    const n = counts.Wilds || 0;
+    if (n >= 3) c.regenPerSec += 0.03 * c.maxHP;
+    else if (n >= 2) c.regenPerSec += 0.015 * c.maxHP;
+  }
+
+  // Cult (2/3): on kill gain shield 8% / 16% maxHP for 2s (handled in onKill)
+  {
+    const n = counts.Cult || 0;
+    c.cultTier = (n >= 3) ? 2 : (n >= 2) ? 1 : 0;
+  }
+
+  // === AUGMENTS ===
+  if (hasAug("A4") && isRangedUnit(c)) c.range += 35;
+  if (hasAug("A6")) { c.atk = Math.round(c.atk * 1.20); c.maxHP = Math.round(c.maxHP * 0.90); c.hp = c.maxHP; }
+  if (hasAug("A7") && c.classTag === "Warrior") c.damageReduction += 0.10;
+  if (hasAug("A8") && c.classTag === "Ranger") c.spd = c.spd * 0.88;
+
+  // === ITEM ===
+  if (c.item && ITEMS[c.item.type]){
+    ITEMS[c.item.type].apply(c);
+  }
+
+  // clamp reductions
+  c.damageReduction = clamp(c.damageReduction, 0, 0.65);
 }
 
-/* === UPDATED FORMATION DEPLOYMENT (frontline/backline + flanks) === */
+/* ===== Enemy spawns ===== */
+function spawnEnemyWave(){
+  const r = S.round;
+  const baseCount = Math.min(18, 3 + Math.floor(r/2));
+  const count = S.node.isElite ? Math.min(22, baseCount + 2) : baseCount;
+
+  const weights = UNIT_POOL.map(u=>{
+    if (r <= 2) return u.cost===1?6 : u.cost===2?2 : 1;
+    if (r <= 5) return u.cost===1?4 : u.cost===2?4 : 2;
+    return u.cost===1?2 : u.cost===2?5 : 4;
+  });
+  const total = weights.reduce((a,b)=>a+b,0);
+  function pickTemplate(){
+    let x = Math.random()*total;
+    for (let i=0;i<UNIT_POOL.length;i++){
+      x -= weights[i];
+      if (x<=0) return UNIT_POOL[i];
+    }
+    return UNIT_POOL[0];
+  }
+
+  let hpMult = 1.0, atkMult = 1.0;
+  if (S.node.isElite){ hpMult *= 1.25; atkMult *= 1.10; }
+  if (S.nextEnemyMod){
+    hpMult *= (S.nextEnemyMod.hpMult || 1.0);
+    atkMult *= (S.nextEnemyMod.atkMult || 1.0);
+  }
+
+  S.E = [];
+  for (let i=0;i<count;i++){
+    const t = pickTemplate();
+    const star = (r >= 6 && Math.random()<0.35) ? 2 : 1;
+    const e = makeUnit(t.name, star, "enemy");
+    e.maxHP = Math.round(e.maxHP * hpMult);
+    e.hp = e.maxHP;
+    e.atk = Math.round(e.atk * atkMult);
+    S.E.push(e);
+  }
+
+  // one-battle mod consumed on start
+  S.nextEnemyMod = null;
+}
+
+/* ===== Formation deployment (frontline/backline/flanks) ===== */
 function deployArmies(){
   S.projectiles = [];
-  S.P = S.army.map(u => cloneForCombat(u, "player"));
+
+  // trait counts based on roster (player)
+  const counts = getTraitCounts(S.army);
+
+  S.P = S.army.map(u => {
+    const c = cloneForCombat(u, "player");
+    applyRunBonusesToClone(c, counts);
+    return c;
+  });
+
+  // enemies: no player-trait bonuses (simple); still can be elite-modded already
+  S.E = S.E.map(u => cloneForCombat(u, "enemy"));
 
   const centerLineX = W/2;
   const sidePadX = W*0.08;
@@ -1018,8 +1448,6 @@ function deployArmies(){
 
   const frontDepth = W*0.12;
   const backGap = W*0.08;
-
-  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 
   function splitGroups(arr){
     const front = [];
@@ -1033,30 +1461,26 @@ function deployArmies(){
     return {front, back, flank};
   }
 
-  function placeRank(units, baseX, sideSign, rankExtraBack=0){
+  function placeRank(units, baseX, sideSign){
     const n = units.length;
     if (!n) return;
 
-    // grid along Y, multiple columns if needed
     const maxRowsTarget = 10;
     const cols = Math.min(4, Math.max(1, Math.ceil(n / maxRowsTarget)));
     const rows = Math.max(1, Math.ceil(n / cols));
     const yStep = usableH / (rows + 1);
 
     const colOffset = Math.max(14, W*0.02);
-    const jitterY = 6;
-    const jitterX = 4;
 
     for (let i=0;i<n;i++){
       const col = Math.floor(i / rows);
       const row = i % rows;
 
-      let x = baseX + sideSign * (col * colOffset + rankExtraBack);
+      let x = baseX + sideSign * (col * colOffset);
       let y = topPadY + (row + 1) * yStep;
 
-      // small jitter to avoid perfect overlap
-      y += (i % 2 ? jitterY : -jitterY);
-      x += ((i % 3) - 1) * jitterX;
+      y += (i % 2 ? 6 : -6);
+      x += ((i % 3) - 1) * 4;
 
       x = clamp(x, 16, W-16);
       y = clamp(y, 16, H-16);
@@ -1074,7 +1498,7 @@ function deployArmies(){
     const topCount = half;
     const botCount = n - half;
 
-    const band = usableH * 0.28; // top/bottom bands
+    const band = usableH * 0.28;
     const topStart = topPadY;
     const botStart = topPadY + usableH - band;
 
@@ -1111,26 +1535,17 @@ function deployArmies(){
 
   function placeSide(arr, side){
     const sideSign = (side === "player") ? -1 : 1;
-
     const {front, back, flank} = splitGroups(arr);
 
-    // near center = frontline
     const frontX = centerLineX + sideSign * frontDepth;
-    // further from center = backline
     const backX  = centerLineX + sideSign * (frontDepth + backGap);
 
-    // keep at least inside sidePad
     const minX = sidePadX;
     const maxX = W - sidePadX;
     const clampX = (x)=> clamp(x, minX, maxX);
 
-    // place frontline closest to center
-    placeRank(front, clampX(frontX), sideSign, 0);
-
-    // place backline behind frontline
-    placeRank(back, clampX(backX), sideSign, 0);
-
-    // flanks: near frontline but pushed to top/bottom
+    placeRank(front, clampX(frontX), sideSign);
+    placeRank(back,  clampX(backX), sideSign);
     placeFlanks(flank, clampX(frontX), sideSign);
   }
 
@@ -1139,7 +1554,6 @@ function deployArmies(){
 }
 
 function alive(arr){ return arr.filter(u => u.alive && u.hp > 0); }
-
 function findNearest(att, enemies){
   let best=null, bestD=1e18;
   for (const e of enemies){
@@ -1151,18 +1565,79 @@ function findNearest(att, enemies){
   }
   return best;
 }
-
-function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-
 function findByIdAnySide(id){
   for (const u of S.P) if (u.id === id) return u;
   for (const u of S.E) if (u.id === id) return u;
   return null;
 }
 
-/* ===== Combat: projectiles + melee swing ===== */
+/* ===== Damage system (traits/items/augments) ===== */
+function applyDamage(att, tgt, rawDmg){
+  if (!tgt.alive) return;
+  let dmg = rawDmg;
+
+  // Rogue first-hit bonus
+  if (att && att.firstHitReady && att.firstHitBonus > 0){
+    dmg = dmg * (1 + att.firstHitBonus);
+    att.firstHitReady = false;
+  }
+
+  // target damage reduction
+  dmg = dmg * (1 - (tgt.damageReduction || 0));
+
+  // shield absorb
+  if (tgt.shield && tgt.shield > 0){
+    const absorbed = Math.min(tgt.shield, dmg);
+    tgt.shield -= absorbed;
+    dmg -= absorbed;
+  }
+
+  dmg = Math.max(0, dmg);
+  if (dmg <= 0) return;
+
+  tgt.hp = Math.max(0, tgt.hp - dmg);
+  if (tgt.hp <= 0){
+    tgt.alive = false;
+    onKill(att);
+  }
+
+  // lifesteal
+  if (att && att.lifesteal && att.lifesteal > 0){
+    const heal = dmg * att.lifesteal;
+    att.hp = Math.min(att.maxHP, att.hp + heal);
+  }
+
+  // bomb splash (first hit only)
+  if (att && att.bombReady){
+    const foes = (att.side === "player") ? alive(S.E) : alive(S.P);
+    let near=null, best=1e18;
+    for (const f of foes){
+      if (f.id === tgt.id) continue;
+      const dx = f.x - tgt.x;
+      const dy = f.y - tgt.y;
+      const d = dx*dx + dy*dy;
+      if (d < best){ best=d; near=f; }
+    }
+    if (near && best <= (50*50)){
+      applyDamage(att, near, dmg * 0.35);
+    }
+    att.bombReady = false;
+  }
+}
+
+function onKill(att){
+  if (!att || !att.alive) return;
+  // Cult: on kill gain shield for 2s
+  if (att.cultTier && att.cultTier > 0){
+    const pct = (att.cultTier === 2) ? 0.16 : 0.08;
+    att.shield = Math.max(att.shield || 0, att.maxHP * pct);
+    att.shieldTimer = 2.0;
+  }
+}
+
+/* ===== Projectiles + melee swing ===== */
 function spawnProjectile(att, target){
-  if (S.projectiles.length > 80) S.projectiles.shift();
+  if (S.projectiles.length > 90) S.projectiles.shift();
 
   const dx = target.x - att.x;
   const dy = target.y - att.y;
@@ -1172,13 +1647,13 @@ function spawnProjectile(att, target){
   const vy = dy / flight;
 
   S.projectiles.push({
-    x: att.x,
-    y: att.y,
+    x: att.x, y: att.y,
     vx, vy,
     ttl: flight + 0.08,
     targetId: target.id,
     damage: att.atk,
-    color: att.classFx || "#cfe0ff"
+    color: att.classFx || "#cfe0ff",
+    attackerId: att.id,
   });
 }
 
@@ -1200,13 +1675,14 @@ function updateProjectiles(dt){
     const d = Math.sqrt(dx*dx + dy*dy);
 
     if (d < 14 || p.ttl <= 0){
-      tgt.hp = Math.max(0, tgt.hp - p.damage);
-      if (tgt.hp <= 0) tgt.alive = false;
+      const att = findByIdAnySide(p.attackerId);
+      applyDamage(att, tgt, p.damage);
       S.projectiles.splice(i,1);
     }
   }
 }
 
+/* ===== Combat step ===== */
 function stepCombat(dt){
   const P = alive(S.P);
   const E = alive(S.E);
@@ -1216,8 +1692,26 @@ function stepCombat(dt){
     return;
   }
 
-  for (const u of S.P){ u.swingT = Math.max(0, u.swingT - dt); }
-  for (const u of S.E){ u.swingT = Math.max(0, u.swingT - dt); }
+  // timers
+  for (const u of S.P){
+    u.swingT = Math.max(0, u.swingT - dt);
+    if (u.shieldTimer && u.shieldTimer > 0){
+      u.shieldTimer -= dt;
+      if (u.shieldTimer <= 0) u.shield = 0;
+    }
+    // Wilds regen
+    if (u.regenPerSec && u.regenPerSec > 0){
+      u.hp = Math.min(u.maxHP, u.hp + u.regenPerSec * dt);
+    }
+    // Second Wind (augment)
+    if (hasAug("A5") && !u.secondWindUsed && u.hp > 0 && u.hp < 0.30*u.maxHP){
+      u.hp = Math.min(u.maxHP, u.hp + 0.20*u.maxHP);
+      u.secondWindUsed = true;
+    }
+  }
+  for (const u of S.E){
+    u.swingT = Math.max(0, u.swingT - dt);
+  }
 
   updateProjectiles(dt);
 
@@ -1233,7 +1727,8 @@ function stepCombat(dt){
       const inRange = dist <= u.range;
 
       if (!inRange){
-        const speed = 62 + (u.star-1)*8;
+        const baseSpeed = 62 + (u.star-1)*8;
+        const speed = baseSpeed * (u.moveMult || 1);
         const nx = dx / (dist||1);
         const ny = dy / (dist||1);
         u.x += nx * speed * dt;
@@ -1249,8 +1744,7 @@ function stepCombat(dt){
         if (isRangedUnit(u)){
           spawnProjectile(u, t);
         } else {
-          t.hp = Math.max(0, t.hp - u.atk);
-          if (t.hp <= 0) t.alive = false;
+          applyDamage(u, t, u.atk);
           u.swingT = 0.18;
         }
         u.cd = u.spd;
@@ -1298,7 +1792,6 @@ function drawShape(x,y,r,shape){
   }
   ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
 }
-
 function drawSwing(u, r){
   if (u.swingT <= 0) return;
   const p = Math.min(1, u.swingT / 0.18);
@@ -1320,7 +1813,6 @@ function drawSwing(u, r){
   ctx.stroke();
   ctx.restore();
 }
-
 function drawProjectiles(){
   for (const p of S.projectiles){
     ctx.save();
@@ -1340,7 +1832,6 @@ function drawProjectiles(){
     ctx.restore();
   }
 }
-
 function draw(){
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle = "#0b1020";
@@ -1372,6 +1863,18 @@ function draw(){
     ctx.lineWidth = 2;
     drawShape(u.x, u.y, r, u.shape);
 
+    // shield ring
+    if (u.shield && u.shield > 0){
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+      ctx.strokeStyle = "#8cc0ff";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(u.x, u.y, r+5, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     drawSwing(u, r);
 
     ctx.fillStyle = "#e8eefc";
@@ -1399,10 +1902,9 @@ function draw(){
   for (const u of S.E) if (u.alive) drawUnit(u);
 }
 
-/* ===== Loop ===== */
+/* ===== Main loop ===== */
 let lastT = 0;
 let rafId = null;
-
 function loop(t){
   if (!lastT) lastT = t;
   const dt = Math.min(0.05, (t-lastT)/1000);
@@ -1414,38 +1916,32 @@ function loop(t){
   rafId = requestAnimationFrame(loop);
 }
 
-/* ===== Permadeath + Round Flow ===== */
+/* ===== Permadeath ===== */
 function applyPermadeath(){
   const dead = S.P.filter(u => !u.alive || u.hp <= 0);
   if (!dead.length) return;
 
   const deadIds = new Set(dead.map(u => u.rosterId).filter(Boolean));
-  const deadNames = [];
-
-  for (const u of dead){
-    if (!u.rosterId) continue;
-    deadNames.push(`${u.name} ★${u.star}`);
-  }
+  const deadNames = dead.map(u => `${u.name} ★${u.star}`);
 
   S.army = S.army.filter(u => !deadIds.has(u.id));
 
-  if (deadNames.length === 1){
-    showToast(`${deadNames[0]} died`, "bad");
-  } else if (deadNames.length > 1){
-    showToast(`Units lost: ${deadNames.join(", ")}`, "bad");
-  }
+  if (deadNames.length === 1) showToast(`${deadNames[0]} died`, "bad");
+  else if (deadNames.length > 1) showToast(`Units lost: ${deadNames.join(", ")}`, "bad");
 }
 
+/* ===== Battle flow ===== */
 function startCombat(){
   if (S.army.length === 0){ showToast("Not enough units", "bad"); return; }
+  if (S.overlay !== "none") return;
 
   setScreen("battle");
   setPhase("combat");
   S.combatRunning = true;
 
   showToast("Battle started", "info");
-
   resizeCanvas();
+
   spawnEnemyWave();
   deployArmies();
 
@@ -1461,17 +1957,10 @@ function showResult(win, summary, type){
   el.resultTitle.textContent = win ? "Victory" : "Defeat";
   el.resultTitle.style.color = win ? "var(--good)" : "var(--bad)";
   el.resultText.textContent = summary;
-
   showToast(summary, type);
 
   updateButtons();
   renderStats();
-
-  setTimeout(() => {
-    if (S.screen === "battle" && S.phase === "result" && S.hp > 0){
-      nextRound();
-    }
-  }, 1200);
 }
 
 function endCombat(win){
@@ -1501,10 +1990,11 @@ function endCombat(win){
       el.btnNext.disabled = true;
       el.btnResultNext.disabled = true;
 
+      // mark ended
       try{
         const data = serializeState();
         data.ended = true;
-        localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+        localStorage.setItem(SAVE_KEY_V2, JSON.stringify(data));
       }catch(e){}
       refreshContinueBtn();
       return;
@@ -1516,66 +2006,345 @@ function endCombat(win){
   saveGame();
 }
 
-function nextRound(){
+/* ===== Post-battle roguelike pipeline ===== */
+function beginPostBattleFlow(){
   if (S.hp <= 0) return;
 
+  S.overlayQueue = [];
+
+  // Rewards only if you survived the fight screen (win or loss both proceed)
+  // Items: normal win 40%, elite win guaranteed
+  // Augments: every 3 rounds (after battle) OR elite win always
+  const survived = true;
+
+  // If battle was won, roll rewards. If lost, still allow node select (so run continues).
+  const lastWasWin = (el.resultTitle.textContent === "Victory");
+  if (lastWasWin){
+    if (S.node.isElite){
+      // guaranteed item
+      const it = { id:rndId(), type: pick(Object.keys(ITEMS)) };
+      S.items.push(it);
+      queueOverlay("item", it);
+      // guaranteed augment
+      queueOverlay("augment");
+    } else {
+      if (chance(0.40)){
+        const it = { id:rndId(), type: pick(Object.keys(ITEMS)) };
+        S.items.push(it);
+        queueOverlay("item", it);
+      }
+      if (S.round % 3 === 0) queueOverlay("augment");
+    }
+  } else {
+    // loss: still allow augment every 3 rounds (keeps TFT feel)
+    if (S.round % 3 === 0) queueOverlay("augment");
+  }
+
+  // Node select always
+  queueOverlay("node");
+
+  saveGame();
+  nextOverlay();
+}
+
+function startNextRoundPlanning(){
+  // round/income happens when moving into next planning
   S.round += 1;
+
+  // baseline income
   S.gold += 2;
 
-  showToast(`Round ${S.round} — +2g`, "info");
+  // augment income
+  if (hasAug("A1")) S.gold += 1;
+
+  // reset node default if not set
+  if (!S.node) S.node = { type:"battle", isElite:false };
+
+  showToast(`Round ${S.round} — +${hasAug("A1") ? 3 : 2}g`, "info");
 
   setScreen("planning");
   setPhase("planning");
   rerollShop(true);
-
   renderAll();
   saveGame();
 }
 
-/* ===== UI Events ===== */
-el.btnStart.addEventListener("click", startCombat);
+/* ===== Overlays ===== */
+function openAugmentPick(){
+  setOverlay("augment");
+  el.augmentChoices.innerHTML = "";
+
+  // pick 3 unique from AUGMENTS not already owned (best-effort)
+  const pool = Object.keys(AUGMENTS).filter(id => !S.augments.includes(id));
+  const picks = [];
+  while (picks.length < 3 && pool.length){
+    const id = pool.splice(Math.floor(Math.random()*pool.length), 1)[0];
+    picks.push(id);
+  }
+  while (picks.length < 3){
+    // allow repeats if run is long
+    picks.push(pick(Object.keys(AUGMENTS)));
+  }
+
+  for (const id of picks){
+    const a = AUGMENTS[id];
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+    card.innerHTML = `<div class="name">${a.name}</div><div class="desc">${a.desc}</div>`;
+    const btn = document.createElement("button");
+    btn.className = "btnPrimary";
+    btn.textContent = "Pick";
+    btn.addEventListener("click", ()=>{
+      S.augments.push(id);
+      if (a.pickNow) a.pickNow(S);
+      showToast(`Augment: ${a.name}`, "good");
+      renderAll();
+      saveGame();
+      nextOverlay();
+    });
+    card.appendChild(btn);
+    el.augmentChoices.appendChild(card);
+  }
+}
+
+function openItemReward(itemObj){
+  setOverlay("item");
+  const def = ITEMS[itemObj.type];
+  el.itemRewardCard.innerHTML = `
+    <div class="name">${def.name}</div>
+    <div class="desc">${def.desc}</div>
+    <div class="desc" style="margin-top:6px;">Open Inventory in Planning to equip.</div>
+  `;
+}
+
+el.btnItemContinue.addEventListener("click", ()=>{
+  nextOverlay();
+});
+
+function openNodeSelect(){
+  setOverlay("node");
+  el.nodeChoices.innerHTML = "";
+
+  const nodes = [
+    { type:"battle", isElite:false, title:"Battle", desc:"Normal fight." },
+    { type:"battle", isElite:true,  title:"Elite",  desc:"Harder enemies. Better rewards." },
+    { type:"event",  isElite:false, title:"Event",  desc:"Risk/reward choice." },
+  ];
+
+  for (const n of nodes){
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+    card.innerHTML = `<div class="name">${n.title}</div><div class="desc">${n.desc}</div>`;
+    const btn = document.createElement("button");
+    btn.className = "btnPrimary";
+    btn.textContent = "Choose";
+    btn.addEventListener("click", ()=>{
+      if (n.type === "event"){
+        S.node = { type:"event", isElite:false };
+        saveGame();
+        // event overlay next
+        setOverlay("none");
+        openEventSelect();
+      } else {
+        S.node = { type:"battle", isElite: !!n.isElite };
+        saveGame();
+        setOverlay("none");
+        startNextRoundPlanning();
+      }
+    });
+    card.appendChild(btn);
+    el.nodeChoices.appendChild(card);
+  }
+}
+
+function openEventSelect(){
+  setOverlay("event");
+  el.eventChoices.innerHTML = "";
+
+  // pick 3 events (unique)
+  const pool = EVENTS.slice();
+  const picks = [];
+  while (picks.length < 3 && pool.length){
+    picks.push(pool.splice(Math.floor(Math.random()*pool.length), 1)[0]);
+  }
+
+  for (const ev of picks){
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+    card.innerHTML = `<div class="name">${ev.name}</div><div class="desc">${ev.desc}</div>`;
+    const btn = document.createElement("button");
+    btn.className = "btnPrimary";
+    btn.textContent = "Take";
+    btn.addEventListener("click", ()=>{
+      ev.apply(S);
+      mergeAllSafe();
+      renderAll();
+      saveGame();
+
+      // after event, next node becomes normal battle by default
+      S.node = { type:"battle", isElite:false };
+      setOverlay("none");
+      startNextRoundPlanning();
+    });
+    card.appendChild(btn);
+    el.eventChoices.appendChild(card);
+  }
+}
+
+/* ===== Inventory overlay ===== */
+let selectedInvItemId = null;
+
+function openInventory(){
+  setOverlay("inventory");
+  selectedInvItemId = null;
+  el.invHint.textContent = "Tap an item, then tap a unit to equip.";
+  renderInventory();
+}
+
+function renderInventory(){
+  el.invItems.innerHTML = "";
+  el.invUnits.innerHTML = "";
+  el.invCount.textContent = `${S.items.length} items`;
+  el.invUnitsCount.textContent = `${S.army.length} units`;
+
+  for (const it of S.items){
+    const def = ITEMS[it.type];
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+    card.style.cursor = "pointer";
+    const sel = (selectedInvItemId === it.id);
+    card.style.borderColor = sel ? "rgba(106,166,255,0.95)" : "rgba(42,58,99,0.95)";
+    card.innerHTML = `<div class="name">${def.name}</div><div class="desc">${def.desc}</div>`;
+    const btn = document.createElement("button");
+    btn.className = sel ? "btnPrimary" : "";
+    btn.textContent = sel ? "Selected" : "Select";
+    btn.addEventListener("click", ()=>{
+      selectedInvItemId = it.id;
+      el.invHint.textContent = `Selected: ${def.name}. Now tap a unit.`;
+      renderInventory();
+    });
+    card.appendChild(btn);
+    el.invItems.appendChild(card);
+  }
+
+  if (!S.items.length){
+    const empty = document.createElement("div");
+    empty.className = "choiceCard";
+    empty.innerHTML = `<div class="name">No items</div><div class="desc">Win fights to find items.</div>`;
+    el.invItems.appendChild(empty);
+  }
+
+  for (const u of S.army){
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+    const itemName = u.item ? (ITEMS[u.item.type]?.name || "Item") : "None";
+    card.innerHTML = `
+      <div class="name">${u.name} ${"★".repeat(u.star)}</div>
+      <div class="desc">${u.classTag}/${u.originTag} • Item: ${itemName}</div>
+    `;
+    const btn = document.createElement("button");
+    btn.className = "btnPrimary";
+    btn.textContent = "Equip Here";
+    btn.disabled = !selectedInvItemId && !u.item; // allow replace only if item selected
+    btn.addEventListener("click", ()=>{
+      if (!selectedInvItemId){
+        showToast("Select an item first", "bad");
+        return;
+      }
+      const invIdx = S.items.findIndex(x => x.id === selectedInvItemId);
+      if (invIdx < 0){ showToast("Item not found", "bad"); return; }
+      const pickedItem = S.items.splice(invIdx, 1)[0];
+
+      // if unit had item, put it back
+      if (u.item){
+        S.items.push({ id:rndId(), type:u.item.type });
+      }
+      u.item = { id:rndId(), type:pickedItem.type };
+
+      selectedInvItemId = null;
+      showToast(`${ITEMS[u.item.type].name} equipped to ${u.name} ★${u.star}`, "good");
+      renderAll();
+      saveGame();
+      renderInventory();
+    });
+
+    card.appendChild(btn);
+    el.invUnits.appendChild(card);
+  }
+
+  if (!S.army.length){
+    const empty = document.createElement("div");
+    empty.className = "choiceCard";
+    empty.innerHTML = `<div class="name">No units</div><div class="desc">Buy units in the shop.</div>`;
+    el.invUnits.appendChild(empty);
+  }
+}
+
+el.btnInvClose.addEventListener("click", ()=>{
+  setOverlay("none");
+  renderAll();
+});
+
+/* ===== Result "Next" handling ===== */
+function proceedFromResult(){
+  if (S.overlay !== "none") return;
+  // Close result overlay visually
+  document.body.dataset.result = "hide";
+  setOverlay("none");
+  beginPostBattleFlow();
+}
+
+/* ===== Events ===== */
 el.btnReroll.addEventListener("click", () => rerollShop(false));
-el.btnNext.addEventListener("click", nextRound);
-el.btnResultNext.addEventListener("click", nextRound);
+el.btnStart.addEventListener("click", startCombat);
+el.btnNext.addEventListener("click", proceedFromResult);
+el.btnResultNext.addEventListener("click", proceedFromResult);
 
 el.btnMenu.addEventListener("click", () => {
+  setOverlay("none");
   setScreen("menu");
   showToast("Menu", "info");
   refreshContinueBtn();
+});
+el.btnInventory.addEventListener("click", () => {
+  openInventory();
 });
 
 el.btnHowTo.addEventListener("click", () => {
   document.body.dataset.howto = (document.body.dataset.howto === "open") ? "closed" : "open";
 });
-
-el.btnNewGame.addEventListener("click", () => {
-  newGame();
-});
-
+el.btnNewGame.addEventListener("click", () => newGame());
 el.btnContinue.addEventListener("click", () => {
   const ok = loadGame();
   if (!ok) showToast("No save found", "bad");
 });
 
-/* ===== INIT / NEW GAME ===== */
+/* ===== Init / New Game ===== */
 function newGame(){
   clearSave();
   S.round = 1;
   S.gold = 10;
   S.hp = 20;
   S.streak = 0;
-  S.army = [];
   S.shop = [];
+  S.army = [];
+  S.augments = [];
+  S.items = [];
+  S.node = { type:"battle", isElite:false };
+  S.nextEnemyMod = null;
+  S.overlay = "none";
+  S.overlayQueue = [];
+
   S.projectiles = [];
   S.P = []; S.E = [];
   S.combatRunning = false;
 
+  // starters
   S.army.push(makeUnit("Brawler", 1, "player"));
   S.army.push(makeUnit("Archer", 1, "player"));
 
   setScreen("planning");
   setPhase("planning");
-
   rerollShop(true);
   renderAll();
   showToast("New Game", "good");
@@ -1585,12 +2354,81 @@ function newGame(){
 function init(){
   resizeCanvas();
   refreshContinueBtn();
+  if (!localStorage.getItem(SAVE_KEY_V2)) tryMigrateV1();
   setScreen("menu");
   setPhase("planning");
   showToast("Welcome", "info");
   if (!rafId) rafId = requestAnimationFrame(loop);
 }
 init();
+
+/* ===== Rendering hooks ===== */
+function openItemRewardFromQueue(itemObj){
+  openItemReward(itemObj);
+}
+
+/* ===== Overlay navigation: item continue triggers next overlay or planning ===== */
+function openItemReward(itemObj){
+  setOverlay("item");
+  const def = ITEMS[itemObj.type];
+  el.itemRewardCard.innerHTML = `
+    <div class="name">${def.name}</div>
+    <div class="desc">${def.desc}</div>
+    <div class="desc" style="margin-top:6px;">Inventory → equip (1 slot per unit).</div>
+  `;
+}
+
+/* ===== Node overlay builder (updated to use nextOverlay pipeline) ===== */
+function openNodeSelect(){
+  setOverlay("node");
+  el.nodeChoices.innerHTML = "";
+
+  const nodes = [
+    { type:"battle", isElite:false, title:"Battle", desc:"Normal fight." },
+    { type:"battle", isElite:true,  title:"Elite",  desc:"Harder enemies. Guaranteed item + augment on win." },
+    { type:"event",  isElite:false, title:"Event",  desc:"Pick one risk/reward outcome." },
+  ];
+
+  for (const n of nodes){
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+    card.innerHTML = `<div class="name">${n.title}</div><div class="desc">${n.desc}</div>`;
+    const btn = document.createElement("button");
+    btn.className = "btnPrimary";
+    btn.textContent = "Choose";
+    btn.addEventListener("click", ()=>{
+      if (n.type === "event"){
+        S.node = { type:"event", isElite:false };
+        saveGame();
+        openEventSelect();
+      } else {
+        S.node = { type:"battle", isElite: !!n.isElite };
+        saveGame();
+        setOverlay("none");
+        startNextRoundPlanning();
+      }
+    });
+    card.appendChild(btn);
+    el.nodeChoices.appendChild(card);
+  }
+}
+
+/* ===== IMPORTANT: after closing item overlay, continue queue ===== */
+el.btnItemContinue.addEventListener("click", ()=>{
+  nextOverlay();
+});
+
+/* ===== Combat -> result enables Next ===== */
+(function patchButtonsEnable(){
+  const oldShowResult = showResult;
+  showResult = function(win, summary, type){
+    oldShowResult(win, summary, type);
+    // enable Next
+    updateButtons();
+  };
+})();
+
+/* ===== Canvas draw only if battle screen ===== */
 </script>
 </body>
 </html>
