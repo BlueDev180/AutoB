@@ -397,6 +397,7 @@
     body[data-overlay="event"] #ovEvent{ display:block; }
     body[data-overlay="inventory"] #ovInventory{ display:block; }
     body[data-overlay="synergies"] #ovSynergies{ display:block; }
+    body[data-overlay="bonuses"] #ovBonuses{ display:block; }
     body[data-overlay="replace"] #ovReplace{ display:block; }
 
     .ovCard{
@@ -461,6 +462,7 @@
       min-height:0;
       flex:1 1 auto;
       overflow:hidden;
+      align-items: stretch;
     }
     .invList{
       min-height:0;
@@ -495,7 +497,13 @@
 
     /* ===== Inventory readability: make cards roomier + clamp text cleanly ===== */
     #ovInventory .panel{ padding:12px; border-radius:16px; }
-    #ovInventory .choiceCard{ padding:14px 14px; border-radius:16px; gap:8px; min-height:72px; }
+    #ovInventory .choiceCard{
+      padding:16px 14px;
+      border-radius:16px;
+      gap:10px;
+      min-height:86px; /* roomier by default */
+    }
+    #ovInventory .choiceCard.invUnit{ min-height:144px; } /* prevents "collapsing" when list grows */
     #ovInventory .choiceCard .name{ font-size:14px; line-height:1.2; }
     #ovInventory .choiceCard .name span:first-child{
       white-space: normal;
@@ -507,17 +515,120 @@
     }
     #ovInventory .choiceCard .desc{
       font-size:13px;
-      line-height:1.35;
+      line-height:1.4;
       display:-webkit-box;
       -webkit-box-orient: vertical;
       overflow:hidden;
       text-overflow:ellipsis;
-      -webkit-line-clamp: 1;
+      -webkit-line-clamp: 2;
     }
-    #ovInventory .choiceCard.invUnit .desc{ -webkit-line-clamp: 2; }
     #ovInventory .choiceCard.invItem .desc{ -webkit-line-clamp: 1; }
-    #ovInventory .choiceCard.invItem button,
-    #ovInventory .choiceCard.invUnit button{ margin-top:2px; }
+    #ovInventory .choiceCard.invUnit .desc{ -webkit-line-clamp: 3; }
+
+    /* Selected item bar */
+    .selBar{
+      display:none;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      min-width:0;
+    }
+    .selLeft{
+      min-width:0;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      overflow:hidden;
+    }
+    .selLeft .pill{ max-width: 64vw; overflow:hidden; text-overflow:ellipsis; }
+    .miniBtn{
+      min-height:34px !important;
+      padding:8px 10px !important;
+      border-radius:999px !important;
+      font-size:12px !important;
+      width:auto !important;
+      white-space:nowrap !important;
+    }
+
+    /* Equipped chips (unit cards) */
+    .equipWrap{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .equipRow{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+    }
+    .equipChip{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      border:1px solid rgba(42,58,99,0.95);
+      background:#0f1830;
+      padding:7px 10px;
+      border-radius:999px;
+      font-size:12px;
+      color:#cfe0ff;
+      line-height:1;
+      max-width:100%;
+      overflow:hidden;
+    }
+    .equipChip .txt{
+      min-width:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .equipFxLine{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.25;
+      display:-webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .smallTag{
+      font-size:11px;
+      padding:5px 8px;
+      border-radius:999px;
+      border:1px solid rgba(42,58,99,0.95);
+      background:#10192e;
+      color:#cfe0ff;
+      line-height:1;
+      white-space:nowrap;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+    }
+    .smallTag.muted{ opacity:0.65; }
+
+    /* Action row inside unit cards (inventory) */
+    .unitActions{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      align-items:center;
+    }
+    .unitActions.one{ grid-template-columns: 1fr; }
+    .unitActions .pillLike{
+      min-height:44px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      border-radius:12px;
+      border:1px solid rgba(42,58,99,0.95);
+      background:#10192e;
+      color:#b9c6e6;
+      font-weight:1000;
+      font-size:12px;
+      padding:12px 10px;
+    }
 
     @media (max-width: 380px){
       .card{ flex-basis: 205px; }
@@ -525,7 +636,8 @@
       button{ padding:12px 12px; }
       .statTile .val{ font-size:19px; }
       #toast{ font-size:13px; }
-      #ovInventory .choiceCard{ padding:14px 12px; }
+      #ovInventory .choiceCard{ padding:16px 12px; }
+      .selLeft .pill{ max-width: 58vw; }
     }
   </style>
 </head>
@@ -617,6 +729,24 @@
     </div>
   </div>
 
+  <!-- Bonuses overlay -->
+  <div class="fsOverlay" id="ovBonuses" aria-hidden="true">
+    <div class="ovCard">
+      <div class="panel">
+        <div class="ovHeader">
+          <div>
+            <div class="ovTitle">Bonuses</div>
+            <div class="ovSub">Active synergy bonuses + team-wide item buffs + global augments.</div>
+          </div>
+          <button id="btnBonusesClose" class="btnPrimary" style="min-height:40px; padding:10px 12px;">Close</button>
+        </div>
+      </div>
+      <div class="ovBody">
+        <div class="vStack" id="bonusesList"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Replace overlay (when item slots full) -->
   <div class="fsOverlay" id="ovReplace" aria-hidden="true">
     <div class="ovCard">
@@ -642,10 +772,19 @@
         <div class="ovHeader">
           <div>
             <div class="ovTitle">Inventory</div>
-            <div class="ovSub" id="invHint">Tap an item, then tap Equip Here on a unit. Unequip returns to inventory.</div>
+            <div class="ovSub" id="invHint">Tap an item, then equip it to a unit. Unequip returns to inventory.</div>
           </div>
           <button id="btnInvClose" class="btnPrimary" style="min-height:40px; padding:10px 12px;">Close</button>
         </div>
+      </div>
+
+      <!-- Selected item sticky bar -->
+      <div class="panel selBar" id="invSelectedBar">
+        <div class="selLeft">
+          <div class="smallTag">Selected</div>
+          <div class="pill" id="invSelectedText" style="min-width:0;">—</div>
+        </div>
+        <button id="btnInvClearSel" class="btnGhost miniBtn">Clear</button>
       </div>
 
       <!-- old tabs kept but fully hidden via CSS -->
@@ -758,6 +897,7 @@
             <div class="panelTop">
               <div class="panelTitle">Your Army</div>
               <div class="armyHeaderRight">
+                <button id="btnBonuses" class="btnGhost">Bonuses</button>
                 <button id="btnSynergies" class="btnGhost">Synergies</button>
                 <div class="pill">Permadeath ON</div>
               </div>
@@ -883,7 +1023,11 @@ const ITEMS = {
   I9:{ id:"I9", name:"Chain Rune",   rarity:"Rare",     desc:"Every 4th hit chains",    apply:(c)=>{ c.chainEvery = 4; c.chainReady = 0; } },
   I10:{id:"I10",name:"Aegis Core",   rarity:"Epic",     desc:"Start with a shield",     apply:(c)=>{ c.startShield = 0.18; } },
   I11:{id:"I11",name:"Phoenix Feather",rarity:"Epic",   desc:"Revive once at 25% HP",   apply:(c)=>{ c.reviveOnce = true; } },
-  I12:{id:"I12",name:"Chrono Relic", rarity:"Legendary",desc:"Team +10% atk speed",     apply:(c)=>{ } },
+
+  /* Team-wide item buff metadata (shown in Bonuses modal). */
+  I12:{id:"I12",name:"Chrono Relic", rarity:"Legendary",desc:"Team +10% atk speed",
+      teamBuff:{ key:"atkSpeed", value:0.10, label:"Team +10% attack speed" },
+      apply:(c)=>{ } },
 };
 
 /* ===== Augments (with stacking rules) ===== */
@@ -992,6 +1136,7 @@ const el = {
   btnMenu: document.getElementById("btnMenu"),
   btnInventory: document.getElementById("btnInventory"),
   btnSynergies: document.getElementById("btnSynergies"),
+  btnBonuses: document.getElementById("btnBonuses"),
   btnStart: document.getElementById("btnStart"),
   btnReroll: document.getElementById("btnReroll"),
   shop: document.getElementById("shop"),
@@ -1014,12 +1159,18 @@ const el = {
   synergyList: document.getElementById("synergyList"),
   btnSynClose: document.getElementById("btnSynClose"),
 
+  bonusesList: document.getElementById("bonusesList"),
+  btnBonusesClose: document.getElementById("btnBonusesClose"),
+
   invItems: document.getElementById("invItems"),
   invUnits: document.getElementById("invUnits"),
   invCount: document.getElementById("invCount"),
   invUnitsCount: document.getElementById("invUnitsCount"),
   invHint: document.getElementById("invHint"),
   btnInvClose: document.getElementById("btnInvClose"),
+  invSelectedBar: document.getElementById("invSelectedBar"),
+  invSelectedText: document.getElementById("invSelectedText"),
+  btnInvClearSel: document.getElementById("btnInvClearSel"),
 
   replaceSub: document.getElementById("replaceSub"),
   replaceChoices: document.getElementById("replaceChoices"),
@@ -1070,6 +1221,7 @@ function nextOverlay(){
   else if (x.name === "event") openEventSelect();
   else if (x.name === "inventory") openInventory();
   else if (x.name === "synergies") openSynergiesOverlay();
+  else if (x.name === "bonuses") openBonusesOverlay();
   else setOverlay("none");
 }
 
@@ -1174,20 +1326,17 @@ function saveGame(){
 function clearSave(){
   try{
     localStorage.removeItem(SAVE_KEY_V4);
-    // keep old keys untouched
   }catch(e){}
   refreshContinueBtn();
 }
 
 function normalizeAugmentsFromLegacy(a){
-  // legacy was array of ids: ["A2","A1","A1"...]
   const map = {};
   if (Array.isArray(a)){
     for (const id of a){
       if (!AUGMENTS[id]) continue;
       map[id] = (map[id]||0) + 1;
     }
-    // enforce max stacks
     for (const id of Object.keys(map)){
       map[id] = Math.min(map[id], maxStacksFor(id));
       if (!AUGMENTS[id].stackable) map[id] = Math.min(map[id], 1);
@@ -1209,11 +1358,9 @@ function normalizeAugmentsFromLegacy(a){
 
 function loadGame(){
   try{
-    // prefer v4
     let raw = localStorage.getItem(SAVE_KEY_V4);
     let data = raw ? JSON.parse(raw) : null;
 
-    // fallback v3
     if (!data){
       raw = localStorage.getItem(SAVE_KEY_V3);
       data = raw ? JSON.parse(raw) : null;
@@ -1357,6 +1504,7 @@ function updateButtons(){
   el.btnInventory.disabled = !(S.screen === "planning");
   el.btnMenu.disabled = !(S.screen === "planning");
   el.btnSynergies.disabled = !(S.screen === "planning");
+  el.btnBonuses.disabled = !(S.screen === "planning");
 
   const canAdvance = (!overlayOpen && S.screen === "battle" && S.phase === "result" && S.hp > 0);
   el.btnNext.disabled = !canAdvance;
@@ -1370,7 +1518,6 @@ function getTraitCounts(units){
     if (u.classTag && c[u.classTag] != null) c[u.classTag]++;
     if (u.originTag && c[u.originTag] != null) c[u.originTag]++;
   }
-  // crests are unique; still safe if ever stacked
   c.Warrior += augStacks("A9");
   c.Ranger  += augStacks("A10");
   c.Mage    += augStacks("A11");
@@ -1416,6 +1563,125 @@ function renderSynergiesOverlay(){
     `;
     el.synergyList.appendChild(card);
   }
+}
+
+/* ===== Bonuses modal ===== */
+function synergyBonusDesc(trait, tier, counts){
+  const n = counts[trait] || 0;
+  if (tier <= 0) return "";
+  switch(trait){
+    case "Warrior":
+      return (n >= 4) ? "Team gains +35% max HP." : "Team gains +15% max HP.";
+    case "Ranger":
+      return (n >= 4) ? "Team attacks much faster (≈25% faster)." : "Team attacks faster (≈10% faster).";
+    case "Mage":
+      return (n >= 3) ? "Team deals +30% damage (ATK multiplier)." : "Team deals +15% damage (ATK multiplier).";
+    case "Rogue":
+      return (n >= 3) ? "Team gains big first-hit bonus + faster movement." : "Team gains first-hit bonus + slightly faster movement.";
+    case "Kingdom":
+      return (n >= 3) ? "Frontliners take 20% less damage." : "Frontliners take 10% less damage.";
+    case "Wilds":
+      return (n >= 3) ? "Team regenerates ~3% max HP per second." : "Team regenerates ~1.5% max HP per second.";
+    case "Cult":
+      return (n >= 3) ? "On kill: gain a strong temporary shield." : "On kill: gain a small temporary shield.";
+    default:
+      return "";
+  }
+}
+function collectTeamItemBuffs(){
+  // aggregate by teamBuff.key (or label fallback)
+  const agg = new Map();
+  for (const u of S.army){
+    const arr = Array.isArray(u.items) ? u.items : [];
+    for (const it of arr){
+      if (!it || !it.type) continue;
+      const def = ITEMS[it.type];
+      if (!def || !def.teamBuff) continue;
+      const tb = def.teamBuff;
+      const key = tb.key || tb.label || def.name;
+      const cur = agg.get(key) || { key, label: tb.label || def.name, value: 0, stacks: 0 };
+      cur.stacks += 1;
+      cur.value += Number(tb.value || 0);
+      agg.set(key, cur);
+    }
+  }
+  return Array.from(agg.values());
+}
+function renderBonusesOverlay(){
+  el.bonusesList.innerHTML = "";
+
+  const counts = getTraitCounts(S.army);
+  const order = ["Warrior","Ranger","Mage","Rogue","Kingdom","Wilds","Cult"];
+
+  // Section helper
+  function section(title){
+    const h = document.createElement("div");
+    h.className = "choiceCard";
+    h.style.background = "rgba(10,14,24,0.88)";
+    h.style.borderColor = "rgba(42,58,99,0.95)";
+    h.innerHTML = `<div class="name"><span>${title}</span><span class="rarMini">Active</span></div>`;
+    el.bonusesList.appendChild(h);
+  }
+  function entry(name, desc, tagText=""){
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+    card.innerHTML = `
+      <div class="name"><span>${name}</span>${tagText ? `<span class="rarMini">${tagText}</span>` : ""}</div>
+      <div class="desc">${desc}</div>
+    `;
+    el.bonusesList.appendChild(card);
+  }
+  function none(){
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+    card.innerHTML = `<div class="name"><span>None</span><span class="rarMini">—</span></div><div class="desc">No bonuses active in this section.</div>`;
+    el.bonusesList.appendChild(card);
+  }
+
+  // 1) Synergy Bonuses
+  section("Synergy Bonuses");
+  let anySyn = false;
+  for (const k of order){
+    const n = counts[k] || 0;
+    const tt = traitTier(k, n);
+    if (tt.tier > 0){
+      anySyn = true;
+      entry(`${k} (${n})`, synergyBonusDesc(k, tt.tier, counts), `Tier ${tt.tier}`);
+    }
+  }
+  if (!anySyn) none();
+
+  // 2) Team Item Bonuses
+  section("Team Item Bonuses");
+  const buffs = collectTeamItemBuffs();
+  if (!buffs.length){
+    none();
+  } else {
+    for (const b of buffs){
+      const pct = (Math.abs(b.value) <= 1.0) ? Math.round(b.value * 100) : b.value;
+      const stackTxt = (b.stacks > 1) ? `x${b.stacks}` : "";
+      entry(`${b.label}${stackTxt ? ` (${stackTxt})` : ""}`, `Total: +${pct}%`, "Team");
+    }
+  }
+
+  // 3) Global Upgrades / Augments
+  section("Global Upgrades / Augments");
+  const ids = Object.keys(S.augments || {}).filter(id => augStacks(id) > 0);
+  if (!ids.length){
+    none();
+  } else {
+    for (const id of ids){
+      const a = AUGMENTS[id];
+      if (!a) continue;
+      const st = augStacks(id);
+      const tag = a.stackable ? `x${st}` : "Unique";
+      entry(a.name, a.desc, tag);
+    }
+  }
+}
+function openBonusesOverlay(){
+  setOverlay("bonuses");
+  renderBonusesOverlay();
 }
 
 /* ===== Shop RNG ===== */
@@ -1509,6 +1775,9 @@ function itemLabel(type){
 }
 function itemRarity(type){
   return ITEMS[type]?.rarity || "Common";
+}
+function itemDesc(type){
+  return ITEMS[type]?.desc || "";
 }
 function renderSlotRowHTML(unit){
   const max = unit.itemSlotsMax || 1;
@@ -1685,6 +1954,7 @@ function renderAll(){
   renderShop();
   renderArmy();
   if (S.overlay === "synergies") renderSynergiesOverlay();
+  if (S.overlay === "bonuses") renderBonusesOverlay();
   if (S.overlay === "inventory") renderInventory();
   updateButtons();
 }
@@ -1804,7 +2074,6 @@ function applyRunBonusesToClone(c, counts){
 
   const knifeStacks = augStacks("A6");
   if (knifeStacks > 0){
-    // per stack: +12% ATK, -5% HP (multiplicative)
     for (let i=0;i<knifeStacks;i++){
       c.atk = Math.round(c.atk * 1.12);
       c.maxHP = Math.round(c.maxHP * 0.95);
@@ -1819,12 +2088,7 @@ function applyRunBonusesToClone(c, counts){
 
   const rapidStacks = augStacks("A8");
   if (rapidStacks > 0 && c.classTag === "Ranger"){
-    // per stack: 8% faster (spd is seconds per attack)
     for (let i=0;i<rapidStacks;i++) c.spd = c.spd * 0.92;
-  }
-
-  if (hasAug("A5")) {
-    // handled in stepCombat with hasAug("A5")
   }
 
   const arr = Array.isArray(c.items) ? c.items : [];
@@ -2737,8 +3001,7 @@ function beginPostBattleFlow(){
 
 function startNextRoundPlanning(){
   S.round += 1;
-  // base income
-  let income = 2 + augStacks("A1"); // A1 stacks add +1 per stack per round
+  let income = 2 + augStacks("A1");
   S.gold += income;
 
   showToast(`Round ${S.round} — +${income}g`, "info");
@@ -2755,17 +3018,13 @@ function openAugmentPick(){
   setOverlay("augment");
   el.augmentChoices.innerHTML = "";
 
-  // Build eligible pool: not owned if unique; if stackable must be below max
   const eligible = Object.keys(AUGMENTS).filter(id => canTakeAug(id));
-
-  // pick 3 distinct
   const picks = [];
   const pool = eligible.slice();
   while (picks.length < 3 && pool.length){
     const id = pool.splice(Math.floor(Math.random()*pool.length), 1)[0];
     if (!picks.includes(id)) picks.push(id);
   }
-  // if still short, try again from eligible but keep distinct
   while (picks.length < 3 && eligible.length){
     const id = pick(eligible);
     if (!picks.includes(id)) picks.push(id);
@@ -2790,7 +3049,6 @@ function openAugmentPick(){
       const added = addAugment(id, 1);
       if (added <= 0){
         showToast("Cannot take this again", "bad");
-        // re-roll choices if somehow stuck
         openAugmentPick();
         return;
       }
@@ -2884,16 +3142,72 @@ function openEventSelect(){
   }
 }
 
-/* ===== Inventory overlay (fix equip robustness + better feedback) ===== */
+/* ===== Inventory overlay (clarity + slot-full rules) ===== */
 let selectedInvItemId = null;
 let selectedInvItemType = null;
 
-function openInventory(){
-  setOverlay("inventory");
+function clearInvSelection(showMsg=false){
   selectedInvItemId = null;
   selectedInvItemType = null;
-  el.invHint.textContent = "Tap an item, then tap Equip Here on a unit. Unequip returns to inventory.";
+  if (showMsg) showToast("Selection cleared", "info");
+  el.invHint.textContent = "Tap an item, then equip it to a unit. Unequip returns to inventory.";
+}
+
+function openInventory(){
+  setOverlay("inventory");
+  clearInvSelection(false);
   renderInventory();
+}
+
+function updateSelectedBar(){
+  const hasSel = !!(selectedInvItemId || selectedInvItemType);
+  if (!hasSel){
+    el.invSelectedBar.style.display = "none";
+    return;
+  }
+  const it =
+    (selectedInvItemId ? S.items.find(x => x.id === selectedInvItemId) : null) ||
+    (selectedInvItemType ? S.items.find(x => x.type === selectedInvItemType) : null);
+
+  if (!it){
+    el.invSelectedBar.style.display = "none";
+    clearInvSelection(false);
+    return;
+  }
+  const def = ITEMS[it.type];
+  const rar = def?.rarity || "Common";
+  el.invSelectedText.textContent = `${def?.name || "Item"} (${rar})`;
+  el.invSelectedBar.style.display = "flex";
+}
+
+function renderEquippedSection(u){
+  const arr = Array.isArray(u.items) ? u.items.filter(x=>x && x.type) : [];
+  const max = u.itemSlotsMax || 1;
+
+  let chips = "";
+  if (!arr.length){
+    chips = `<span class="equipChip"><span class="txt">—</span></span>`;
+  } else {
+    for (const it of arr){
+      const def = ITEMS[it.type];
+      const rarCol = rarityColor(def?.rarity || "Common");
+      chips += `<span class="equipChip" style="border-color:${rarCol};">
+        <span class="txt">${def?.name || "Item"}</span>
+      </span>`;
+    }
+  }
+
+  const fx = arr.map(it => itemDesc(it.type)).filter(Boolean).join("; ");
+  const fxLine = fx ? `<div class="equipFxLine">${fx}</div>` : `<div class="equipFxLine">Equipped items shown above.</div>`;
+
+  return `
+    <div class="equipWrap">
+      <div class="desc" style="color:#cfe0ff; font-weight:1000; letter-spacing:0.2px;">Equipped</div>
+      <div class="equipRow">${chips}</div>
+      ${fxLine}
+      <div class="desc">Slots ${arr.length}/${max}</div>
+    </div>
+  `;
 }
 
 function renderInventory(){
@@ -2901,6 +3215,8 @@ function renderInventory(){
   el.invUnits.innerHTML = "";
   el.invCount.textContent = `${S.items.length} item${S.items.length===1?"":"s"}`;
   el.invUnitsCount.textContent = `${S.army.length} unit${S.army.length===1?"":"s"}`;
+
+  updateSelectedBar();
 
   // Items
   for (const it of S.items){
@@ -2911,6 +3227,8 @@ function renderInventory(){
     const card = document.createElement("div");
     card.className = "choiceCard invItem";
     card.style.borderColor = sel ? "rgba(106,166,255,0.95)" : "rgba(42,58,99,0.95)";
+    if (sel) card.style.boxShadow = "0 0 0 2px rgba(106,166,255,0.18) inset";
+
     card.innerHTML = `
       <div class="name">
         <span>${def.name}</span>
@@ -2925,7 +3243,7 @@ function renderInventory(){
     btn.addEventListener("click", ()=>{
       selectedInvItemId = it.id;
       selectedInvItemType = it.type;
-      el.invHint.textContent = `Selected: ${def.name} — now tap “Equip Here” on a unit.`;
+      el.invHint.textContent = `Selected: ${def.name} — now equip it to a unit.`;
       showToast(`Selected ${def.name}`, "info");
       renderInventory();
     });
@@ -2943,140 +3261,130 @@ function renderInventory(){
   // Units
   for (const u of S.army){
     const rarCol = rarityColor(u.rarity || "Common");
-    const have = (u.items||[]).filter(x=>x && x.type).length;
+    const curItems = Array.isArray(u.items) ? u.items.filter(x=>x && x.type) : [];
+    const have = curItems.length;
     const max = u.itemSlotsMax || 1;
 
     const card = document.createElement("div");
     card.className = "choiceCard invUnit";
 
-    // Keep this concise + readable
     card.innerHTML = `
       <div class="name">
         <span>${u.name} ${"★".repeat(u.star)}</span>
         <span class="rarMini" style="border-color:${rarCol}; color:${rarCol};">${u.rarity}</span>
       </div>
-      <div class="desc">${u.classTag}/${u.originTag} • Slots ${have}/${max}</div>
+      <div class="desc">${u.classTag}/${u.originTag}</div>
+      ${renderEquippedSection(u)}
     `;
 
-    const equipBtn = document.createElement("button");
-    equipBtn.className = "btnPrimary";
-    equipBtn.textContent = "Equip Here";
-    const hasSelection = !!(selectedInvItemId || selectedInvItemType);
-    equipBtn.disabled = !hasSelection;
+    const actions = document.createElement("div");
+    actions.className = have ? "unitActions" : "unitActions one";
 
-    equipBtn.addEventListener("click", ()=>{
-      showToast("Equip attempt…", "info");
+    // Equip/Replace logic (no "Equip Here" when full)
+    const hasSel = !!(selectedInvItemId || selectedInvItemType);
 
-      const hasSel = !!(selectedInvItemId || selectedInvItemType);
-      if (!hasSel){
-        showToast("Select an item first", "bad");
-        return;
+    if (have >= max){
+      if (hasSel){
+        const replaceBtn = document.createElement("button");
+        replaceBtn.className = "btnPrimary";
+        replaceBtn.textContent = "Replace Item";
+        replaceBtn.addEventListener("click", ()=>{
+          // Choose the selected item from inventory
+          let invIdx = -1;
+          if (selectedInvItemId) invIdx = S.items.findIndex(x => x.id === selectedInvItemId);
+          if (invIdx < 0 && selectedInvItemType) invIdx = S.items.findIndex(x => x.type === selectedInvItemType);
+
+          if (invIdx < 0){
+            showToast("Item not found (reselect)", "bad");
+            clearInvSelection(false);
+            renderInventory();
+            return;
+          }
+          const pickedItem = S.items[invIdx];
+          S.pendingEquip = {
+            unitId: u.id,
+            pickedItemType: pickedItem.type,
+            pickedItemId: pickedItem.id,
+            prevOverlay: "inventory"
+          };
+          showToast("Choose a slot to replace", "info");
+          openReplaceOverlay();
+        });
+        actions.appendChild(replaceBtn);
+      } else {
+        const full = document.createElement("div");
+        full.className = "pillLike";
+        full.textContent = "Slots full";
+        actions.appendChild(full);
       }
+    } else {
+      const equipBtn = document.createElement("button");
+      equipBtn.className = hasSel ? "btnPrimary" : "";
+      equipBtn.textContent = hasSel ? "Equip Selected" : "Select an item";
+      equipBtn.disabled = !hasSel;
 
-      // Prefer by ID; fallback to type (handles stale IDs / duplicate types)
-      let invIdx = -1;
-      if (selectedInvItemId) invIdx = S.items.findIndex(x => x.id === selectedInvItemId);
-      if (invIdx < 0 && selectedInvItemType) invIdx = S.items.findIndex(x => x.type === selectedInvItemType);
+      equipBtn.addEventListener("click", ()=>{
+        let invIdx = -1;
+        if (selectedInvItemId) invIdx = S.items.findIndex(x => x.id === selectedInvItemId);
+        if (invIdx < 0 && selectedInvItemType) invIdx = S.items.findIndex(x => x.type === selectedInvItemType);
 
-      if (invIdx < 0){
-        showToast("Item not found (reselect it)", "bad");
-        selectedInvItemId = null;
-        selectedInvItemType = null;
-        el.invHint.textContent = "Item not found — please select again.";
-        renderInventory();
-        return;
-      }
+        if (invIdx < 0){
+          showToast("Item not found (reselect)", "bad");
+          clearInvSelection(false);
+          renderInventory();
+          return;
+        }
 
-      const pickedItem = S.items[invIdx];
-      selectedInvItemId = pickedItem.id;
-      selectedInvItemType = pickedItem.type;
+        const pickedItem = S.items.splice(invIdx, 1)[0];
+        (u.items ||= []).push({ id:rndId(), type:pickedItem.type });
 
-      const cur = Array.isArray(u.items) ? u.items : (u.items=[]);
-      const maxSlots = u.itemSlotsMax || 1;
+        const nm = itemLabel(pickedItem.type);
+        showToast(`Equipped ${nm} → ${u.name}`, "good");
 
-      if (cur.length < maxSlots){
-        // equip immediately
-        S.items.splice(invIdx, 1);
-        cur.push({ id:rndId(), type:pickedItem.type });
-
-        showToast(`Equipped ${itemLabel(pickedItem.type)} → ${u.name}`, "good");
-
-        selectedInvItemId = null;
-        selectedInvItemType = null;
+        clearInvSelection(false);
         el.invHint.textContent = "Equipped. Select another item to equip more.";
-
         renderAll();
         saveGame();
         renderInventory();
-      } else {
-        // open replace
-        showToast("Unit full — choose slot to replace", "info");
-        S.pendingEquip = {
-          unitId: u.id,
-          pickedItemType: pickedItem.type,
-          pickedItemId: pickedItem.id,
-          prevOverlay: "inventory"
-        };
-        openReplaceOverlay();
-      }
-    });
+      });
 
-    card.appendChild(equipBtn);
-
-    // Unequip list (kept, but readable)
-    const curItems = Array.isArray(u.items) ? u.items : [];
-    if (curItems.length){
-      const unequipWrap = document.createElement("div");
-      unequipWrap.style.display = "flex";
-      unequipWrap.style.flexDirection = "column";
-      unequipWrap.style.gap = "10px";
-
-      for (let i=0;i<curItems.length;i++){
-        const it = curItems[i];
-        if (!it || !it.type) continue;
-        const def = ITEMS[it.type];
-        const rar = def?.rarity || "Common";
-        const col = rarityColor(rar);
-
-        const row = document.createElement("div");
-        row.style.display = "grid";
-        row.style.gridTemplateColumns = "1.25fr 1fr";
-        row.style.gap = "10px";
-        row.style.alignItems = "center";
-
-        const label = document.createElement("div");
-        label.className = "pill";
-        label.style.display = "flex";
-        label.style.justifyContent = "space-between";
-        label.style.alignItems = "center";
-        label.style.minWidth = "0";
-        label.innerHTML = `<span style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${def?.name || "Item"}</span><span style="color:${col}; font-weight:1000; margin-left:8px;">${rar}</span>`;
-
-        const btn = document.createElement("button");
-        btn.className = "btnGhost";
-        btn.textContent = "Unequip";
-        btn.addEventListener("click", ()=>{
-          const removed = u.items.splice(i,1)[0];
-          if (removed && removed.type){
-            S.items.push({ id:rndId(), type: removed.type });
-            selectedInvItemId = null;
-            selectedInvItemType = null;
-            el.invHint.textContent = "Unequipped. Select an item to equip again.";
-            showToast(`Unequipped ${itemLabel(removed.type)} from ${u.name}`, "info");
-            renderAll();
-            saveGame();
-            renderInventory();
-          }
-        });
-
-        row.appendChild(label);
-        row.appendChild(btn);
-        unequipWrap.appendChild(row);
-      }
-
-      card.appendChild(unequipWrap);
+      actions.appendChild(equipBtn);
     }
 
+    // Unequip UX: clear, and only shown if unit has items
+    if (have){
+      const unequipBtn = document.createElement("button");
+      unequipBtn.className = "btnGhost";
+      unequipBtn.textContent = (have > 1) ? "Unequip All" : "Unequip";
+      unequipBtn.addEventListener("click", ()=>{
+        let returned = 0;
+        const arr = Array.isArray(u.items) ? u.items : [];
+        for (let i=arr.length-1;i>=0;i--){
+          const it = arr[i];
+          if (it && it.type){
+            S.items.push({ id:rndId(), type: it.type });
+            returned++;
+          }
+          arr.splice(i,1);
+        }
+        showToast(`Unequipped ${returned} item${returned!==1?"s":""} from ${u.name}`, "info");
+        // keep selection as-is only if it still exists; we do not auto-select
+        el.invHint.textContent = "Unequipped. Select an item to equip again.";
+        renderAll();
+        saveGame();
+        renderInventory();
+      });
+
+      // If there is already a second action slot, add it. Otherwise full-width.
+      if (actions.classList.contains("one")){
+        actions.classList.remove("one");
+        actions.classList.add("unitActions");
+        actions.style.gridTemplateColumns = "1fr 1fr";
+      }
+      actions.appendChild(unequipBtn);
+    }
+
+    card.appendChild(actions);
     el.invUnits.appendChild(card);
   }
 
@@ -3138,7 +3446,6 @@ function commitReplace(slotIndex){
     return;
   }
 
-  // Prefer by id, fallback by type
   let invIdx = S.items.findIndex(x => x.id === pe.pickedItemId);
   if (invIdx < 0) invIdx = S.items.findIndex(x => x.type === pe.pickedItemType);
   if (invIdx < 0){
@@ -3159,8 +3466,9 @@ function commitReplace(slotIndex){
   cur[slotIndex] = { id:rndId(), type: picked.type };
 
   showToast(`Equipped ${itemLabel(picked.type)} → ${unit.name}`, "good");
-  selectedInvItemId = null;
-  selectedInvItemType = null;
+
+  // selection is cleared after any equip/replace for clarity
+  clearInvSelection(false);
   S.pendingEquip = null;
 
   renderAll();
@@ -3197,11 +3505,17 @@ el.btnMenu.addEventListener("click", () => {
 });
 el.btnInventory.addEventListener("click", () => openInventory());
 el.btnSynergies.addEventListener("click", () => openSynergiesOverlay());
+el.btnBonuses.addEventListener("click", () => openBonusesOverlay());
 el.btnSynClose.addEventListener("click", () => { setOverlay("none"); });
+el.btnBonusesClose.addEventListener("click", () => { setOverlay("none"); });
 
 el.btnInvClose.addEventListener("click", ()=>{
   setOverlay("none");
   renderAll();
+});
+el.btnInvClearSel.addEventListener("click", ()=>{
+  clearInvSelection(true);
+  renderInventory();
 });
 
 el.btnHowTo.addEventListener("click", () => {
