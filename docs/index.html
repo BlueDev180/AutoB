@@ -389,7 +389,6 @@
       backdrop-filter: blur(10px);
       display:none;
       overflow:hidden;
-      /* iOS scrolling fix: allow vertical pan within overlay stacks */
       touch-action: pan-y;
       overscroll-behavior: contain;
     }
@@ -467,7 +466,7 @@
     #ovBonuses .choiceCard{
       padding:14px;
       border-radius:16px;
-      overflow:visible; /* allow full text */
+      overflow:visible;
     }
     #ovBonuses .choiceCard .name span:first-child{
       white-space:normal;
@@ -747,7 +746,7 @@
         <div class="ovHeader">
           <div>
             <div class="ovTitle">Synergies</div>
-            <div class="ovSub">All traits + breakpoints (crests included).</div>
+            <div class="ovSub">All traits + breakpoints.</div>
           </div>
           <button id="btnSynClose" class="btnPrimary" style="min-height:40px; padding:10px 12px;">Close</button>
         </div>
@@ -969,6 +968,11 @@
   </div>
 
 <script>
+/* =========================================================
+   DEBUG
+========================================================= */
+const DEBUG_STATS = false;
+
 /* ---- iPhone error overlay ---- */
 window.addEventListener("error", (e) => {
   const box = document.createElement("pre");
@@ -1021,6 +1025,30 @@ function getCSS(varName){
   return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
 }
 
+/* =========================================================
+   SYNERGY BREAKPOINTS + EFFECT TABLES
+========================================================= */
+const TRAIT_BREAKPOINTS = {
+  Warrior:[2,4,6,8,10],
+  Ranger:[2,4,6,8,10],
+  Mage:[2,3,5,7,9],
+  Rogue:[2,3,5,7,9],
+  Kingdom:[2,3,5,7,9],
+  Wilds:[2,3,5,7,9],
+  Cult:[2,3,5,7,9],
+};
+
+// Synergy tier -> effect numbers (tier is 1..5)
+const SYNERGY_EFFECTS = {
+  Warrior: { hpMult:[1.10, 1.20, 1.30, 1.45, 1.65] },
+  Ranger:  { atkSpeed:[0.10, 0.20, 0.32, 0.46, 0.62] },           // +% attack speed (cooldown reduced)
+  Mage:    { atkMult:[1.10, 1.20, 1.32, 1.48, 1.68] },
+  Rogue:   { firstHit:[0.18, 0.35, 0.55, 0.80, 1.10], move:[0.08, 0.12, 0.18, 0.25, 0.35] },
+  Kingdom: { frontDR:[0.08, 0.15, 0.22, 0.30, 0.40] },            // damage reduction add
+  Wilds:   { regenPct:[0.010,0.020,0.030,0.040,0.055] },          // % max HP per sec
+  Cult:    { shieldOnKillPct:[0.06, 0.10, 0.14, 0.18, 0.24], shieldDur:[1.8,2.0,2.2,2.4,2.8] }
+};
+
 /* ===== Definitions ===== */
 const UNIT_POOL = [
   { name:"Brawler",  rarity:"Common",    cost:1, hp: 260, atk: 18, spd: 1.00, range: 18,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" },
@@ -1059,27 +1087,22 @@ const ITEMS = {
       apply:(c)=>{ } },
 };
 
-/* ===== Augments (with stacking rules) ===== */
+/* ===== Augments (trait crests removed; stackables uncapped) ===== */
 const AUGMENTS = {
-  A1:{ id:"A1", name:"Rich Get Richer", desc:"+3g now, +1g each round (stacks)", stackable:true,  maxStacks:5,
+  A1:{ id:"A1", name:"Rich Get Richer", desc:"+3g now, +1g each round (stacks)", stackable:true,
        pickNow:(S, stacksAdded)=>{ S.gold += 3 * stacksAdded; } },
 
-  A2:{ id:"A2", name:"High Roller", desc:"Reroll costs 1g (unique)", stackable:false, maxStacks:1 },
+  A2:{ id:"A2", name:"High Roller", desc:"Reroll costs 1g (unique)", stackable:false },
 
-  A3:{ id:"A3", name:"Windfall", desc:"+8g now (stacks)", stackable:true, maxStacks:3,
+  A3:{ id:"A3", name:"Windfall", desc:"+8g now (stacks)", stackable:true,
        pickNow:(S, stacksAdded)=>{ S.gold += 8 * stacksAdded; } },
 
-  A4:{ id:"A4", name:"Scoped Weapons", desc:"Ranged +35 range (stacks)", stackable:true, maxStacks:3 },
-  A5:{ id:"A5", name:"Second Wind", desc:"Once per unit: below 30% HP → heal 20% (unique)", stackable:false, maxStacks:1 },
+  A4:{ id:"A4", name:"Scoped Weapons", desc:"Ranged +35 range (stacks)", stackable:true },
+  A5:{ id:"A5", name:"Second Wind", desc:"Once per unit: below 30% HP → heal 20% (unique)", stackable:false },
 
-  A6:{ id:"A6", name:"Knife’s Edge", desc:"+12% ATK, -5% max HP (stacks)", stackable:true, maxStacks:3 },
-  A7:{ id:"A7", name:"Thick Skin", desc:"Warriors +6% dmg reduction (stacks)", stackable:true, maxStacks:3 },
-  A8:{ id:"A8", name:"Rapid Fire", desc:"Rangers attack faster (stacks)", stackable:true, maxStacks:4 },
-
-  A9:{ id:"A9", name:"Warrior Crest", desc:"+1 Warrior trait (unique)", stackable:false, maxStacks:1 },
-  A10:{ id:"A10", name:"Ranger Crest", desc:"+1 Ranger trait (unique)", stackable:false, maxStacks:1 },
-  A11:{ id:"A11", name:"Mage Crest", desc:"+1 Mage trait (unique)", stackable:false, maxStacks:1 },
-  A12:{ id:"A12", name:"Rogue Crest", desc:"+1 Rogue trait (unique)", stackable:false, maxStacks:1 },
+  A6:{ id:"A6", name:"Knife’s Edge", desc:"+12% ATK, -5% max HP (stacks)", stackable:true },
+  A7:{ id:"A7", name:"Thick Skin", desc:"Warriors +6% dmg reduction (stacks)", stackable:true },
+  A8:{ id:"A8", name:"Rapid Fire", desc:"Rangers attack faster (stacks)", stackable:true },
 };
 
 const EVENTS = [
@@ -1212,25 +1235,32 @@ function hasAug(id){ return augStacks(id) > 0; }
 function maxStacksFor(id){
   const a = AUGMENTS[id];
   if (!a) return 0;
-  return (a.maxStacks != null) ? a.maxStacks : (a.stackable ? 99 : 1);
+  // Stackables uncapped (practically)
+  return a.stackable ? 1e9 : 1;
 }
 function canTakeAug(id){
   const a = AUGMENTS[id];
   if (!a) return false;
-  const cur = augStacks(id);
-  const max = maxStacksFor(id);
-  return cur < max;
+  if (a.stackable) return true;
+  return augStacks(id) < 1;
 }
 function addAugment(id, stacksAdded=1){
   if (!S.augments) S.augments = {};
+  const a = AUGMENTS[id];
+  if (!a) return 0;
+
   const cur = augStacks(id);
   const max = maxStacksFor(id);
-  const add = Math.max(0, Math.min(stacksAdded, max - cur));
-  if (add <= 0) return 0;
-  S.augments[id] = cur + add;
 
-  const a = AUGMENTS[id];
-  if (a && a.pickNow) a.pickNow(S, add, S.augments[id]);
+  let add = stacksAdded;
+  if (!a.stackable) add = Math.min(add, max - cur);
+  add = Math.max(0, add);
+
+  if (add <= 0) return 0;
+  const next = Math.min(max, cur + add);
+  S.augments[id] = next;
+
+  if (a.pickNow) a.pickNow(S, add, next);
   return add;
 }
 
@@ -1358,15 +1388,17 @@ function clearSave(){
 }
 
 function normalizeAugmentsFromLegacy(a){
-  const map = {};
+  // Filters unknown IDs (including removed trait crests) automatically.
   if (Array.isArray(a)){
+    const map = {};
     for (const id of a){
       if (!AUGMENTS[id]) continue;
       map[id] = (map[id]||0) + 1;
     }
+    // unique clamp
     for (const id of Object.keys(map)){
-      map[id] = Math.min(map[id], maxStacksFor(id));
       if (!AUGMENTS[id].stackable) map[id] = Math.min(map[id], 1);
+      else map[id] = Math.min(map[id], 1e9);
     }
     return map;
   }
@@ -1375,8 +1407,9 @@ function normalizeAugmentsFromLegacy(a){
     for (const [id,val] of Object.entries(a)){
       if (!AUGMENTS[id]) continue;
       const n = Math.max(0, Math.floor(Number(val)||0));
-      out[id] = Math.min(n, maxStacksFor(id));
+      out[id] = n;
       if (!AUGMENTS[id].stackable) out[id] = Math.min(out[id], 1);
+      else out[id] = Math.min(out[id], 1e9);
     }
     return out;
   }
@@ -1538,29 +1571,19 @@ function updateButtons(){
   el.btnResultNext.disabled = !canAdvance;
 }
 
-/* ===== Synergies logic ===== */
+/* =========================================================
+   SYNERGIES
+========================================================= */
 function getTraitCounts(units){
   const c = { Warrior:0, Ranger:0, Mage:0, Rogue:0, Kingdom:0, Wilds:0, Cult:0 };
   for (const u of units){
     if (u.classTag && c[u.classTag] != null) c[u.classTag]++;
     if (u.originTag && c[u.originTag] != null) c[u.originTag]++;
   }
-  c.Warrior += augStacks("A9");
-  c.Ranger  += augStacks("A10");
-  c.Mage    += augStacks("A11");
-  c.Rogue   += augStacks("A12");
   return c;
 }
 function traitTier(name, count){
-  const tiers = {
-    Warrior:[2,4],
-    Ranger:[2,4],
-    Mage:[2,3],
-    Rogue:[2,3],
-    Kingdom:[2,3],
-    Wilds:[2,3],
-    Cult:[2,3],
-  }[name] || [];
+  const tiers = TRAIT_BREAKPOINTS[name] || [];
   let t = 0;
   for (const req of tiers) if (count >= req) t++;
   const nextReq = tiers[t] ?? null;
@@ -1593,28 +1616,48 @@ function renderSynergiesOverlay(){
 }
 
 /* ===== Bonuses modal ===== */
+function pct(n){ return Math.round(n*100); }
 function synergyBonusDesc(trait, tier, counts){
-  const n = counts[trait] || 0;
   if (tier <= 0) return "";
+  const n = counts[trait] || 0;
+  const t = clamp(tier, 1, 5) - 1;
+
   switch(trait){
-    case "Warrior":
-      return (n >= 4) ? "Team gains +35% max HP." : "Team gains +15% max HP.";
-    case "Ranger":
-      return (n >= 4) ? "Team attacks much faster (≈25% faster)." : "Team attacks faster (≈10% faster).";
-    case "Mage":
-      return (n >= 3) ? "Team deals +30% damage (ATK multiplier)." : "Team deals +15% damage (ATK multiplier).";
-    case "Rogue":
-      return (n >= 3) ? "Team gains big first-hit bonus + faster movement." : "Team gains first-hit bonus + slightly faster movement.";
-    case "Kingdom":
-      return (n >= 3) ? "Frontliners take 20% less damage." : "Frontliners take 10% less damage.";
-    case "Wilds":
-      return (n >= 3) ? "Team regenerates ~3% max HP per second." : "Team regenerates ~1.5% max HP per second.";
-    case "Cult":
-      return (n >= 3) ? "On kill: gain a strong temporary shield." : "On kill: gain a small temporary shield.";
+    case "Warrior": {
+      const m = SYNERGY_EFFECTS.Warrior.hpMult[t];
+      return `Team max HP x${m.toFixed(2)}.`;
+    }
+    case "Ranger": {
+      const s = SYNERGY_EFFECTS.Ranger.atkSpeed[t];
+      return `Team attack speed +${pct(s)}%.`;
+    }
+    case "Mage": {
+      const m = SYNERGY_EFFECTS.Mage.atkMult[t];
+      return `Team ATK x${m.toFixed(2)}.`;
+    }
+    case "Rogue": {
+      const fh = SYNERGY_EFFECTS.Rogue.firstHit[t];
+      const mv = SYNERGY_EFFECTS.Rogue.move[t];
+      return `First hit +${pct(fh)}% dmg • Move +${pct(mv)}%.`;
+    }
+    case "Kingdom": {
+      const dr = SYNERGY_EFFECTS.Kingdom.frontDR[t];
+      return `Frontliners damage reduction +${pct(dr)}%.`;
+    }
+    case "Wilds": {
+      const rp = SYNERGY_EFFECTS.Wilds.regenPct[t];
+      return `Team regen ${pct(rp)}% max HP / sec.`;
+    }
+    case "Cult": {
+      const sp = SYNERGY_EFFECTS.Cult.shieldOnKillPct[t];
+      const sd = SYNERGY_EFFECTS.Cult.shieldDur[t];
+      return `On kill: shield ${pct(sp)}% max HP for ${sd.toFixed(1)}s.`;
+    }
     default:
       return "";
   }
 }
+
 function collectTeamItemBuffs(){
   const agg = new Map();
   for (const u of S.army){
@@ -1633,6 +1676,7 @@ function collectTeamItemBuffs(){
   }
   return Array.from(agg.values());
 }
+
 function renderBonusesOverlay(){
   el.bonusesList.innerHTML = "";
 
@@ -1681,9 +1725,9 @@ function renderBonusesOverlay(){
     none();
   } else {
     for (const b of buffs){
-      const pct = (Math.abs(b.value) <= 1.0) ? Math.round(b.value * 100) : b.value;
+      const pctVal = (Math.abs(b.value) <= 1.0) ? Math.round(b.value * 100) : b.value;
       const stackTxt = (b.stacks > 1) ? `x${b.stacks}` : "";
-      entry(`${b.label}${stackTxt ? ` (${stackTxt})` : ""}`, `Total: +${pct}%`, "Team");
+      entry(`${b.label}${stackTxt ? ` (${stackTxt})` : ""}`, `Total: +${pctVal}%`, "Team");
     }
   }
 
@@ -1994,16 +2038,22 @@ function resizeCanvas(){
 }
 window.addEventListener("resize", () => { resizeCanvas(); });
 
-/* ===== Combat cloning + bonuses ===== */
-function cloneForCombat(rosterU, side){
-  const c = JSON.parse(JSON.stringify(rosterU));
-  c.side = side;
+/* =========================================================
+   COMBAT STAT PIPELINE (single deterministic pass)
+   Order:
+   1) Base stats from roster unit (already star-scaled there)
+   2) Init combat-only fields
+   3) Synergy bonuses (tier-based)
+   4) Augment bonuses
+   5) Team auras (Chrono Relic)
+   6) Per-unit items (apply() LAST)
+========================================================= */
+function initCombatFields(c){
   c.hp = c.maxHP;
   c.cd = 0;
   c.alive = true;
   c.swingT = 0;
   c.aimA = 0;
-  c.rosterId = rosterU.id;
 
   c.moveMult = 1.0;
   c.damageReduction = 0.0;
@@ -2030,88 +2080,132 @@ function cloneForCombat(rosterU, side){
   c.enrage = 0;
 
   c.tagCd = 0;
+  c.rootT = 0;
 
+  // cult shield config (tier-based)
+  c.cultTier = 0;          // 0..5
+  c.cultShieldPct = 0.0;
+  c.cultShieldDur = 0.0;
+}
+
+function cloneForCombat(rosterU, side){
+  const c = JSON.parse(JSON.stringify(rosterU));
+  c.side = side;
+  c.rosterId = rosterU.id;
+  initCombatFields(c);
   return c;
 }
 
-function applyTeamAura(team){
-  const hasChrono = team.some(u => (u.items||[]).some(it => it.type === "I12"));
-  if (hasChrono){
-    for (const u of team){
-      u.spd *= 0.90;
+function computeTeamAuraFromRoster(army){
+  let chronoStacks = 0;
+  for (const u of army){
+    const arr = Array.isArray(u.items) ? u.items : [];
+    for (const it of arr){
+      if (it && it.type === "I12") chronoStacks++;
     }
   }
+  return {
+    chronoStacks,
+    atkSpeedBonus: 0.10 * chronoStacks,  // +10% each
+  };
 }
 
-function applyRunBonusesToClone(c, counts){
-  { // Warrior
-    const n = counts.Warrior || 0;
-    let mult = 1.0;
-    if (n >= 4) mult = 1.35;
-    else if (n >= 2) mult = 1.15;
-    c.maxHP = Math.round(c.maxHP * mult);
-    c.hp = c.maxHP;
-  }
+function computeCombatStatsFromRoster(rosterUnit, traitCounts, teamAura){
+  // Base (already star-scaled on roster)
+  const c = cloneForCombat(rosterUnit, "player");
 
-  { // Ranger
-    const n = counts.Ranger || 0;
-    if (n >= 4) c.spd = c.spd * 0.75;
-    else if (n >= 2) c.spd = c.spd * 0.90;
-  }
+  const base = {
+    maxHP: c.maxHP,
+    atk: c.atk,
+    spd: c.spd,
+    range: c.range
+  };
 
-  { // Mage
-    const n = counts.Mage || 0;
-    if (n >= 3) c.atk = Math.round(c.atk * 1.30);
-    else if (n >= 2) c.atk = Math.round(c.atk * 1.15);
-  }
+  // Explicit multiplier/additive fields
+  let hpMult = 1.0;
+  let atkMult = 1.0;
+  let spdMult = 1.0;   // finalSpd = baseSpd / spdMult (higher -> faster)
+  let rangeAdd = 0;
+  let moveMult = 1.0;
+  let damageReductionAdd = 0.0;
+  let regenPct = 0.0;
 
-  { // Rogue
-    const n = counts.Rogue || 0;
-    if (n >= 3){ c.firstHitBonus = 0.45; c.moveMult *= 1.20; }
-    else if (n >= 2){ c.firstHitBonus = 0.20; c.moveMult *= 1.10; }
-  }
+  let firstHitBonus = 0.0;
 
-  { // Kingdom
-    const n = counts.Kingdom || 0;
-    if (c.role === "Front"){
-      if (n >= 3) c.damageReduction += 0.20;
-      else if (n >= 2) c.damageReduction += 0.10;
+  // 3) Synergies (tier-based)
+  const counts = traitCounts || {};
+  for (const trait of ["Warrior","Ranger","Mage","Rogue","Kingdom","Wilds","Cult"]){
+    const n = counts[trait] || 0;
+    const tt = traitTier(trait, n);
+    if (tt.tier <= 0) continue;
+
+    const tIndex = clamp(tt.tier, 1, 5) - 1;
+
+    if (trait === "Warrior"){
+      hpMult *= SYNERGY_EFFECTS.Warrior.hpMult[tIndex];
+    } else if (trait === "Ranger"){
+      const atkSpeed = SYNERGY_EFFECTS.Ranger.atkSpeed[tIndex];
+      spdMult *= (1 + atkSpeed);
+    } else if (trait === "Mage"){
+      atkMult *= SYNERGY_EFFECTS.Mage.atkMult[tIndex];
+    } else if (trait === "Rogue"){
+      firstHitBonus = Math.max(firstHitBonus, SYNERGY_EFFECTS.Rogue.firstHit[tIndex]);
+      moveMult *= (1 + SYNERGY_EFFECTS.Rogue.move[tIndex]);
+    } else if (trait === "Kingdom"){
+      if (c.role === "Front"){
+        damageReductionAdd += SYNERGY_EFFECTS.Kingdom.frontDR[tIndex];
+      }
+    } else if (trait === "Wilds"){
+      regenPct += SYNERGY_EFFECTS.Wilds.regenPct[tIndex];
+    } else if (trait === "Cult"){
+      c.cultTier = tt.tier;
+      c.cultShieldPct = SYNERGY_EFFECTS.Cult.shieldOnKillPct[tIndex];
+      c.cultShieldDur = SYNERGY_EFFECTS.Cult.shieldDur[tIndex];
     }
   }
 
-  { // Wilds
-    const n = counts.Wilds || 0;
-    if (n >= 3) c.regenPerSec += 0.03 * c.maxHP;
-    else if (n >= 2) c.regenPerSec += 0.015 * c.maxHP;
-  }
-
-  { // Cult
-    const n = counts.Cult || 0;
-    c.cultTier = (n >= 3) ? 2 : (n >= 2) ? 1 : 0;
-  }
-
+  // 4) Augments
   const scopedStacks = augStacks("A4");
-  if (scopedStacks > 0 && isRangedUnit(c)) c.range += 35 * scopedStacks;
+  if (scopedStacks > 0 && isRangedUnit(c)) rangeAdd += 35 * scopedStacks;
 
   const knifeStacks = augStacks("A6");
   if (knifeStacks > 0){
-    for (let i=0;i<knifeStacks;i++){
-      c.atk = Math.round(c.atk * 1.12);
-      c.maxHP = Math.round(c.maxHP * 0.95);
-      c.hp = c.maxHP;
-    }
+    atkMult *= Math.pow(1.12, knifeStacks);
+    hpMult  *= Math.pow(0.95, knifeStacks);
   }
 
   const thickStacks = augStacks("A7");
   if (thickStacks > 0 && c.classTag === "Warrior"){
-    c.damageReduction += 0.06 * thickStacks;
+    damageReductionAdd += 0.06 * thickStacks;
   }
 
   const rapidStacks = augStacks("A8");
   if (rapidStacks > 0 && c.classTag === "Ranger"){
-    for (let i=0;i<rapidStacks;i++) c.spd = c.spd * 0.92;
+    // old behavior: spd *= 0.92 per stack => spdMult *= (1/0.92)^stacks
+    spdMult *= Math.pow(1/0.92, rapidStacks);
   }
 
+  // 5) Team aura (Chrono Relic) - stacks (each is +10% attack speed)
+  if (teamAura && teamAura.atkSpeedBonus > 0){
+    spdMult *= (1 + teamAura.atkSpeedBonus);
+  }
+
+  // Resolve once
+  c.maxHP = Math.max(1, Math.round(base.maxHP * hpMult));
+  c.atk   = Math.max(1, Math.round(base.atk * atkMult));
+  c.range = Math.max(1, Math.round(base.range + rangeAdd));
+  c.spd   = base.spd / Math.max(0.0001, spdMult);
+  c.spd   = clamp(c.spd, 0.20, 9.0);
+
+  c.moveMult = (c.moveMult || 1) * moveMult;
+  c.firstHitBonus = firstHitBonus;
+
+  c.damageReduction = clamp(damageReductionAdd, 0, 0.65);
+  c.regenPerSec = regenPct * c.maxHP;
+
+  c.hp = c.maxHP;
+
+  // 6) Per-unit items LAST (then re-derive regenPerSec from regenPct so HP items affect regen)
   const arr = Array.isArray(c.items) ? c.items : [];
   for (const it of arr){
     if (!it || !it.type) continue;
@@ -2119,33 +2213,76 @@ function applyRunBonusesToClone(c, counts){
     if (def && def.apply) def.apply(c);
   }
 
-  c.damageReduction = clamp(c.damageReduction, 0, 0.65);
+  c.maxHP = Math.max(1, c.maxHP|0);
+  c.atk   = Math.max(1, c.atk|0);
+  c.spd   = clamp(Number(c.spd)||0.9, 0.20, 9.0);
+  c.range = Math.max(1, c.range|0);
+  c.damageReduction = clamp(Number(c.damageReduction)||0, 0, 0.65);
+
+  // regen derived after items too
+  c.regenPerSec = regenPct * c.maxHP;
+
+  if (DEBUG_STATS){
+    const dbg = {
+      unit: `${rosterUnit.name} ★${rosterUnit.star}`,
+      base,
+      multipliers: { hpMult, atkMult, spdMult, rangeAdd, moveMult, damageReductionAdd, regenPct, firstHitBonus },
+      final: { maxHP:c.maxHP, atk:c.atk, spd:c.spd, range:c.range, dr:c.damageReduction, regenPerSec:c.regenPerSec, chronoStacks:(teamAura?.chronoStacks||0) },
+      aug: { A4:scopedStacks, A6:knifeStacks, A7:thickStacks, A8:rapidStacks },
+      traits: traitCounts
+    };
+    console.log("[DEBUG_STATS] computeCombatStatsFromRoster", dbg);
+    if (!(c.maxHP>0) || !(c.atk>0) || !(c.spd>0) || !(c.range>0)) console.error("[DEBUG_STATS] invalid stats (clamped)", dbg);
+  }
+
+  return c;
 }
 
-/* ===== Enemy spawns ===== */
+/* =========================================================
+   ENEMY SPAWNS (round scaling ramps until inevitable loss)
+========================================================= */
+function enemyRoundScaling(round){
+  const r = Math.max(1, round);
+  const x = (r - 1);
+  // Early gentle, later steep
+  const roundHpMult  = 1 + 0.10*x + 0.01*x*x;
+  const roundAtkMult = 1 + 0.06*x + 0.006*x*x;
+  return { roundHpMult, roundAtkMult };
+}
+
 function spawnEnemyWave(){
   const r = S.round;
-  const baseCount = Math.min(18, 3 + Math.floor(r/2));
-  const count = S.node.isElite ? Math.min(22, baseCount + 2) : baseCount;
+  const baseCount = Math.min(22, 3 + Math.floor(r/2) + Math.floor((r-1)/7)); // slight extra count over time
+  const count = S.node.isElite ? Math.min(26, baseCount + 2) : baseCount;
 
   const odds = rarityOddsByRound(r, !!S.node?.isElite);
 
-  let hpMult = 1.0, atkMult = 1.0;
-  if (S.node.isElite){ hpMult *= 1.25; atkMult *= 1.10; }
-  if (S.nextEnemyMod){
-    hpMult *= (S.nextEnemyMod.hpMult || 1.0);
-    atkMult *= (S.nextEnemyMod.atkMult || 1.0);
-  }
+  const { roundHpMult, roundAtkMult } = enemyRoundScaling(r);
+
+  const eliteMultHp = S.node.isElite ? 1.25 : 1.0;
+  const eliteMultAtk = S.node.isElite ? 1.10 : 1.0;
+
+  const nextHp = (S.nextEnemyMod?.hpMult || 1.0);
+  const nextAtk = (S.nextEnemyMod?.atkMult || 1.0);
+
+  const finalHpMult = eliteMultHp * roundHpMult * nextHp;
+  const finalAtkMult = eliteMultAtk * roundAtkMult * nextAtk;
 
   S.E = [];
   for (let i=0;i<count;i++){
     const rar = rollRarity(odds);
     const t = pickUnitTemplateByRarity(rar);
-    const star = (r >= 6 && Math.random()<0.35) ? 2 : 1;
+
+    // enemies also ramp star slightly as round increases
+    const starRoll = Math.random();
+    let star = 1;
+    if (r >= 7 && starRoll < 0.22) star = 2;
+    if (r >= 12 && starRoll < 0.08) star = 3;
+
     const e = makeUnit(t.name, star, "enemy");
-    e.maxHP = Math.round(e.maxHP * hpMult);
+    e.maxHP = Math.max(1, Math.round(e.maxHP * finalHpMult));
     e.hp = e.maxHP;
-    e.atk = Math.round(e.atk * atkMult);
+    e.atk = Math.max(1, Math.round(e.atk * finalAtkMult));
     e.items = [];
     S.E.push(e);
   }
@@ -2159,14 +2296,24 @@ function deployArmies(){
   S.floaters = [];
 
   const counts = getTraitCounts(S.army);
-  S.P = S.army.map(u => {
-    const c = cloneForCombat(u, "player");
-    applyRunBonusesToClone(c, counts);
+  const aura = computeTeamAuraFromRoster(S.army);
+
+  S.P = S.army.map(u => computeCombatStatsFromRoster(u, counts, aura));
+  S.E = S.E.map(u => {
+    const c = cloneForCombat(u, "enemy");
+    // Ensure enemy hp is set after cloning
+    c.hp = c.maxHP;
     return c;
   });
-  S.E = S.E.map(u => cloneForCombat(u, "enemy"));
 
-  applyTeamAura(S.P);
+  if (DEBUG_STATS){
+    try{
+      const p = S.P.find(x=>x && x.alive);
+      const e = S.E.find(x=>x && x.alive);
+      if (p) console.log("[DEBUG_STATS] Sample Player Unit", {name:p.name, maxHP:p.maxHP, atk:p.atk, spd:p.spd, range:p.range, dr:p.damageReduction, regenPerSec:p.regenPerSec});
+      if (e) console.log("[DEBUG_STATS] Sample Enemy Unit", {name:e.name, maxHP:e.maxHP, atk:e.atk, spd:e.spd, range:e.range});
+    }catch(err){}
+  }
 
   const centerLineX = W/2;
   const sidePadX = W*0.08;
@@ -2453,11 +2600,10 @@ function applyDamage(att, tgt, rawDmg){
 
 function onKill(att){
   if (!att || !att.alive) return;
-  if (att.cultTier && att.cultTier > 0){
-    const pct = (att.cultTier === 2) ? 0.16 : 0.08;
-    const amt = att.maxHP * pct;
+  if (att.cultTier && att.cultTier > 0 && att.cultShieldPct > 0){
+    const amt = att.maxHP * att.cultShieldPct;
     att.shield = Math.max(att.shield || 0, amt);
-    att.shieldTimer = 2.0;
+    att.shieldTimer = att.cultShieldDur || 2.0;
     pushTag(att, "Cult");
     pushShield(att, amt);
   }
@@ -3039,26 +3185,38 @@ function openAugmentPick(){
   setOverlay("augment");
   el.augmentChoices.innerHTML = "";
 
-  const eligible = Object.keys(AUGMENTS).filter(id => canTakeAug(id));
+  const allIds = Object.keys(AUGMENTS);
+  // eligible: stackables always, uniques only if not taken
+  const eligible = allIds.filter(id => canTakeAug(id));
+
   const picks = [];
   const pool = eligible.slice();
+
   while (picks.length < 3 && pool.length){
     const id = pool.splice(Math.floor(Math.random()*pool.length), 1)[0];
     if (!picks.includes(id)) picks.push(id);
   }
-  while (picks.length < 3 && eligible.length){
-    const id = pick(eligible);
-    if (!picks.includes(id)) picks.push(id);
-    else break;
+
+  if (picks.length === 0){
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+    card.innerHTML = `<div class="name"><span>No augments available</span><span class="rarMini">—</span></div>
+                      <div class="desc">Nothing left to pick right now. Continue.</div>`;
+    const btn = document.createElement("button");
+    btn.className = "btnPrimary";
+    btn.textContent = "Continue";
+    btn.addEventListener("click", ()=> nextOverlay());
+    card.appendChild(btn);
+    el.augmentChoices.appendChild(card);
+    return;
   }
 
   for (const id of picks){
     const a = AUGMENTS[id];
     const cur = augStacks(id);
-    const max = maxStacksFor(id);
-    const isUnique = !a.stackable || max === 1;
+    const isUnique = !a.stackable;
 
-    const tag = isUnique ? "Unique" : `Stacks ${cur}/${max}`;
+    const tag = isUnique ? "Unique" : `x${cur || 0}`;
     const card = document.createElement("div");
     card.className = "choiceCard";
     card.innerHTML = `<div class="name"><span>${a.name}</span><span class="rarMini">${tag}</span></div><div class="desc">${a.desc}</div>`;
@@ -3069,7 +3227,7 @@ function openAugmentPick(){
     btn.addEventListener("click", ()=>{
       const added = addAugment(id, 1);
       if (added <= 0){
-        showToast("Cannot take this again", "bad");
+        showToast("Cannot take this", "bad");
         openAugmentPick();
         return;
       }
@@ -3163,7 +3321,7 @@ function openEventSelect(){
   }
 }
 
-/* ===== Inventory overlay (tap unit to equip; remove "Equipped" label) ===== */
+/* ===== Inventory overlay ===== */
 let selectedInvItemId = null;
 let selectedInvItemType = null;
 
@@ -3347,7 +3505,6 @@ function renderInventory(){
 
     const hasSel = !!(selectedInvItemId || selectedInvItemType);
 
-    // Primary action button remains (but tapping the card works too)
     if (have >= max){
       if (hasSel){
         const replaceBtn = document.createElement("button");
