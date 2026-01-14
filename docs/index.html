@@ -389,7 +389,9 @@
       backdrop-filter: blur(10px);
       display:none;
       overflow:hidden;
-      touch-action: none;
+      /* iOS scrolling fix: allow vertical pan within overlay stacks */
+      touch-action: pan-y;
+      overscroll-behavior: contain;
     }
     body[data-overlay="augment"] #ovAugment{ display:block; }
     body[data-overlay="item"] #ovItem{ display:block; }
@@ -409,6 +411,7 @@
       gap:10px;
       overflow:hidden;
       min-height:0;
+      touch-action: pan-y;
     }
     .ovHeader{
       display:flex;
@@ -453,6 +456,32 @@
     .choiceCard .name span:first-child{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .choiceCard .desc{ font-size:12px; color:var(--muted); line-height:1.35; word-break:break-word; }
     .choiceCard button{ width:100%; }
+
+    /* ===== Bonuses overlay readability (no clamp, no cut off) ===== */
+    #ovBonuses .vStack{
+      overflow:auto;
+      -webkit-overflow-scrolling:touch;
+      min-height:0;
+      padding-bottom:10px;
+    }
+    #ovBonuses .choiceCard{
+      padding:14px;
+      border-radius:16px;
+      overflow:visible; /* allow full text */
+    }
+    #ovBonuses .choiceCard .name span:first-child{
+      white-space:normal;
+      overflow:visible;
+      text-overflow:clip;
+      display:block;
+    }
+    #ovBonuses .choiceCard .desc{
+      white-space:normal;
+      overflow:visible;
+      display:block;
+      -webkit-line-clamp: unset !important;
+      -webkit-box-orient: initial !important;
+    }
 
     /* Inventory layout: ALWAYS 2 columns, both scroll independently */
     .twoCols{
@@ -501,9 +530,9 @@
       padding:16px 14px;
       border-radius:16px;
       gap:10px;
-      min-height:86px; /* roomier by default */
+      min-height:86px;
     }
-    #ovInventory .choiceCard.invUnit{ min-height:144px; } /* prevents "collapsing" when list grows */
+    #ovInventory .choiceCard.invUnit{ min-height:144px; }
     #ovInventory .choiceCard .name{ font-size:14px; line-height:1.2; }
     #ovInventory .choiceCard .name span:first-child{
       white-space: normal;
@@ -1324,9 +1353,7 @@ function saveGame(){
   refreshContinueBtn();
 }
 function clearSave(){
-  try{
-    localStorage.removeItem(SAVE_KEY_V4);
-  }catch(e){}
+  try{ localStorage.removeItem(SAVE_KEY_V4); }catch(e){}
   refreshContinueBtn();
 }
 
@@ -1589,7 +1616,6 @@ function synergyBonusDesc(trait, tier, counts){
   }
 }
 function collectTeamItemBuffs(){
-  // aggregate by teamBuff.key (or label fallback)
   const agg = new Map();
   for (const u of S.army){
     const arr = Array.isArray(u.items) ? u.items : [];
@@ -1613,7 +1639,6 @@ function renderBonusesOverlay(){
   const counts = getTraitCounts(S.army);
   const order = ["Warrior","Ranger","Mage","Rogue","Kingdom","Wilds","Cult"];
 
-  // Section helper
   function section(title){
     const h = document.createElement("div");
     h.className = "choiceCard";
@@ -1638,7 +1663,6 @@ function renderBonusesOverlay(){
     el.bonusesList.appendChild(card);
   }
 
-  // 1) Synergy Bonuses
   section("Synergy Bonuses");
   let anySyn = false;
   for (const k of order){
@@ -1651,7 +1675,6 @@ function renderBonusesOverlay(){
   }
   if (!anySyn) none();
 
-  // 2) Team Item Bonuses
   section("Team Item Bonuses");
   const buffs = collectTeamItemBuffs();
   if (!buffs.length){
@@ -1664,7 +1687,6 @@ function renderBonusesOverlay(){
     }
   }
 
-  // 3) Global Upgrades / Augments
   section("Global Upgrades / Augments");
   const ids = Object.keys(S.augments || {}).filter(id => augStacks(id) > 0);
   if (!ids.length){
@@ -2068,7 +2090,6 @@ function applyRunBonusesToClone(c, counts){
     c.cultTier = (n >= 3) ? 2 : (n >= 2) ? 1 : 0;
   }
 
-  // ===== Augments (stacking applied) =====
   const scopedStacks = augStacks("A4");
   if (scopedStacks > 0 && isRangedUnit(c)) c.range += 35 * scopedStacks;
 
@@ -3142,7 +3163,7 @@ function openEventSelect(){
   }
 }
 
-/* ===== Inventory overlay (clarity + slot-full rules) ===== */
+/* ===== Inventory overlay (tap unit to equip; remove "Equipped" label) ===== */
 let selectedInvItemId = null;
 let selectedInvItemType = null;
 
@@ -3159,22 +3180,22 @@ function openInventory(){
   renderInventory();
 }
 
-function updateSelectedBar(){
-  const hasSel = !!(selectedInvItemId || selectedInvItemType);
-  if (!hasSel){
-    el.invSelectedBar.style.display = "none";
-    return;
-  }
-  const it =
-    (selectedInvItemId ? S.items.find(x => x.id === selectedInvItemId) : null) ||
-    (selectedInvItemType ? S.items.find(x => x.type === selectedInvItemType) : null);
+function getSelectedInvItem(){
+  if (!S.items || !S.items.length) return null;
+  let idx = -1;
+  if (selectedInvItemId) idx = S.items.findIndex(x => x.id === selectedInvItemId);
+  if (idx < 0 && selectedInvItemType) idx = S.items.findIndex(x => x.type === selectedInvItemType);
+  if (idx < 0) return null;
+  return { idx, item: S.items[idx] };
+}
 
-  if (!it){
+function updateSelectedBar(){
+  const sel = getSelectedInvItem();
+  if (!sel){
     el.invSelectedBar.style.display = "none";
-    clearInvSelection(false);
     return;
   }
-  const def = ITEMS[it.type];
+  const def = ITEMS[sel.item.type];
   const rar = def?.rarity || "Common";
   el.invSelectedText.textContent = `${def?.name || "Item"} (${rar})`;
   el.invSelectedBar.style.display = "flex";
@@ -3186,7 +3207,7 @@ function renderEquippedSection(u){
 
   let chips = "";
   if (!arr.length){
-    chips = `<span class="equipChip"><span class="txt">—</span></span>`;
+    chips = `<span class="smallTag muted">No items equipped</span>`;
   } else {
     for (const it of arr){
       const def = ITEMS[it.type];
@@ -3198,16 +3219,53 @@ function renderEquippedSection(u){
   }
 
   const fx = arr.map(it => itemDesc(it.type)).filter(Boolean).join("; ");
-  const fxLine = fx ? `<div class="equipFxLine">${fx}</div>` : `<div class="equipFxLine">Equipped items shown above.</div>`;
+  const fxLine = fx ? `<div class="equipFxLine">${fx}</div>` : ``;
 
   return `
     <div class="equipWrap">
-      <div class="desc" style="color:#cfe0ff; font-weight:1000; letter-spacing:0.2px;">Equipped</div>
       <div class="equipRow">${chips}</div>
       ${fxLine}
       <div class="desc">Slots ${arr.length}/${max}</div>
     </div>
   `;
+}
+
+function equipSelectedToUnit(u){
+  const sel = getSelectedInvItem();
+  if (!sel){
+    showToast("Select an item first", "bad");
+    return false;
+  }
+
+  const curItems = Array.isArray(u.items) ? u.items.filter(x=>x && x.type) : [];
+  const have = curItems.length;
+  const max = u.itemSlotsMax || 1;
+
+  if (have >= max){
+    // open replace flow
+    const pickedItem = sel.item;
+    S.pendingEquip = {
+      unitId: u.id,
+      pickedItemType: pickedItem.type,
+      pickedItemId: pickedItem.id,
+      prevOverlay: "inventory"
+    };
+    showToast("Choose a slot to replace", "info");
+    openReplaceOverlay();
+    return true;
+  }
+
+  // equip directly
+  const pickedItem = S.items.splice(sel.idx, 1)[0];
+  (u.items ||= []).push({ id:rndId(), type:pickedItem.type });
+
+  showToast(`Equipped ${itemLabel(pickedItem.type)} → ${u.name}`, "good");
+  clearInvSelection(false);
+  el.invHint.textContent = "Equipped. Select another item to equip more.";
+  renderAll();
+  saveGame();
+  renderInventory();
+  return true;
 }
 
 function renderInventory(){
@@ -3243,7 +3301,7 @@ function renderInventory(){
     btn.addEventListener("click", ()=>{
       selectedInvItemId = it.id;
       selectedInvItemType = it.type;
-      el.invHint.textContent = `Selected: ${def.name} — now equip it to a unit.`;
+      el.invHint.textContent = `Selected: ${def.name} — tap a unit to equip.`;
       showToast(`Selected ${def.name}`, "info");
       renderInventory();
     });
@@ -3277,30 +3335,33 @@ function renderInventory(){
       ${renderEquippedSection(u)}
     `;
 
+    // Tap unit card (not the buttons) to equip/replace when an item is selected
+    card.addEventListener("click", (e)=>{
+      if (e.target.closest("button")) return;
+      if (!(selectedInvItemId || selectedInvItemType)) return;
+      equipSelectedToUnit(u);
+    });
+
     const actions = document.createElement("div");
     actions.className = have ? "unitActions" : "unitActions one";
 
-    // Equip/Replace logic (no "Equip Here" when full)
     const hasSel = !!(selectedInvItemId || selectedInvItemType);
 
+    // Primary action button remains (but tapping the card works too)
     if (have >= max){
       if (hasSel){
         const replaceBtn = document.createElement("button");
         replaceBtn.className = "btnPrimary";
         replaceBtn.textContent = "Replace Item";
         replaceBtn.addEventListener("click", ()=>{
-          // Choose the selected item from inventory
-          let invIdx = -1;
-          if (selectedInvItemId) invIdx = S.items.findIndex(x => x.id === selectedInvItemId);
-          if (invIdx < 0 && selectedInvItemType) invIdx = S.items.findIndex(x => x.type === selectedInvItemType);
-
-          if (invIdx < 0){
+          const sel = getSelectedInvItem();
+          if (!sel){
             showToast("Item not found (reselect)", "bad");
             clearInvSelection(false);
             renderInventory();
             return;
           }
-          const pickedItem = S.items[invIdx];
+          const pickedItem = sel.item;
           S.pendingEquip = {
             unitId: u.id,
             pickedItemType: pickedItem.type,
@@ -3324,34 +3385,18 @@ function renderInventory(){
       equipBtn.disabled = !hasSel;
 
       equipBtn.addEventListener("click", ()=>{
-        let invIdx = -1;
-        if (selectedInvItemId) invIdx = S.items.findIndex(x => x.id === selectedInvItemId);
-        if (invIdx < 0 && selectedInvItemType) invIdx = S.items.findIndex(x => x.type === selectedInvItemType);
-
-        if (invIdx < 0){
-          showToast("Item not found (reselect)", "bad");
-          clearInvSelection(false);
-          renderInventory();
+        if (!hasSel){
+          showToast("Select an item first", "bad");
           return;
         }
-
-        const pickedItem = S.items.splice(invIdx, 1)[0];
-        (u.items ||= []).push({ id:rndId(), type:pickedItem.type });
-
-        const nm = itemLabel(pickedItem.type);
-        showToast(`Equipped ${nm} → ${u.name}`, "good");
-
-        clearInvSelection(false);
-        el.invHint.textContent = "Equipped. Select another item to equip more.";
-        renderAll();
-        saveGame();
-        renderInventory();
+        const ok = equipSelectedToUnit(u);
+        if (!ok) showToast("Equip failed (reselect)", "bad");
       });
 
       actions.appendChild(equipBtn);
     }
 
-    // Unequip UX: clear, and only shown if unit has items
+    // Unequip
     if (have){
       const unequipBtn = document.createElement("button");
       unequipBtn.className = "btnGhost";
@@ -3368,14 +3413,12 @@ function renderInventory(){
           arr.splice(i,1);
         }
         showToast(`Unequipped ${returned} item${returned!==1?"s":""} from ${u.name}`, "info");
-        // keep selection as-is only if it still exists; we do not auto-select
         el.invHint.textContent = "Unequipped. Select an item to equip again.";
         renderAll();
         saveGame();
         renderInventory();
       });
 
-      // If there is already a second action slot, add it. Otherwise full-width.
       if (actions.classList.contains("one")){
         actions.classList.remove("one");
         actions.classList.add("unitActions");
@@ -3467,7 +3510,6 @@ function commitReplace(slotIndex){
 
   showToast(`Equipped ${itemLabel(picked.type)} → ${unit.name}`, "good");
 
-  // selection is cleared after any equip/replace for clarity
   clearInvSelection(false);
   S.pendingEquip = null;
 
