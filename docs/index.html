@@ -59,7 +59,7 @@
     body[data-screen="planning"] .screenPlanning{ display:flex; }
     body[data-screen="battle"] .screenBattle{ display:flex; }
 
-    /* ===== Toast (override) ===== */
+    /* ===== Toast ===== */
     #toast{
       position:fixed;
       left:50%;
@@ -258,7 +258,6 @@
       flex:0 0 auto;
       box-shadow: 0 0 0 2px rgba(0,0,0,0.25);
     }
-    /* Make long trait/class text not "cut" */
     .line{
       font-size:12px;
       color:var(--muted);
@@ -296,7 +295,6 @@
     .chip .t{ font-weight:1100; font-size:13px; display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; }
     .chip .t span:first-child{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .chip .s{ font-size:12px; color:#cfe0ff; opacity:.95; }
-    /* Clamp class/trait line to 2 lines so it isn't cut weirdly */
     .chip .m{
       font-size:12px;
       color:var(--muted);
@@ -459,7 +457,7 @@
     .twoCols{
       display:grid;
       grid-template-columns: 1fr 1fr;
-      gap:10px;
+      gap:12px;
       min-height:0;
       flex:1 1 auto;
       overflow:hidden;
@@ -471,7 +469,7 @@
       -webkit-overflow-scrolling:touch;
       display:flex;
       flex-direction:column;
-      gap:10px;
+      gap:12px;
       touch-action: pan-y;
       padding-bottom:2px;
     }
@@ -495,12 +493,39 @@
     }
     .slotEmpty{ opacity:0.55; }
 
+    /* ===== Inventory readability: make cards roomier + clamp text cleanly ===== */
+    #ovInventory .panel{ padding:12px; border-radius:16px; }
+    #ovInventory .choiceCard{ padding:14px 14px; border-radius:16px; gap:8px; min-height:72px; }
+    #ovInventory .choiceCard .name{ font-size:14px; line-height:1.2; }
+    #ovInventory .choiceCard .name span:first-child{
+      white-space: normal;
+      display:-webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    #ovInventory .choiceCard .desc{
+      font-size:13px;
+      line-height:1.35;
+      display:-webkit-box;
+      -webkit-box-orient: vertical;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      -webkit-line-clamp: 1;
+    }
+    #ovInventory .choiceCard.invUnit .desc{ -webkit-line-clamp: 2; }
+    #ovInventory .choiceCard.invItem .desc{ -webkit-line-clamp: 1; }
+    #ovInventory .choiceCard.invItem button,
+    #ovInventory .choiceCard.invUnit button{ margin-top:2px; }
+
     @media (max-width: 380px){
       .card{ flex-basis: 205px; }
       .chip{ min-width: 156px; }
       button{ padding:12px 12px; }
       .statTile .val{ font-size:19px; }
       #toast{ font-size:13px; }
+      #ovInventory .choiceCard{ padding:14px 12px; }
     }
   </style>
 </head>
@@ -515,7 +540,7 @@
         <div class="ovHeader">
           <div>
             <div class="ovTitle">Choose an Augment</div>
-            <div class="ovSub">Pick 1. It lasts for the entire run.</div>
+            <div class="ovSub">Pick 1. Some stack, some are unique.</div>
           </div>
         </div>
       </div>
@@ -617,7 +642,7 @@
         <div class="ovHeader">
           <div>
             <div class="ovTitle">Inventory</div>
-            <div class="ovSub" id="invHint">Tap an item, then tap a unit to equip. Unequip returns to inventory.</div>
+            <div class="ovSub" id="invHint">Tap an item, then tap Equip Here on a unit. Unequip returns to inventory.</div>
           </div>
           <button id="btnInvClose" class="btnPrimary" style="min-height:40px; padding:10px 12px;">Close</button>
         </div>
@@ -861,21 +886,27 @@ const ITEMS = {
   I12:{id:"I12",name:"Chrono Relic", rarity:"Legendary",desc:"Team +10% atk speed",     apply:(c)=>{ } },
 };
 
+/* ===== Augments (with stacking rules) ===== */
 const AUGMENTS = {
-  A1:{ id:"A1", name:"Rich Get Richer", desc:"+3g now, +1g each round", pickNow:(S)=>{ S.gold += 3; }, },
-  A2:{ id:"A2", name:"High Roller", desc:"Reroll costs 1g", },
-  A3:{ id:"A3", name:"Windfall", desc:"+8g now", pickNow:(S)=>{ S.gold += 8; }, },
+  A1:{ id:"A1", name:"Rich Get Richer", desc:"+3g now, +1g each round (stacks)", stackable:true,  maxStacks:5,
+       pickNow:(S, stacksAdded)=>{ S.gold += 3 * stacksAdded; } },
 
-  A4:{ id:"A4", name:"Scoped Weapons", desc:"Ranged +35 range", },
-  A5:{ id:"A5", name:"Second Wind", desc:"Once per unit: below 30% HP → heal 20%", },
-  A6:{ id:"A6", name:"Knife’s Edge", desc:"+20% dmg, -10% max HP", },
-  A7:{ id:"A7", name:"Thick Skin", desc:"Warriors +10% dmg reduction", },
-  A8:{ id:"A8", name:"Rapid Fire", desc:"Rangers attack 12% faster", },
+  A2:{ id:"A2", name:"High Roller", desc:"Reroll costs 1g (unique)", stackable:false, maxStacks:1 },
 
-  A9:{ id:"A9", name:"Warrior Crest", desc:"+1 Warrior trait", },
-  A10:{ id:"A10", name:"Ranger Crest", desc:"+1 Ranger trait", },
-  A11:{ id:"A11", name:"Mage Crest", desc:"+1 Mage trait", },
-  A12:{ id:"A12", name:"Rogue Crest", desc:"+1 Rogue trait", },
+  A3:{ id:"A3", name:"Windfall", desc:"+8g now (stacks)", stackable:true, maxStacks:3,
+       pickNow:(S, stacksAdded)=>{ S.gold += 8 * stacksAdded; } },
+
+  A4:{ id:"A4", name:"Scoped Weapons", desc:"Ranged +35 range (stacks)", stackable:true, maxStacks:3 },
+  A5:{ id:"A5", name:"Second Wind", desc:"Once per unit: below 30% HP → heal 20% (unique)", stackable:false, maxStacks:1 },
+
+  A6:{ id:"A6", name:"Knife’s Edge", desc:"+12% ATK, -5% max HP (stacks)", stackable:true, maxStacks:3 },
+  A7:{ id:"A7", name:"Thick Skin", desc:"Warriors +6% dmg reduction (stacks)", stackable:true, maxStacks:3 },
+  A8:{ id:"A8", name:"Rapid Fire", desc:"Rangers attack faster (stacks)", stackable:true, maxStacks:4 },
+
+  A9:{ id:"A9", name:"Warrior Crest", desc:"+1 Warrior trait (unique)", stackable:false, maxStacks:1 },
+  A10:{ id:"A10", name:"Ranger Crest", desc:"+1 Ranger trait (unique)", stackable:false, maxStacks:1 },
+  A11:{ id:"A11", name:"Mage Crest", desc:"+1 Mage trait (unique)", stackable:false, maxStacks:1 },
+  A12:{ id:"A12", name:"Rogue Crest", desc:"+1 Rogue trait (unique)", stackable:false, maxStacks:1 },
 };
 
 const EVENTS = [
@@ -911,6 +942,7 @@ const EVENTS = [
 ];
 
 /* ===== State ===== */
+const SAVE_KEY_V4 = "roguewar_save_v4";
 const SAVE_KEY_V3 = "roguewar_save_v3";
 const SAVE_KEY_V2 = "roguewar_save_v2";
 const SAVE_KEY_V1 = "roguewar_save_v1";
@@ -924,8 +956,10 @@ const S = {
   shop: [],
   army: [],
 
-  augments: [],
   items: [],
+
+  // augments as stacks map: {A1:2, A2:1, ...}
+  augments: {},
 
   node: { type:"battle", isElite:false },
   nextEnemyMod: null,
@@ -992,7 +1026,33 @@ const el = {
   btnReplaceCancel: document.getElementById("btnReplaceCancel"),
 };
 
-function hasAug(id){ return S.augments.includes(id); }
+/* ===== Augment helpers ===== */
+function augStacks(id){ return (S.augments && S.augments[id]) ? S.augments[id] : 0; }
+function hasAug(id){ return augStacks(id) > 0; }
+function maxStacksFor(id){
+  const a = AUGMENTS[id];
+  if (!a) return 0;
+  return (a.maxStacks != null) ? a.maxStacks : (a.stackable ? 99 : 1);
+}
+function canTakeAug(id){
+  const a = AUGMENTS[id];
+  if (!a) return false;
+  const cur = augStacks(id);
+  const max = maxStacksFor(id);
+  return cur < max;
+}
+function addAugment(id, stacksAdded=1){
+  if (!S.augments) S.augments = {};
+  const cur = augStacks(id);
+  const max = maxStacksFor(id);
+  const add = Math.max(0, Math.min(stacksAdded, max - cur));
+  if (add <= 0) return 0;
+  S.augments[id] = cur + add;
+
+  const a = AUGMENTS[id];
+  if (a && a.pickNow) a.pickNow(S, add, S.augments[id]);
+  return add;
+}
 
 /* ===== UI state ===== */
 function setOverlay(name){
@@ -1001,9 +1061,6 @@ function setOverlay(name){
   updateButtons();
 }
 
-function queueOverlay(name, payload=null){
-  S.overlayQueue.push({ name, payload });
-}
 function nextOverlay(){
   const x = S.overlayQueue.shift();
   if (!x){ setOverlay("none"); return; }
@@ -1091,13 +1148,13 @@ function makeOffer(template){
 /* ===== Save/Load ===== */
 function serializeState(){
   return {
-    v: 3,
+    v: 4,
     ended: (S.hp <= 0),
     round: S.round,
     gold: S.gold,
     hp: S.hp,
     streak: S.streak,
-    augments: S.augments.slice(),
+    augments: S.augments || {},
     items: S.items.slice(),
     node: S.node,
     nextEnemyMod: S.nextEnemyMod,
@@ -1111,25 +1168,65 @@ function serializeState(){
   };
 }
 function saveGame(){
-  try{ localStorage.setItem(SAVE_KEY_V3, JSON.stringify(serializeState())); }catch(e){}
+  try{ localStorage.setItem(SAVE_KEY_V4, JSON.stringify(serializeState())); }catch(e){}
   refreshContinueBtn();
 }
 function clearSave(){
-  try{ localStorage.removeItem(SAVE_KEY_V3); }catch(e){}
+  try{
+    localStorage.removeItem(SAVE_KEY_V4);
+    // keep old keys untouched
+  }catch(e){}
   refreshContinueBtn();
 }
+
+function normalizeAugmentsFromLegacy(a){
+  // legacy was array of ids: ["A2","A1","A1"...]
+  const map = {};
+  if (Array.isArray(a)){
+    for (const id of a){
+      if (!AUGMENTS[id]) continue;
+      map[id] = (map[id]||0) + 1;
+    }
+    // enforce max stacks
+    for (const id of Object.keys(map)){
+      map[id] = Math.min(map[id], maxStacksFor(id));
+      if (!AUGMENTS[id].stackable) map[id] = Math.min(map[id], 1);
+    }
+    return map;
+  }
+  if (a && typeof a === "object"){
+    const out = {};
+    for (const [id,val] of Object.entries(a)){
+      if (!AUGMENTS[id]) continue;
+      const n = Math.max(0, Math.floor(Number(val)||0));
+      out[id] = Math.min(n, maxStacksFor(id));
+      if (!AUGMENTS[id].stackable) out[id] = Math.min(out[id], 1);
+    }
+    return out;
+  }
+  return {};
+}
+
 function loadGame(){
   try{
-    const raw = localStorage.getItem(SAVE_KEY_V3);
-    if (!raw) return false;
-    const data = JSON.parse(raw);
-    if (!data || data.v !== 3 || data.ended) return false;
+    // prefer v4
+    let raw = localStorage.getItem(SAVE_KEY_V4);
+    let data = raw ? JSON.parse(raw) : null;
+
+    // fallback v3
+    if (!data){
+      raw = localStorage.getItem(SAVE_KEY_V3);
+      data = raw ? JSON.parse(raw) : null;
+    }
+
+    if (!data || data.ended) return false;
 
     S.round = data.round ?? 1;
     S.gold = data.gold ?? 10;
     S.hp = data.hp ?? 20;
     S.streak = data.streak ?? 0;
-    S.augments = Array.isArray(data.augments) ? data.augments : [];
+
+    S.augments = normalizeAugmentsFromLegacy(data.augments);
     S.items = Array.isArray(data.items) ? data.items : [];
     S.node = data.node || {type:"battle", isElite:false};
     S.nextEnemyMod = data.nextEnemyMod || null;
@@ -1149,6 +1246,7 @@ function loadGame(){
     setScreen("planning");
     setPhase("planning");
     showToast("Continued run", "info");
+    saveGame();
     return true;
   }catch(e){
     return false;
@@ -1165,7 +1263,7 @@ function tryMigrateV2(){
     S.gold = data.gold ?? 10;
     S.hp = data.hp ?? 20;
     S.streak = data.streak ?? 0;
-    S.augments = Array.isArray(data.augments) ? data.augments : [];
+    S.augments = normalizeAugmentsFromLegacy(data.augments);
     S.items = Array.isArray(data.items) ? data.items : [];
     S.node = data.node || {type:"battle", isElite:false};
     S.nextEnemyMod = data.nextEnemyMod || null;
@@ -1197,7 +1295,7 @@ function tryMigrateV1(){
     S.gold = data.gold ?? 10;
     S.hp = data.hp ?? 20;
     S.streak = data.streak ?? 0;
-    S.augments = [];
+    S.augments = {};
     S.items = [];
     S.node = {type:"battle", isElite:false};
     S.nextEnemyMod = null;
@@ -1214,7 +1312,7 @@ function tryMigrateV1(){
 
 function refreshContinueBtn(){
   try{
-    const raw = localStorage.getItem(SAVE_KEY_V3);
+    const raw = localStorage.getItem(SAVE_KEY_V4) || localStorage.getItem(SAVE_KEY_V3);
     if (!raw){ el.btnContinue.disabled = true; return; }
     const data = JSON.parse(raw);
     el.btnContinue.disabled = !data || data.ended;
@@ -1246,7 +1344,9 @@ function renderStats(){
   el.unitsPill.textContent = `Units: ${S.army.length}`;
   el.battleStats.textContent = `Round ${S.round} • Gold ${S.gold} • HP ${S.hp} • Streak ${S.streak}`;
   el.battleNodePill.textContent = S.node.isElite ? "ELITE" : (S.node.type || "BATTLE").toUpperCase();
-  el.btnReroll.textContent = `Reroll (${hasAug("A2") ? 1 : 2}g)`;
+
+  const rerollCost = hasAug("A2") ? 1 : 2;
+  el.btnReroll.textContent = `Reroll (${rerollCost}g)`;
 }
 
 function updateButtons(){
@@ -1270,10 +1370,11 @@ function getTraitCounts(units){
     if (u.classTag && c[u.classTag] != null) c[u.classTag]++;
     if (u.originTag && c[u.originTag] != null) c[u.originTag]++;
   }
-  if (hasAug("A9")) c.Warrior++;
-  if (hasAug("A10")) c.Ranger++;
-  if (hasAug("A11")) c.Mage++;
-  if (hasAug("A12")) c.Rogue++;
+  // crests are unique; still safe if ever stacked
+  c.Warrior += augStacks("A9");
+  c.Ranger  += augStacks("A10");
+  c.Mage    += augStacks("A11");
+  c.Rogue   += augStacks("A12");
   return c;
 }
 function traitTier(name, count){
@@ -1317,7 +1418,7 @@ function renderSynergiesOverlay(){
   }
 }
 
-/* ===== Shop RNG (rarity odds by round) ===== */
+/* ===== Shop RNG ===== */
 function rarityOddsByRound(round, isEliteNext=false){
   let o;
   if (round <= 2){
@@ -1599,9 +1700,7 @@ function resizeCanvas(){
   el.canvas.width = W;
   el.canvas.height = H;
 }
-window.addEventListener("resize", () => {
-  resizeCanvas();
-});
+window.addEventListener("resize", () => { resizeCanvas(); });
 
 /* ===== Combat cloning + bonuses ===== */
 function cloneForCombat(rosterU, side){
@@ -1643,7 +1742,7 @@ function cloneForCombat(rosterU, side){
   return c;
 }
 
-function applyTeamAura(team, enemyTeam){
+function applyTeamAura(team){
   const hasChrono = team.some(u => (u.items||[]).some(it => it.type === "I12"));
   if (hasChrono){
     for (const u of team){
@@ -1699,10 +1798,34 @@ function applyRunBonusesToClone(c, counts){
     c.cultTier = (n >= 3) ? 2 : (n >= 2) ? 1 : 0;
   }
 
-  if (hasAug("A4") && isRangedUnit(c)) c.range += 35;
-  if (hasAug("A6")) { c.atk = Math.round(c.atk * 1.20); c.maxHP = Math.round(c.maxHP * 0.90); c.hp = c.maxHP; }
-  if (hasAug("A7") && c.classTag === "Warrior") c.damageReduction += 0.10;
-  if (hasAug("A8") && c.classTag === "Ranger") c.spd = c.spd * 0.88;
+  // ===== Augments (stacking applied) =====
+  const scopedStacks = augStacks("A4");
+  if (scopedStacks > 0 && isRangedUnit(c)) c.range += 35 * scopedStacks;
+
+  const knifeStacks = augStacks("A6");
+  if (knifeStacks > 0){
+    // per stack: +12% ATK, -5% HP (multiplicative)
+    for (let i=0;i<knifeStacks;i++){
+      c.atk = Math.round(c.atk * 1.12);
+      c.maxHP = Math.round(c.maxHP * 0.95);
+      c.hp = c.maxHP;
+    }
+  }
+
+  const thickStacks = augStacks("A7");
+  if (thickStacks > 0 && c.classTag === "Warrior"){
+    c.damageReduction += 0.06 * thickStacks;
+  }
+
+  const rapidStacks = augStacks("A8");
+  if (rapidStacks > 0 && c.classTag === "Ranger"){
+    // per stack: 8% faster (spd is seconds per attack)
+    for (let i=0;i<rapidStacks;i++) c.spd = c.spd * 0.92;
+  }
+
+  if (hasAug("A5")) {
+    // handled in stepCombat with hasAug("A5")
+  }
 
   const arr = Array.isArray(c.items) ? c.items : [];
   for (const it of arr){
@@ -1758,7 +1881,7 @@ function deployArmies(){
   });
   S.E = S.E.map(u => cloneForCombat(u, "enemy"));
 
-  applyTeamAura(S.P, S.E);
+  applyTeamAura(S.P);
 
   const centerLineX = W/2;
   const sidePadX = W*0.08;
@@ -2043,9 +2166,8 @@ function applyDamage(att, tgt, rawDmg){
   }
 }
 
-function onKill(att, deadTarget){
+function onKill(att){
   if (!att || !att.alive) return;
-
   if (att.cultTier && att.cultTier > 0){
     const pct = (att.cultTier === 2) ? 0.16 : 0.08;
     const amt = att.maxHP * pct;
@@ -2549,7 +2671,7 @@ function endCombat(win){
       try{
         const data = serializeState();
         data.ended = true;
-        localStorage.setItem(SAVE_KEY_V3, JSON.stringify(data));
+        localStorage.setItem(SAVE_KEY_V4, JSON.stringify(data));
       }catch(e){}
       refreshContinueBtn();
       return;
@@ -2593,21 +2715,21 @@ function beginPostBattleFlow(){
     if (S.node.isElite){
       const it = randomItemDrop();
       S.items.push(it);
-      queueOverlay("item", it);
-      queueOverlay("augment");
+      S.overlayQueue.push({ name:"item", payload: it });
+      S.overlayQueue.push({ name:"augment" });
     } else {
       if (chance(0.40)){
         const it = randomItemDrop();
         S.items.push(it);
-        queueOverlay("item", it);
+        S.overlayQueue.push({ name:"item", payload: it });
       }
-      if (S.round % 3 === 0) queueOverlay("augment");
+      if (S.round % 3 === 0) S.overlayQueue.push({ name:"augment" });
     }
   } else {
-    if (S.round % 3 === 0) queueOverlay("augment");
+    if (S.round % 3 === 0) S.overlayQueue.push({ name:"augment" });
   }
 
-  queueOverlay("node");
+  S.overlayQueue.push({ name:"node" });
 
   saveGame();
   nextOverlay();
@@ -2615,12 +2737,11 @@ function beginPostBattleFlow(){
 
 function startNextRoundPlanning(){
   S.round += 1;
-  S.gold += 2;
-  if (hasAug("A1")) S.gold += 1;
+  // base income
+  let income = 2 + augStacks("A1"); // A1 stacks add +1 per stack per round
+  S.gold += income;
 
-  if (!S.node) S.node = { type:"battle", isElite:false };
-
-  showToast(`Round ${S.round} — +${hasAug("A1") ? 3 : 2}g`, "info");
+  showToast(`Round ${S.round} — +${income}g`, "info");
 
   setScreen("planning");
   setPhase("planning");
@@ -2634,32 +2755,52 @@ function openAugmentPick(){
   setOverlay("augment");
   el.augmentChoices.innerHTML = "";
 
-  const pool = Object.keys(AUGMENTS).filter(id => !S.augments.includes(id));
+  // Build eligible pool: not owned if unique; if stackable must be below max
+  const eligible = Object.keys(AUGMENTS).filter(id => canTakeAug(id));
+
+  // pick 3 distinct
   const picks = [];
+  const pool = eligible.slice();
   while (picks.length < 3 && pool.length){
     const id = pool.splice(Math.floor(Math.random()*pool.length), 1)[0];
-    picks.push(id);
+    if (!picks.includes(id)) picks.push(id);
   }
-  while (picks.length < 3){
-    picks.push(pick(Object.keys(AUGMENTS)));
+  // if still short, try again from eligible but keep distinct
+  while (picks.length < 3 && eligible.length){
+    const id = pick(eligible);
+    if (!picks.includes(id)) picks.push(id);
+    else break;
   }
 
   for (const id of picks){
     const a = AUGMENTS[id];
+    const cur = augStacks(id);
+    const max = maxStacksFor(id);
+    const isUnique = !a.stackable || max === 1;
+
+    const tag = isUnique ? "Unique" : `Stacks ${cur}/${max}`;
     const card = document.createElement("div");
     card.className = "choiceCard";
-    card.innerHTML = `<div class="name"><span>${a.name}</span><span class="rarMini">Augment</span></div><div class="desc">${a.desc}</div>`;
+    card.innerHTML = `<div class="name"><span>${a.name}</span><span class="rarMini">${tag}</span></div><div class="desc">${a.desc}</div>`;
+
     const btn = document.createElement("button");
     btn.className = "btnPrimary";
     btn.textContent = "Pick";
     btn.addEventListener("click", ()=>{
-      S.augments.push(id);
-      if (a.pickNow) a.pickNow(S);
-      showToast(`Augment: ${a.name}`, "good");
+      const added = addAugment(id, 1);
+      if (added <= 0){
+        showToast("Cannot take this again", "bad");
+        // re-roll choices if somehow stuck
+        openAugmentPick();
+        return;
+      }
+      const now = augStacks(id);
+      showToast(`Augment: ${a.name}${a.stackable ? ` (x${now})` : ""}`, "good");
       renderAll();
       saveGame();
       nextOverlay();
     });
+
     card.appendChild(btn);
     el.augmentChoices.appendChild(card);
   }
@@ -2743,12 +2884,14 @@ function openEventSelect(){
   }
 }
 
-/* ===== Inventory overlay (ALWAYS 2 columns + independent scrolling) ===== */
+/* ===== Inventory overlay (fix equip robustness + better feedback) ===== */
 let selectedInvItemId = null;
+let selectedInvItemType = null;
 
 function openInventory(){
   setOverlay("inventory");
   selectedInvItemId = null;
+  selectedInvItemType = null;
   el.invHint.textContent = "Tap an item, then tap Equip Here on a unit. Unequip returns to inventory.";
   renderInventory();
 }
@@ -2759,86 +2902,115 @@ function renderInventory(){
   el.invCount.textContent = `${S.items.length} item${S.items.length===1?"":"s"}`;
   el.invUnitsCount.textContent = `${S.army.length} unit${S.army.length===1?"":"s"}`;
 
-  // Items column
+  // Items
   for (const it of S.items){
     const def = ITEMS[it.type];
     const rarCol = rarityColor(def.rarity || "Common");
-    const card = document.createElement("div");
-    card.className = "choiceCard";
     const sel = (selectedInvItemId === it.id);
+
+    const card = document.createElement("div");
+    card.className = "choiceCard invItem";
     card.style.borderColor = sel ? "rgba(106,166,255,0.95)" : "rgba(42,58,99,0.95)";
     card.innerHTML = `
-      <div class="name"><span>${def.name}</span><span class="rarMini" style="border-color:${rarCol}; color:${rarCol};">${def.rarity||"Common"}</span></div>
+      <div class="name">
+        <span>${def.name}</span>
+        <span class="rarMini" style="border-color:${rarCol}; color:${rarCol};">${def.rarity||"Common"}</span>
+      </div>
       <div class="desc">${def.desc}</div>
     `;
+
     const btn = document.createElement("button");
     btn.className = sel ? "btnPrimary" : "";
     btn.textContent = sel ? "Selected" : "Select";
     btn.addEventListener("click", ()=>{
       selectedInvItemId = it.id;
+      selectedInvItemType = it.type;
       el.invHint.textContent = `Selected: ${def.name} — now tap “Equip Here” on a unit.`;
+      showToast(`Selected ${def.name}`, "info");
       renderInventory();
     });
+
     card.appendChild(btn);
     el.invItems.appendChild(card);
   }
   if (!S.items.length){
     const empty = document.createElement("div");
-    empty.className = "choiceCard";
+    empty.className = "choiceCard invItem";
     empty.innerHTML = `<div class="name">No items</div><div class="desc">Win fights to find items.</div>`;
     el.invItems.appendChild(empty);
   }
 
-  // Units column
+  // Units
   for (const u of S.army){
-    const card = document.createElement("div");
-    card.className = "choiceCard";
-
     const rarCol = rarityColor(u.rarity || "Common");
     const have = (u.items||[]).filter(x=>x && x.type).length;
     const max = u.itemSlotsMax || 1;
 
+    const card = document.createElement("div");
+    card.className = "choiceCard invUnit";
+
+    // Keep this concise + readable
     card.innerHTML = `
       <div class="name">
         <span>${u.name} ${"★".repeat(u.star)}</span>
         <span class="rarMini" style="border-color:${rarCol}; color:${rarCol};">${u.rarity}</span>
       </div>
       <div class="desc">${u.classTag}/${u.originTag} • Slots ${have}/${max}</div>
-      ${renderSlotRowHTML(u)}
     `;
 
     const equipBtn = document.createElement("button");
     equipBtn.className = "btnPrimary";
     equipBtn.textContent = "Equip Here";
-    equipBtn.disabled = !selectedInvItemId;
+    const hasSelection = !!(selectedInvItemId || selectedInvItemType);
+    equipBtn.disabled = !hasSelection;
 
     equipBtn.addEventListener("click", ()=>{
-      if (!selectedInvItemId){
+      showToast("Equip attempt…", "info");
+
+      const hasSel = !!(selectedInvItemId || selectedInvItemType);
+      if (!hasSel){
         showToast("Select an item first", "bad");
         return;
       }
-      const invIdx = S.items.findIndex(x => x.id === selectedInvItemId);
+
+      // Prefer by ID; fallback to type (handles stale IDs / duplicate types)
+      let invIdx = -1;
+      if (selectedInvItemId) invIdx = S.items.findIndex(x => x.id === selectedInvItemId);
+      if (invIdx < 0 && selectedInvItemType) invIdx = S.items.findIndex(x => x.type === selectedInvItemType);
+
       if (invIdx < 0){
-        showToast("Item not found", "bad");
+        showToast("Item not found (reselect it)", "bad");
         selectedInvItemId = null;
+        selectedInvItemType = null;
+        el.invHint.textContent = "Item not found — please select again.";
         renderInventory();
         return;
       }
+
       const pickedItem = S.items[invIdx];
+      selectedInvItemId = pickedItem.id;
+      selectedInvItemType = pickedItem.type;
 
       const cur = Array.isArray(u.items) ? u.items : (u.items=[]);
       const maxSlots = u.itemSlotsMax || 1;
 
       if (cur.length < maxSlots){
+        // equip immediately
         S.items.splice(invIdx, 1);
         cur.push({ id:rndId(), type:pickedItem.type });
+
+        showToast(`Equipped ${itemLabel(pickedItem.type)} → ${u.name}`, "good");
+
         selectedInvItemId = null;
+        selectedInvItemType = null;
         el.invHint.textContent = "Equipped. Select another item to equip more.";
-        showToast(`${itemLabel(pickedItem.type)} equipped to ${u.name}`, "good");
+
         renderAll();
         saveGame();
         renderInventory();
       } else {
+        // open replace
+        showToast("Unit full — choose slot to replace", "info");
         S.pendingEquip = {
           unitId: u.id,
           pickedItemType: pickedItem.type,
@@ -2849,23 +3021,28 @@ function renderInventory(){
       }
     });
 
-    const unequipWrap = document.createElement("div");
-    unequipWrap.style.display = "flex";
-    unequipWrap.style.flexDirection = "column";
-    unequipWrap.style.gap = "8px";
+    card.appendChild(equipBtn);
 
+    // Unequip list (kept, but readable)
     const curItems = Array.isArray(u.items) ? u.items : [];
     if (curItems.length){
+      const unequipWrap = document.createElement("div");
+      unequipWrap.style.display = "flex";
+      unequipWrap.style.flexDirection = "column";
+      unequipWrap.style.gap = "10px";
+
       for (let i=0;i<curItems.length;i++){
         const it = curItems[i];
         if (!it || !it.type) continue;
-        const row = document.createElement("div");
-        row.style.display = "grid";
-        row.style.gridTemplateColumns = "1.2fr 1fr";
-        row.style.gap = "8px";
         const def = ITEMS[it.type];
         const rar = def?.rarity || "Common";
         const col = rarityColor(rar);
+
+        const row = document.createElement("div");
+        row.style.display = "grid";
+        row.style.gridTemplateColumns = "1.25fr 1fr";
+        row.style.gap = "10px";
+        row.style.alignItems = "center";
 
         const label = document.createElement("div");
         label.className = "pill";
@@ -2883,6 +3060,7 @@ function renderInventory(){
           if (removed && removed.type){
             S.items.push({ id:rndId(), type: removed.type });
             selectedInvItemId = null;
+            selectedInvItemType = null;
             el.invHint.textContent = "Unequipped. Select an item to equip again.";
             showToast(`Unequipped ${itemLabel(removed.type)} from ${u.name}`, "info");
             renderAll();
@@ -2895,17 +3073,16 @@ function renderInventory(){
         row.appendChild(btn);
         unequipWrap.appendChild(row);
       }
-    }
 
-    card.appendChild(equipBtn);
-    if (curItems.length) card.appendChild(unequipWrap);
+      card.appendChild(unequipWrap);
+    }
 
     el.invUnits.appendChild(card);
   }
 
   if (!S.army.length){
     const empty = document.createElement("div");
-    empty.className = "choiceCard";
+    empty.className = "choiceCard invUnit";
     empty.innerHTML = `<div class="name">No units</div><div class="desc">Buy units in the shop.</div>`;
     el.invUnits.appendChild(empty);
   }
@@ -2946,9 +3123,7 @@ function renderReplaceOverlay(){
     const btn = document.createElement("button");
     btn.className = "btnPrimary";
     btn.textContent = "Replace this slot";
-    btn.addEventListener("click", ()=>{
-      commitReplace(i);
-    });
+    btn.addEventListener("click", ()=>{ commitReplace(i); });
     card.appendChild(btn);
     el.replaceChoices.appendChild(card);
   }
@@ -2956,11 +3131,18 @@ function renderReplaceOverlay(){
 function commitReplace(slotIndex){
   const pe = S.pendingEquip;
   const unit = S.army.find(u=>u.id===pe.unitId);
-  if (!pe || !unit){ S.pendingEquip=null; setOverlay("inventory"); renderInventory(); return; }
+  if (!pe || !unit){
+    S.pendingEquip=null;
+    setOverlay("inventory");
+    renderInventory();
+    return;
+  }
 
-  const invIdx = S.items.findIndex(x => x.id === pe.pickedItemId);
+  // Prefer by id, fallback by type
+  let invIdx = S.items.findIndex(x => x.id === pe.pickedItemId);
+  if (invIdx < 0) invIdx = S.items.findIndex(x => x.type === pe.pickedItemType);
   if (invIdx < 0){
-    showToast("Item not in inventory", "bad");
+    showToast("Item not in inventory (reselect)", "bad");
     S.pendingEquip=null;
     setOverlay("inventory");
     renderInventory();
@@ -2976,8 +3158,9 @@ function commitReplace(slotIndex){
   const picked = S.items.splice(invIdx,1)[0];
   cur[slotIndex] = { id:rndId(), type: picked.type };
 
-  showToast(`${itemLabel(picked.type)} equipped to ${unit.name}`, "good");
+  showToast(`Equipped ${itemLabel(picked.type)} → ${unit.name}`, "good");
   selectedInvItemId = null;
+  selectedInvItemType = null;
   S.pendingEquip = null;
 
   renderAll();
@@ -3033,14 +3216,15 @@ el.btnContinue.addEventListener("click", () => {
 /* ===== Init / New Game ===== */
 function newGame(){
   clearSave();
+
   S.round = 1;
   S.gold = 10;
   S.hp = 20;
   S.streak = 0;
   S.shop = [];
   S.army = [];
-  S.augments = [];
   S.items = [];
+  S.augments = {};
   S.node = { type:"battle", isElite:false };
   S.nextEnemyMod = null;
   S.overlay = "none";
@@ -3067,7 +3251,7 @@ function init(){
   resizeCanvas();
   refreshContinueBtn();
 
-  if (!localStorage.getItem(SAVE_KEY_V3)){
+  if (!localStorage.getItem(SAVE_KEY_V4) && !localStorage.getItem(SAVE_KEY_V3)){
     if (!tryMigrateV2()) tryMigrateV1();
   }
 
