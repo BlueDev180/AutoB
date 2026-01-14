@@ -2,2004 +2,3190 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>Rogue War Autobattler</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Rogue War TFT Roguelike</title>
+
   <style>
     :root{
-      --bg0:#070b16;
-      --bg1:#0a1022;
-      --card:#0c142b;
-      --card2:#0b1226;
-      --stroke:rgba(120,170,255,.18);
-      --stroke2:rgba(120,170,255,.28);
-      --txt:rgba(235,245,255,.92);
-      --muted:rgba(235,245,255,.68);
-      --muted2:rgba(235,245,255,.52);
-      --good:#3ddc84;
-      --warn:#ffd166;
-      --bad:#ff5a7a;
-      --accent:#7bb0ff;
-      --shadow: 0 14px 40px rgba(0,0,0,.45);
-      --radius:18px;
-      --radius2:14px;
-      --gap:12px;
-      --chip: rgba(130,170,255,.12);
-      --chipStroke: rgba(130,170,255,.25);
-      --glass: rgba(18,30,60,.55);
-    }
+      --bg:#0b0e14;
+      --panel:#0f1420;
+      --panel2:#0c1220;
+      --b:#1d2638;
+      --b2:#2a3a63;
+      --text:#e8eefc;
+      --muted:#9fb0d8;
+      --good:#55d38a;
+      --bad:#ff5c7a;
+      --accent:#6aa6ff;
 
-    *{box-sizing:border-box}
-    html,body{height:100%;margin:0;background:radial-gradient(1200px 900px at 30% 10%, #111a33 0%, var(--bg0) 55%) fixed;color:var(--txt);font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;}
-    button{font:inherit}
-    .app{min-height:100%;display:flex;flex-direction:column;padding:12px;gap:12px;max-width:900px;margin:0 auto}
-    .panel{
-      background: linear-gradient(180deg, rgba(15,24,50,.7), rgba(10,16,34,.78));
-      border: 1px solid var(--stroke);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
+      --rar-common:#8ea0c6;
+      --rar-uncommon:#55d38a;
+      --rar-rare:#6aa6ff;
+      --rar-epic:#b27bff;
+      --rar-legendary:#ffd36a;
+
+      --dmg:#ff5c7a;
+      --heal:#55d38a;
+      --shield:#6aa6ff;
+      --tag:#cfe0ff;
+    }
+    *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+    html, body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
       overflow:hidden;
     }
-    .topbar{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 12px}
-    .titleWrap{display:flex;flex-direction:column;gap:2px}
-    .title{font-weight:800;letter-spacing:.2px}
-    .subtitle{font-size:12px;color:var(--muted)}
-    .pills{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
-    .pill{
-      background: rgba(110,160,255,.10);
-      border: 1px solid rgba(110,160,255,.22);
-      padding:8px 10px;
-      border-radius: 999px;
-      color:var(--txt);
-      font-weight:650;
-      font-size:13px;
-      white-space:nowrap;
-    }
-    .pill.small{padding:6px 10px;font-weight:650;font-size:12px;color:var(--muted)}
-    .pill.good{border-color: rgba(61,220,132,.35); background: rgba(61,220,132,.10)}
-    .pill.bad{border-color: rgba(255,90,122,.35); background: rgba(255,90,122,.10)}
-    .btn{
-      background: rgba(120,170,255,.12);
-      border: 1px solid rgba(120,170,255,.28);
-      color:var(--txt);
-      padding:12px 14px;
-      border-radius: 16px;
-      font-weight:800;
-      letter-spacing:.2px;
-      box-shadow: 0 10px 25px rgba(0,0,0,.25);
-      cursor:pointer;
-      touch-action: manipulation;
-    }
-    .btn:active{transform: translateY(1px)}
-    .btn.primary{background: rgba(120,170,255,.18); border-color: rgba(120,170,255,.45)}
-    .btn.ghost{background: transparent;border-color: rgba(120,170,255,.22);color:var(--muted)}
-    .btn:disabled{opacity:.45;cursor:not-allowed}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px}
-    .stat{
-      padding:14px 14px;
-      border-radius: 16px;
-      border:1px solid rgba(120,170,255,.16);
-      background: rgba(12,20,43,.55);
-      min-height:74px;
-      display:flex;flex-direction:column;justify-content:center;gap:6px;
-    }
-    .stat .k{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.2px}
-    .stat .v{font-size:26px;font-weight:900}
-    .controlsRow{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 12px 12px}
-    .section{padding:12px}
-    .sectionHeader{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
-    .sectionTitle{font-weight:900;letter-spacing:.2px}
-    .hint{font-size:12px;color:var(--muted)}
-    .shopGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .card{
-      background: rgba(12,20,43,.58);
-      border:1px solid rgba(120,170,255,.16);
-      border-radius: 18px;
-      padding:12px;
+
+    .app{
+      height:100dvh;
+      padding: env(safe-area-inset-top) 10px env(safe-area-inset-bottom) 10px;
       display:flex;
       flex-direction:column;
       gap:10px;
-      min-height: 146px;
-      position:relative;
+      min-height:0;
       overflow:hidden;
-    }
-    .card:before{
-      content:"";
-      position:absolute;inset:-1px;
-      background: radial-gradient(400px 200px at 10% 10%, rgba(120,170,255,.12), transparent 60%);
-      pointer-events:none;
-    }
-    .cardTop{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;position:relative}
-    .name{font-weight:900;font-size:18px}
-    .meta{font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;position:relative}
-    .badge{
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid rgba(120,170,255,.22);
-      background: rgba(120,170,255,.10);
-      font-size:12px;
-      color:var(--muted);
-      white-space:nowrap;
-      font-weight:800;
-    }
-    .rar-common{border-color:rgba(130,170,255,.22); color:rgba(235,245,255,.70)}
-    .rar-uncommon{border-color:rgba(61,220,132,.35); color:rgba(160,255,205,.92); background:rgba(61,220,132,.10)}
-    .rar-rare{border-color:rgba(99,155,255,.40); color:rgba(190,220,255,.95); background:rgba(99,155,255,.14)}
-    .rar-epic{border-color:rgba(185,120,255,.45); color:rgba(230,205,255,.95); background:rgba(185,120,255,.14)}
-    .rar-legendary{border-color:rgba(255,209,102,.55); color:rgba(255,240,205,.98); background:rgba(255,209,102,.12)}
-    .line{height:1px;background:rgba(120,170,255,.12);margin:4px 0}
-    .buyRow{display:flex;gap:10px;align-items:center;justify-content:space-between;position:relative}
-    .stars{font-size:14px;color:var(--muted);font-weight:800;letter-spacing:.15px}
-    .traitLine{
-      color:var(--muted);
-      font-size:12px;
-      line-height:1.25;
-      display:-webkit-box;
-      -webkit-line-clamp:2;
-      -webkit-box-orient:vertical;
-      overflow:hidden;
-      white-space:normal;
-      max-width:100%;
-    }
-    .armyStrip{
-      display:flex;gap:10px;overflow:auto;padding-bottom:2px;
-      -webkit-overflow-scrolling: touch;
-    }
-    .armyStrip::-webkit-scrollbar{height:0}
-    .unitChip{
-      min-width: 240px;
-      background: rgba(12,20,43,.62);
-      border:1px solid rgba(120,170,255,.16);
-      border-radius: 18px;
-      padding:12px;
-      position:relative;
-      overflow:hidden;
-      flex:0 0 auto;
-    }
-    .unitChip .chipTop{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
-    .unitChip .chipName{font-weight:900}
-    .unitChip .chipMeta{font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}
-    .chipStats{font-size:12px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
-    .chipActions{display:flex;gap:8px;margin-top:10px;align-items:center;justify-content:space-between}
-    .miniBtn{
-      background: rgba(120,170,255,.10);
-      border:1px solid rgba(120,170,255,.22);
-      color:var(--txt);
-      padding:10px 12px;
-      border-radius: 14px;
-      font-weight:900;
-      cursor:pointer;
-      touch-action: manipulation;
-    }
-    .miniBtn.ghost{background:transparent;color:var(--muted)}
-    .miniBtn.bad{border-color:rgba(255,90,122,.35); background:rgba(255,90,122,.10)}
-    .miniBtn.good{border-color:rgba(61,220,132,.35); background:rgba(61,220,132,.10)}
-    .itemsInline{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-    .itemPill{
-      font-size:11px;
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid rgba(120,170,255,.18);
-      background: rgba(120,170,255,.08);
-      color:var(--muted);
-      max-width: 100%;
-      display:flex;gap:6px;align-items:center;
-    }
-    .itemPill button{
-      border:none;background:transparent;color:rgba(255,255,255,.8);
-      font-weight:900;cursor:pointer;padding:0 2px
     }
 
-    /* overlays */
-    .overlay{
-      position:fixed;inset:0;
-      background: rgba(2,4,10,.62);
+    .screen{
       display:none;
-      z-index: 50;
-      padding: 12px;
-    }
-    .overlay.show{display:flex}
-    .overlayCard{
-      width:min(900px,100%);
-      margin:auto;
-      background: linear-gradient(180deg, rgba(14,22,48,.92), rgba(8,12,26,.94));
-      border:1px solid rgba(120,170,255,.20);
-      border-radius: 22px;
-      box-shadow: var(--shadow);
-      overflow:hidden;
-      display:flex;
-      flex-direction:column;
-      max-height: calc(100vh - 24px);
-      min-height: 60vh;
-    }
-    .overlayHeader{
-      padding:12px 12px 10px;
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
-      border-bottom:1px solid rgba(120,170,255,.12);
-      background: rgba(10,16,34,.55);
-      flex:0 0 auto;
-    }
-    .overlayHeader .hTitle{font-weight:950;font-size:18px}
-    .overlayHeader .hSub{font-size:12px;color:var(--muted);margin-top:2px}
-    .overlayHeader .hLeft{display:flex;flex-direction:column}
-    .overlayBody{
-      padding:12px;
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-      min-height:0; /* critical */
       flex:1 1 auto;
+      min-height:0;
+      overflow:hidden;
+    }
+    body[data-screen="menu"] .screenMenu{ display:flex; }
+    body[data-screen="planning"] .screenPlanning{ display:flex; }
+    body[data-screen="battle"] .screenBattle{ display:flex; }
+
+    /* ===== Toast (override) ===== */
+    #toast{
+      position:fixed;
+      left:50%;
+      top: calc(env(safe-area-inset-top) + 10px);
+      transform: translateX(-50%) translateY(-8px);
+      max-width: 92vw;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(15,20,32,0.92);
+      border: 1px solid rgba(42,58,99,0.95);
+      color: var(--text);
+      font-weight: 1000;
+      font-size: 14px;
+      line-height: 1.2;
+      text-align:center;
+      z-index: 9999;
+      opacity: 0;
+      pointer-events: none;
+      backdrop-filter: blur(10px);
+      transition: opacity 120ms ease, transform 250ms ease, box-shadow 250ms ease, border-color 250ms ease;
+
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #toast.show{ opacity: 1; transform: translateX(-50%) translateY(0px); }
+    #toast.good{ border-color: rgba(85,211,138,0.70); box-shadow: 0 0 0 1px rgba(85,211,138,0.12) inset; }
+    #toast.bad{ border-color: rgba(255,92,122,0.70); box-shadow: 0 0 0 1px rgba(255,92,122,0.12) inset; }
+
+    .panel{
+      background:var(--panel);
+      border:1px solid var(--b);
+      border-radius:14px;
+      padding:10px;
+      overflow:hidden;
+    }
+    .panelTop{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:8px;
+      min-width:0;
+    }
+    .panelTitle{
+      font-size:13px;
+      font-weight:1000;
+      color:#cfe0ff;
+      white-space:nowrap;
+    }
+    .hint{
+      font-size:12px;
+      color:var(--muted);
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      max-width: 62vw;
     }
 
-    /* Inventory two columns always */
-    .invGrid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:12px;
-      min-height:0; /* critical */
-      flex:1 1 auto;
+    button{
+      background:#1a2540;
+      color:var(--text);
+      border:1px solid var(--b2);
+      border-radius:12px;
+      padding:12px 14px;
+      font-weight:1000;
+      font-size:13px;
+      line-height:1;
+      min-height:44px;
+      touch-action: manipulation;
+      white-space:nowrap;
     }
-    .invPane{
-      background: rgba(12,20,43,.52);
-      border:1px solid rgba(120,170,255,.14);
-      border-radius: 18px;
+    button:disabled{ opacity:.5; }
+    .btnPrimary{
+      border-color: rgba(106,166,255,0.85);
+      box-shadow: 0 0 0 1px rgba(106,166,255,0.20) inset;
+    }
+    .btnGhost{ background:#121a2c; border-color:#24345b; }
+
+    .pill{
+      border:1px solid var(--b2);
+      background:#111a2c;
+      padding:7px 10px;
+      border-radius:999px;
+      font-size:12px;
+      color:#b9c6e6;
+      white-space:nowrap;
+    }
+    .pillGood{ border-color: rgba(85,211,138,0.75); color:#c9ffe2; }
+    .pillBad{ border-color: rgba(255,92,122,0.75); color:#ffd0d9; }
+
+    /* ===== MENU ===== */
+    .menuWrap{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; overflow:hidden; justify-content:center; }
+    .menuCard{ width:min(520px, 100%); margin:0 auto; display:flex; flex-direction:column; gap:10px; }
+    .menuTitle{ font-size:18px; font-weight:1200; letter-spacing:0.4px; color:#d6e4ff; margin-bottom:2px; text-align:center; }
+    .menuSub{ font-size:12px; color:var(--muted); text-align:center; line-height:1.35; margin-bottom:6px; }
+    .menuBtns{ display:flex; flex-direction:column; gap:10px; }
+    .howto{
+      display:none;
+      background:rgba(12,18,32,0.92);
+      border:1px solid rgba(42,58,99,0.95);
+      border-radius:14px;
+      padding:12px;
+      line-height:1.35;
+      color:#cfe0ff;
+      font-size:13px;
+    }
+    body[data-howto="open"] .howto{ display:block; }
+
+    /* ===== PLANNING ===== */
+    .planningWrap{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; overflow:hidden; }
+    .topPlanning{ flex:0 0 auto; }
+    .topGrid{ display:grid; grid-template-columns: 1fr; gap:10px; }
+    .phaseRow{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .phaseLabel{
+      font-weight:1100;
+      font-size:12px;
+      letter-spacing:1px;
+      color:#cfe0ff;
+      padding:7px 10px;
+      border-radius:999px;
+      border:1px solid var(--b2);
+      background:#0e1627;
+      white-space:nowrap;
+    }
+
+    .statStrip{ display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:8px; }
+    @media (max-width: 420px){ .statStrip{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
+    .statTile{
+      background:var(--panel2);
+      border:1px solid var(--b);
+      border-radius:14px;
       padding:10px;
       display:flex;
       flex-direction:column;
-      min-height:0; /* critical */
+      gap:2px;
+      min-height:64px;
     }
-    .invPaneHeader{
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
-      margin-bottom:8px;
+    .statTile .lab{ font-size:11px; color:#b9c6e6; font-weight:900; letter-spacing:0.3px; }
+    .statTile .val{ font-size:20px; font-weight:1200; color:var(--text); line-height:1.05; }
+
+    .actionRow{ display:grid; grid-template-columns: 1fr 1.2fr; gap:8px; }
+    @media (max-width: 420px){ .actionRow{ grid-template-columns: 1fr 1fr; } }
+
+    .planningBody{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; overflow:hidden; }
+    .shopPanel{ flex: 1 1 58%; min-height:0; display:flex; flex-direction:column; }
+    .armyPanel{ flex: 1 1 42%; min-height:0; display:flex; flex-direction:column; }
+
+    .shop{
+      flex:1 1 auto; min-height:0; display:flex; gap:10px;
+      overflow-x:auto; overflow-y:hidden;
+      -webkit-overflow-scrolling: touch; scrollbar-width:none; padding-bottom:2px;
+    }
+    .shop::-webkit-scrollbar{ display:none; }
+    .card{
+      flex: 0 0 215px;
+      background:var(--panel2);
+      border:1px solid var(--b);
+      border-radius:14px;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      position:relative;
+      overflow:hidden;
+    }
+    .rarStrip{
+      position:absolute; left:0; top:0; bottom:0;
+      width:6px;
+      opacity:0.95;
+      background: var(--rar-common);
+    }
+    .card h4{
+      margin:0;
+      font-size:15px;
+      color:var(--text);
+      font-weight:1100;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .card .badge{
+      width:10px; height:10px; border-radius:999px;
+      background:#fff;
+      flex:0 0 auto;
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.25);
+    }
+    .line{ font-size:12px; color:var(--muted); }
+
+    .armyBar{
+      flex:1 1 auto;
+      min-height:0;
+      display:flex;
+      gap:10px;
+      overflow-x:auto;
+      overflow-y:hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width:none;
+      padding-bottom:2px;
+    }
+    .armyBar::-webkit-scrollbar{ display:none; }
+    .chip{
+      flex:0 0 auto;
+      background:#12203b;
+      border:1px solid var(--b2);
+      border-radius:12px;
+      padding:10px 12px;
+      min-width: 168px;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      position:relative;
+      overflow:hidden;
+      border-left: 6px solid #6aa6ff;
+    }
+    .chip .t{ font-weight:1100; font-size:13px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .chip .s{ font-size:12px; color:#cfe0ff; opacity:.95; }
+    .chip .m{ font-size:12px; color:var(--muted); }
+
+    .rarMini{
+      font-size:11px;
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid rgba(42,58,99,0.95);
+      background:#10192e;
+      color:#cfe0ff;
+      line-height:1;
       flex:0 0 auto;
     }
-    .invPaneHeader .t{font-weight:950}
-    .invPaneHeader .c{font-size:12px;color:var(--muted)}
-    .invList{
+
+    .armyHeaderRight{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex:0 0 auto;
+    }
+    .armyHeaderRight button{
+      min-height:40px;
+      padding:10px 12px;
+    }
+
+    /* ===== BATTLE ===== */
+    .battleWrap{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+    .battleCanvasWrap{
       flex:1 1 auto;
-      min-height:0; /* critical */
+      min-height:0;
+      background:var(--panel2);
+      border:1px solid var(--b);
+      border-radius:14px;
+      overflow:hidden;
+      position:relative;
+    }
+    canvas{ width:100%; height:100%; display:block; }
+
+    .overlayTop{
+      position:absolute;
+      top:10px;
+      left:10px;
+      right:10px;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+      pointer-events:none;
+    }
+    .overlayTop .left{ display:flex; flex-direction:column; gap:8px; min-width:0; pointer-events:none; }
+    .overlayTop .right{ display:flex; gap:8px; align-items:center; pointer-events:none; }
+    .overlayTop .left .pill{ white-space:normal; line-height:1.15; max-width: 76vw; }
+    .overlayTop button{ pointer-events:auto; }
+
+    .resultBox{
+      position:absolute;
+      left:10px;
+      right:10px;
+      top:50%;
+      transform:translateY(-50%);
+      background:rgba(15,20,32,0.92);
+      border:1px solid rgba(42,58,99,0.95);
+      border-radius:16px;
+      padding:14px;
+      backdrop-filter: blur(10px);
+      display:none;
+      z-index: 30;
+    }
+    body[data-result="show"] .resultBox{ display:block; }
+    .resultBox .rTitle{ font-weight:1200; font-size:16px; margin-bottom:6px; }
+    .resultBox .rText{ font-size:13px; color:var(--muted); margin-bottom:10px; line-height:1.35; }
+    .resultBox .rBtns{ display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+
+    /* ===== Fullscreen overlays ===== */
+    .fsOverlay{
+      position:fixed;
+      inset:0;
+      z-index: 20000;
+      padding: calc(env(safe-area-inset-top) + 10px) 10px calc(env(safe-area-inset-bottom) + 10px) 10px;
+      background: rgba(6,8,12,0.78);
+      backdrop-filter: blur(10px);
+      display:none;
+      overflow:hidden;
+      touch-action: none;
+    }
+    body[data-overlay="augment"] #ovAugment{ display:block; }
+    body[data-overlay="item"] #ovItem{ display:block; }
+    body[data-overlay="node"] #ovNode{ display:block; }
+    body[data-overlay="event"] #ovEvent{ display:block; }
+    body[data-overlay="inventory"] #ovInventory{ display:block; }
+    body[data-overlay="synergies"] #ovSynergies{ display:block; }
+    body[data-overlay="replace"] #ovReplace{ display:block; }
+
+    .ovCard{
+      height:100%;
+      max-width: 560px;
+      margin:0 auto;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      overflow:hidden;
+      min-height:0;
+    }
+    .ovHeader{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      min-width:0;
+    }
+    .ovTitle{ font-size:16px; font-weight:1200; color:#d6e4ff; }
+    .ovSub{ font-size:12px; color:var(--muted); line-height:1.35; }
+    .ovBody{
+      flex:1 1 auto;
+      min-height:0;
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .vStack{
+      flex:1 1 auto;
+      min-height:0;
       overflow:auto;
       -webkit-overflow-scrolling: touch;
       display:flex;
       flex-direction:column;
       gap:10px;
-      padding-bottom:4px;
+      padding-bottom:2px;
+      touch-action: pan-y;
     }
-    .invRow{
-      border:1px solid rgba(120,170,255,.14);
-      background: rgba(10,16,34,.60);
-      border-radius: 16px;
-      padding:10px;
+    .choiceCard{
+      background: rgba(12,18,32,0.92);
+      border: 1px solid rgba(42,58,99,0.95);
+      border-radius: 14px;
+      padding: 12px;
       display:flex;
       flex-direction:column;
-      gap:8px;
-    }
-    .invRowTop{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
-    .invRowTop .n{font-weight:950}
-    .invRowTop .d{font-size:12px;color:var(--muted);margin-top:2px}
-    .invRowActions{display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
-    .invRow .traitLine{font-size:12px}
-    .invRow .slotLine{font-size:12px;color:var(--muted2);font-weight:800}
-    .selectedRow{outline: 2px solid rgba(123,176,255,.55); outline-offset: 2px}
-    .toast{
-      position:fixed;left:50%;top:10px;transform:translateX(-50%);
-      background: rgba(10,16,34,.92);
-      border:1px solid rgba(120,170,255,.22);
-      border-radius: 999px;
-      padding:10px 14px;
-      color:var(--txt);
-      font-weight:900;
-      display:none;
-      z-index: 80;
-      box-shadow: 0 16px 40px rgba(0,0,0,.45);
-      max-width: calc(100vw - 24px);
-      text-overflow:ellipsis;overflow:hidden;white-space:nowrap;
-    }
-    .toast.show{display:block}
-
-    /* Battle screen */
-    .battleOverlay{
-      position:fixed;inset:0;z-index:60;
-      background: radial-gradient(1200px 900px at 30% 10%, #111a33 0%, var(--bg0) 55%) fixed;
-      display:none;
-      flex-direction:column;
-    }
-    .battleOverlay.show{display:flex}
-    .battleHud{
-      padding:10px 12px;
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
-    }
-    .battleHud .left{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .battleHud .right{display:flex;gap:8px;align-items:center}
-    canvas{display:block;width:100%;height:100%}
-    .battleWrap{flex:1 1 auto;min-height:0;position:relative}
-    .numFloat{
-      position:absolute;
-      font-weight:950;
-      font-size:13px;
-      pointer-events:none;
-      text-shadow: 0 2px 10px rgba(0,0,0,.65);
-      will-change: transform, opacity;
-    }
-    .numDmg{color: rgba(255,110,140,.98)}
-    .numHeal{color: rgba(90,255,170,.98)}
-    .numCrit{color: rgba(255,209,102,.98)}
-    .modalSmall{
-      position:fixed;inset:0;z-index:70;
-      background: rgba(2,4,10,.62);
-      display:none;padding:12px;
-    }
-    .modalSmall.show{display:flex}
-    .modalCard{
-      margin:auto;
-      width:min(540px,100%);
-      background: linear-gradient(180deg, rgba(14,22,48,.94), rgba(8,12,26,.96));
-      border:1px solid rgba(120,170,255,.22);
-      border-radius: 20px;
-      box-shadow: var(--shadow);
+      gap:6px;
+      position:relative;
       overflow:hidden;
     }
-    .modalCard .mHead{padding:12px;border-bottom:1px solid rgba(120,170,255,.12)}
-    .modalCard .mHead .t{font-weight:950}
-    .modalCard .mHead .s{font-size:12px;color:var(--muted);margin-top:4px}
-    .modalCard .mBody{padding:12px;display:flex;flex-direction:column;gap:10px}
-    .replaceRow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid rgba(120,170,255,.14);border-radius:16px;background:rgba(10,16,34,.60)}
-    .replaceRow .l{display:flex;flex-direction:column;gap:4px}
-    .replaceRow .l .n{font-weight:950}
-    .replaceRow .l .d{font-size:12px;color:var(--muted)}
-    .footerNote{padding:10px 12px;font-size:12px;color:var(--muted);border-top:1px solid rgba(120,170,255,.12);background: rgba(10,16,34,.55)}
+    .choiceCard .name{ font-weight:1200; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .choiceCard .desc{ font-size:12px; color:var(--muted); line-height:1.35; }
+    .choiceCard button{ width:100%; }
+
+    /* Inventory layout */
+    .twoCols{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      min-height:0;
+      flex:1 1 auto;
+      overflow:hidden;
+    }
+    .invList{
+      min-height:0;
+      flex:1 1 auto;
+      overflow:auto;
+      -webkit-overflow-scrolling:touch;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      touch-action: pan-y;
+      padding-bottom:2px;
+    }
+
+    /* Inventory tabs (auto on small screens) */
+    .invTabs{
+      display:none;
+      gap:8px;
+    }
+    .invTabs button{
+      min-height:40px;
+      padding:10px 12px;
+      flex:1 1 auto;
+    }
+    .invPane{ min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:10px; }
+    .invPane.hidden{ display:none; }
+
+    .slotRow{
+      display:flex; gap:6px; flex-wrap:wrap;
+      align-items:center;
+    }
+    .slotPill{
+      font-size:11px;
+      padding:5px 8px;
+      border-radius:999px;
+      border:1px solid rgba(42,58,99,0.95);
+      background:#0f1830;
+      color:#cfe0ff;
+      line-height:1;
+      white-space:nowrap;
+    }
+    .slotEmpty{ opacity:0.55; }
+
+    @media (max-width: 420px){
+      .twoCols{ grid-template-columns: 1fr; }
+      .invTabs{ display:flex; }
+    }
+
+    @media (max-width: 380px){
+      .card{ flex-basis: 205px; }
+      .chip{ min-width: 156px; }
+      button{ padding:12px 12px; }
+      .statTile .val{ font-size:19px; }
+      #toast{ font-size:13px; }
+    }
   </style>
 </head>
-<body>
-  <div class="toast" id="toast"></div>
+
+<body data-screen="menu" data-result="hide" data-howto="closed" data-overlay="none" data-invtab="items">
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <!-- ===== Fullscreen overlays ===== -->
+  <div class="fsOverlay" id="ovAugment" aria-hidden="true">
+    <div class="ovCard">
+      <div class="panel">
+        <div class="ovHeader">
+          <div>
+            <div class="ovTitle">Choose an Augment</div>
+            <div class="ovSub">Pick 1. It lasts for the entire run.</div>
+          </div>
+        </div>
+      </div>
+      <div class="ovBody">
+        <div class="vStack" id="augmentChoices"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fsOverlay" id="ovItem" aria-hidden="true">
+    <div class="ovCard">
+      <div class="panel">
+        <div class="ovHeader">
+          <div>
+            <div class="ovTitle" id="itemRewardTitle">Item Found</div>
+            <div class="ovSub" id="itemRewardSub">Add it to your inventory, then equip in Planning.</div>
+          </div>
+          <button id="btnItemContinue" class="btnPrimary" style="min-height:40px; padding:10px 12px;">Continue</button>
+        </div>
+      </div>
+      <div class="ovBody">
+        <div class="choiceCard" id="itemRewardCard"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fsOverlay" id="ovNode" aria-hidden="true">
+    <div class="ovCard">
+      <div class="panel">
+        <div class="ovHeader">
+          <div>
+            <div class="ovTitle">Choose Next Node</div>
+            <div class="ovSub">Battle for progress, Elite for better rewards, or Event for risk/reward.</div>
+          </div>
+        </div>
+      </div>
+      <div class="ovBody">
+        <div class="vStack" id="nodeChoices"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fsOverlay" id="ovEvent" aria-hidden="true">
+    <div class="ovCard">
+      <div class="panel">
+        <div class="ovHeader">
+          <div>
+            <div class="ovTitle">Event</div>
+            <div class="ovSub">Pick one outcome.</div>
+          </div>
+        </div>
+      </div>
+      <div class="ovBody">
+        <div class="vStack" id="eventChoices"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Synergies overlay -->
+  <div class="fsOverlay" id="ovSynergies" aria-hidden="true">
+    <div class="ovCard">
+      <div class="panel">
+        <div class="ovHeader">
+          <div>
+            <div class="ovTitle">Synergies</div>
+            <div class="ovSub">All traits + breakpoints (crests included).</div>
+          </div>
+          <button id="btnSynClose" class="btnPrimary" style="min-height:40px; padding:10px 12px;">Close</button>
+        </div>
+      </div>
+      <div class="ovBody">
+        <div class="vStack" id="synergyList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Replace overlay (when item slots full) -->
+  <div class="fsOverlay" id="ovReplace" aria-hidden="true">
+    <div class="ovCard">
+      <div class="panel">
+        <div class="ovHeader">
+          <div>
+            <div class="ovTitle">Replace an Item</div>
+            <div class="ovSub" id="replaceSub">Choose which slot to replace.</div>
+          </div>
+          <button id="btnReplaceCancel" class="btnPrimary" style="min-height:40px; padding:10px 12px;">Cancel</button>
+        </div>
+      </div>
+      <div class="ovBody">
+        <div class="vStack" id="replaceChoices"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inventory overlay -->
+  <div class="fsOverlay" id="ovInventory" aria-hidden="true">
+    <div class="ovCard">
+      <div class="panel">
+        <div class="ovHeader">
+          <div>
+            <div class="ovTitle">Inventory</div>
+            <div class="ovSub" id="invHint">Tap an item, then tap a unit to equip. Unequip returns to inventory.</div>
+          </div>
+          <button id="btnInvClose" class="btnPrimary" style="min-height:40px; padding:10px 12px;">Close</button>
+        </div>
+      </div>
+
+      <div class="panel" style="padding:10px; display:none;" id="invTabsWrap">
+        <div class="invTabs">
+          <button id="btnInvTabItems" class="btnPrimary">Items</button>
+          <button id="btnInvTabUnits" class="btnGhost">Units</button>
+        </div>
+      </div>
+
+      <div class="ovBody twoCols" id="invGrid">
+        <div class="panel invPane" id="invPaneItems" style="min-height:0; overflow:hidden;">
+          <div class="panelTop">
+            <div class="panelTitle">Items</div>
+            <div class="hint" id="invCount">0</div>
+          </div>
+          <div class="invList" id="invItems"></div>
+        </div>
+
+        <div class="panel invPane" id="invPaneUnits" style="min-height:0; overflow:hidden;">
+          <div class="panelTop">
+            <div class="panelTitle">Units</div>
+            <div class="hint" id="invUnitsCount">0</div>
+          </div>
+          <div class="invList" id="invUnits"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="app">
 
-    <div class="panel">
-      <div class="topbar">
-        <div class="titleWrap">
-          <div class="title">Rogue War Autobattler</div>
-          <div class="subtitle" id="phaseText">Planning: buy/merge • Start Fight to battle</div>
-        </div>
-        <div class="pills">
-          <div class="pill small" id="nextTag">Next: Normal</div>
-          <div class="pill small" id="unitsTag">Units: 0</div>
-          <button class="btn ghost" id="btnInventory">Inventory</button>
-          <button class="btn ghost" id="btnMenu">Menu</button>
-        </div>
-      </div>
+    <!-- MENU -->
+    <div class="screen screenMenu">
+      <div class="menuWrap">
+        <div class="menuCard panel">
+          <div class="menuTitle">ROGUE WAR</div>
+          <div class="menuSub">TFT roguelike: synergies, augments, items, rarity, permadeath.</div>
 
-      <div class="grid2">
-        <div class="stat"><div class="k">ROUND</div><div class="v" id="roundV">1</div></div>
-        <div class="stat"><div class="k">GOLD</div><div class="v" id="goldV">0</div></div>
-        <div class="stat"><div class="k">HP</div><div class="v" id="hpV">20</div></div>
-        <div class="stat"><div class="k">STREAK</div><div class="v" id="streakV">0</div></div>
-      </div>
-
-      <div class="controlsRow">
-        <button class="btn" id="btnReroll">Reroll (1g)</button>
-        <button class="btn primary" id="btnStartFight">Start Fight</button>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="section">
-        <div class="sectionHeader">
-          <div>
-            <div class="sectionTitle">Shop</div>
-            <div class="hint">3-of-a-kind merges → ★ up (merging returns items)</div>
-          </div>
-        </div>
-        <div class="shopGrid" id="shopGrid"></div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="section">
-        <div class="sectionHeader">
-          <div class="sectionTitle">Your Army</div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button class="miniBtn ghost" id="btnSynergies">Synergies</button>
-            <div class="pill small" id="permaTag">Permadeath ON</div>
-          </div>
-        </div>
-        <div class="armyStrip" id="armyStrip"></div>
-      </div>
-      <div class="footerNote" id="armyNote"></div>
-    </div>
-  </div>
-
-  <!-- INVENTORY OVERLAY -->
-  <div class="overlay" id="invOverlay" aria-hidden="true">
-    <div class="overlayCard">
-      <div class="overlayHeader">
-        <div class="hLeft">
-          <div class="hTitle">Inventory</div>
-          <div class="hSub" id="invSub">Select an item, then tap “Equip” on a unit.</div>
-        </div>
-        <button class="btn" id="btnInvClose">Close</button>
-      </div>
-      <div class="overlayBody">
-        <div class="invGrid">
-          <div class="invPane">
-            <div class="invPaneHeader">
-              <div class="t">Items</div>
-              <div class="c" id="invItemsCount">0 items</div>
-            </div>
-            <div class="invList" id="invItems"></div>
+          <div class="menuBtns">
+            <button id="btnNewGame" class="btnPrimary">New Game</button>
+            <button id="btnContinue" disabled>Continue</button>
+            <button id="btnHowTo" class="btnGhost">How to Play</button>
           </div>
 
-          <div class="invPane">
-            <div class="invPaneHeader">
-              <div class="t">Units</div>
-              <div class="c" id="invUnitsCount">0 units</div>
-            </div>
-            <div class="invList" id="invUnits"></div>
+          <div class="howto" id="howtoBox">
+            <div style="font-weight:1000; margin-bottom:6px;">How to Play</div>
+            <div>1) Buy units (buying removes the offer).</div>
+            <div>2) 3-of-a-kind merges → ★ up (items return).</div>
+            <div>3) Synergies activate at breakpoints.</div>
+            <div>4) Augments every 3 rounds (and from elites).</div>
+            <div>5) Items: higher rarity units hold more.</div>
+            <div>6) Permadeath: units that die in battle are removed (items return).</div>
           </div>
         </div>
       </div>
-      <div class="footerNote">Tip: Unequip returns items here. If a unit is full, you can replace an item.</div>
     </div>
-  </div>
 
-  <!-- SYNERGIES OVERLAY -->
-  <div class="overlay" id="synOverlay" aria-hidden="true">
-    <div class="overlayCard" style="min-height:50vh">
-      <div class="overlayHeader">
-        <div class="hLeft">
-          <div class="hTitle">Synergies</div>
-          <div class="hSub" id="synSub">Active bonuses apply in battle.</div>
-        </div>
-        <button class="btn" id="btnSynClose">Close</button>
-      </div>
-      <div class="overlayBody" style="min-height:0">
-        <div class="invPane" style="min-height:0">
-          <div class="invList" id="synList"></div>
-        </div>
-      </div>
-    </div>
-  </div>
+    <!-- PLANNING -->
+    <div class="screen screenPlanning">
+      <div class="planningWrap">
 
-  <!-- MENU OVERLAY -->
-  <div class="overlay" id="menuOverlay" aria-hidden="true">
-    <div class="overlayCard" style="min-height:45vh">
-      <div class="overlayHeader">
-        <div class="hLeft">
-          <div class="hTitle">Menu</div>
-          <div class="hSub">Run settings + restart.</div>
-        </div>
-        <button class="btn" id="btnMenuClose">Close</button>
-      </div>
-      <div class="overlayBody" style="gap:10px">
-        <div class="invPane">
-          <div class="invList">
-            <div class="invRow">
-              <div class="invRowTop">
-                <div>
-                  <div class="n">Permadeath</div>
-                  <div class="d">If ON, dead units are removed permanently.</div>
-                </div>
-                <div class="badge" id="menuPermaBadge">ON</div>
-              </div>
-              <div class="invRowActions">
-                <button class="btn" id="btnTogglePerma">Toggle</button>
+        <div class="panel topPlanning">
+          <div class="topGrid">
+            <div class="phaseRow">
+              <div class="phaseLabel">PLANNING</div>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <div class="pill" id="unitsPill">Units: 0</div>
+                <button id="btnInventory" class="btnGhost" style="min-height:40px; padding:10px 12px;">Inventory</button>
+                <button id="btnMenu" class="btnGhost" style="min-height:40px; padding:10px 12px;">Menu</button>
               </div>
             </div>
 
-            <div class="invRow">
-              <div class="invRowTop">
-                <div>
-                  <div class="n">Restart Run</div>
-                  <div class="d">Resets round, gold, HP, units, items.</div>
-                </div>
+            <div class="statStrip" aria-label="stats">
+              <div class="statTile">
+                <div class="lab">ROUND</div>
+                <div class="val" id="roundVal">1</div>
               </div>
-              <div class="invRowActions">
-                <button class="btn bad" id="btnRestart">Restart</button>
+              <div class="statTile">
+                <div class="lab">GOLD</div>
+                <div class="val" id="goldVal">10</div>
               </div>
-            </div>
-
-            <div class="invRow">
-              <div class="invRowTop">
-                <div>
-                  <div class="n">Help</div>
-                  <div class="d">Buy units, merge 3-of-a-kind to ★ up. Equip items from Inventory. Start Fight to battle. Damage/heal numbers appear in battle.</div>
-                </div>
+              <div class="statTile">
+                <div class="lab">HP</div>
+                <div class="val" id="hpVal">20</div>
+              </div>
+              <div class="statTile">
+                <div class="lab">STREAK</div>
+                <div class="val" id="streakVal">0</div>
               </div>
             </div>
 
+            <div class="actionRow">
+              <button id="btnReroll">Reroll</button>
+              <button id="btnStart" class="btnPrimary">Start Fight</button>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="footerNote">Designed for phone. Two-column Inventory always visible.</div>
-    </div>
-  </div>
 
-  <!-- Replace item modal -->
-  <div class="modalSmall" id="replaceModal" aria-hidden="true">
-    <div class="modalCard">
-      <div class="mHead">
-        <div class="t">Unit is full</div>
-        <div class="s" id="replaceSub">Choose an item to replace.</div>
-      </div>
-      <div class="mBody" id="replaceBody"></div>
-      <div class="footerNote">Replacing returns the old item to Inventory.</div>
-    </div>
-  </div>
-
-  <!-- BATTLE SCREEN -->
-  <div class="battleOverlay" id="battleOverlay" aria-hidden="true">
-    <div class="battleHud">
-      <div class="left">
-        <div class="pill small" id="battleRound">Round 1</div>
-        <div class="pill small" id="battleInfo">Battle</div>
-      </div>
-      <div class="right">
-        <button class="btn ghost" id="btnSkipBattle">Skip</button>
-      </div>
-    </div>
-    <div class="battleWrap" id="battleWrap">
-      <canvas id="battleCanvas"></canvas>
-    </div>
-  </div>
-
-  <script>
-    // ----------------------------
-    // Utilities
-    // ----------------------------
-    const $ = (q)=>document.querySelector(q);
-    const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
-    const rand = (a,b)=>Math.random()*(b-a)+a;
-    const choice = (arr)=>arr[Math.floor(Math.random()*arr.length)];
-    const uid = ()=>Math.random().toString(16).slice(2)+Date.now().toString(16);
-
-    function showToast(msg){
-      const el = $("#toast");
-      el.textContent = msg;
-      el.classList.add("show");
-      clearTimeout(showToast._t);
-      showToast._t = setTimeout(()=>el.classList.remove("show"), 1000);
-    }
-
-    // ----------------------------
-    // Data: rarities, classes, items
-    // ----------------------------
-    const RARITIES = ["Common","Uncommon","Rare","Epic","Legendary"];
-    const rarityColorClass = {
-      "Common":"rar-common",
-      "Uncommon":"rar-uncommon",
-      "Rare":"rar-rare",
-      "Epic":"rar-epic",
-      "Legendary":"rar-legendary"
-    };
-
-    // Item slot capacity by rarity (units)
-    const slotsByRarity = {
-      "Common": 1,
-      "Uncommon": 1,
-      "Rare": 2,
-      "Epic": 2,
-      "Legendary": 3
-    };
-
-    // Unit pools
-    const UNIT_TEMPLATES = [
-      // Common
-      {id:"brawler",   name:"Brawler",   cost:1, rarity:"Common",   role:"melee", classTag:"Warrior", originTag:"Kingdom", hp:260, atk:18, range:18,  spd:0.95,  shape:"square"},
-      {id:"archer",    name:"Archer",    cost:1, rarity:"Common",   role:"ranged",classTag:"Ranger",  originTag:"Wilds",   hp:180, atk:26, range:150, spd:0.95,  shape:"circle"},
-      {id:"thug",      name:"Thug",      cost:1, rarity:"Common",   role:"melee", classTag:"Rogue",   originTag:"Wilds",   hp:210, atk:20, range:16,  spd:1.00,  shape:"diamond"},
-      {id:"acolyte",   name:"Acolyte",   cost:1, rarity:"Common",   role:"ranged",classTag:"Mage",    originTag:"Cult",    hp:160, atk:22, range:170, spd:1.10,  shape:"hex"},
-      // Uncommon
-      {id:"healer",    name:"Healer",    cost:2, rarity:"Uncommon", role:"ranged",classTag:"Mage",    originTag:"Cult",    hp:160, atk:10, range:160, spd:1.10,  shape:"circle", healer:true},
-      {id:"knight",    name:"Knight",    cost:2, rarity:"Uncommon", role:"melee", classTag:"Warrior", originTag:"Kingdom", hp:320, atk:22, range:16,  spd:1.05,  shape:"square"},
-      {id:"crossbow",  name:"Crossbowman",cost:2,rarity:"Uncommon", role:"ranged",classTag:"Ranger",  originTag:"Kingdom", hp:220, atk:30, range:170, spd:1.05,  shape:"triangle"},
-      // Rare
-      {id:"assassin",  name:"Assassin",  cost:3, rarity:"Rare",     role:"melee", classTag:"Rogue",   originTag:"Wilds",   hp:190, atk:46, range:16,  spd:0.85,  shape:"diamond"},
-      {id:"mage",      name:"Mage",      cost:3, rarity:"Rare",     role:"ranged",classTag:"Mage",    originTag:"Cult",    hp:170, atk:34, range:180, spd:1.15,  shape:"hex"},
-      {id:"warden",    name:"Warden",    cost:3, rarity:"Rare",     role:"melee", classTag:"Warrior", originTag:"Cult",    hp:420, atk:24, range:18,  spd:1.10,  shape:"square"},
-      // Epic
-      {id:"warlord",   name:"Warlord",   cost:4, rarity:"Epic",     role:"melee", classTag:"Warrior", originTag:"Kingdom", hp:520, atk:34, range:20,  spd:0.90,  shape:"square"},
-      {id:"sniper",    name:"Sniper",    cost:4, rarity:"Epic",     role:"ranged",classTag:"Ranger",  originTag:"Wilds",   hp:260, atk:58, range:220, spd:1.20,  shape:"triangle"},
-      {id:"shade",     name:"Shade",     cost:4, rarity:"Epic",     role:"melee", classTag:"Rogue",   originTag:"Cult",    hp:280, atk:52, range:18,  spd:0.90,  shape:"diamond"},
-      // Legendary
-      {id:"champion",  name:"Champion",  cost:5, rarity:"Legendary",role:"melee", classTag:"Warrior", originTag:"Wilds",   hp:700, atk:56, range:20,  spd:0.85,  shape:"square"},
-      {id:"archmage",  name:"Archmage",  cost:5, rarity:"Legendary",role:"ranged",classTag:"Mage",    originTag:"Cult",    hp:320, atk:70, range:240, spd:1.10,  shape:"hex"},
-    ];
-
-    // Item templates (simple, visible effects + battle numbers)
-    const ITEM_TEMPLATES = [
-      {id:"sword",     name:"Sword",     rarity:"Common",    desc:"+20% ATK", mod:{atkPct:0.20}},
-      {id:"shield",    name:"Shield",    rarity:"Common",    desc:"+25% Max HP", mod:{hpPct:0.25}},
-      {id:"scope",     name:"Scope",     rarity:"Uncommon",  desc:"+30 Range", mod:{rangeAdd:30}},
-      {id:"vamp",      name:"Vamp Charm",rarity:"Uncommon",  desc:"+10% Lifesteal", mod:{lifesteal:0.10}},
-      {id:"bomb",      name:"Bomb",      rarity:"Rare",      desc:"First hit splashes", mod:{splashFirst:true}},
-      {id:"wand",      name:"Wand",      rarity:"Rare",      desc:"+25% ATK for Mages", mod:{atkPct:0.12, classBoost:"Mage", classAtkPct:0.25}},
-      {id:"cloak",     name:"Cloak",     rarity:"Epic",      desc:"+20% Dodge (Rogues)", mod:{dodge:0.20, classBoost:"Rogue"}},
-      {id:"banner",    name:"War Banner",rarity:"Epic",      desc:"+10% ATK aura (allies)", mod:{auraAtkPct:0.10}},
-      {id:"relic",     name:"Ancient Relic",rarity:"Legendary",desc:"+15% ATK + 15% HP", mod:{atkPct:0.15, hpPct:0.15}},
-    ];
-
-    // Synergy definitions (thresholds + effect functions)
-    const SYNERGIES = {
-      "Warrior": {
-        thresholds: [2,4,6],
-        desc: ["+10% Max HP"," +20% Max HP"," +30% Max HP"],
-        apply(unit, tier){ // tier = 0..2
-          const pct = [0.10,0.20,0.30][tier];
-          unit.maxHp *= (1+pct);
-          unit.hp = Math.min(unit.hp, unit.maxHp);
-        }
-      },
-      "Ranger": {
-        thresholds: [2,4,6],
-        desc: ["+10% ATK","+20% ATK","+30% ATK"],
-        apply(unit, tier){
-          const pct = [0.10,0.20,0.30][tier];
-          unit.atk *= (1+pct);
-        }
-      },
-      "Mage": {
-        thresholds: [2,4,6],
-        desc: ["+15 Range","+35 Range","+60 Range"],
-        apply(unit, tier){
-          const add = [15,35,60][tier];
-          unit.range += add;
-        }
-      },
-      "Rogue": {
-        thresholds: [2,4,6],
-        desc: ["+10% Crit","+20% Crit","+30% Crit"],
-        apply(unit, tier){
-          const add = [0.10,0.20,0.30][tier];
-          unit.crit = (unit.crit||0) + add;
-        }
-      },
-      "Kingdom": {
-        thresholds: [2,4,6],
-        desc: ["+5% ATK aura","+10% ATK aura","+15% ATK aura"],
-        aura(tier){
-          return [0.05,0.10,0.15][tier];
-        }
-      },
-      "Cult": {
-        thresholds: [2,4,6],
-        desc: ["+3% Lifesteal","+6% Lifesteal","+10% Lifesteal"],
-        apply(unit,tier){
-          const add = [0.03,0.06,0.10][tier];
-          unit.lifesteal = (unit.lifesteal||0) + add;
-        }
-      },
-      "Wilds": {
-        thresholds: [2,4,6],
-        desc: ["+8% Attack Speed","+16% Attack Speed","+24% Attack Speed"],
-        apply(unit,tier){
-          const pct = [0.08,0.16,0.24][tier];
-          unit.spd *= (1-pct); // lower interval = faster
-          unit.spd = Math.max(0.35, unit.spd);
-        }
-      }
-    };
-
-    // ----------------------------
-    // Game state
-    // ----------------------------
-    const state = {
-      round: 1,
-      gold: 6,
-      hp: 20,
-      streak: 0,
-      permaDeath: true,
-      phase: "planning",
-      shop: [],
-      army: [],        // unit instances
-      inventory: [],   // item instances
-      selectedItemId: null, // inventory item instance id
-      nextType: "Normal", // Normal/Elite/Boss
-      // battle
-      battle: null,
-    };
-
-    function templateById(id){ return UNIT_TEMPLATES.find(u=>u.id===id); }
-    function itemTplById(id){ return ITEM_TEMPLATES.find(i=>i.id===id); }
-
-    // ----------------------------
-    // Economy + RNG
-    // ----------------------------
-    function roundType(round){
-      if (round % 10 === 0) return "Boss";
-      if (round % 5 === 0) return "Elite";
-      return "Normal";
-    }
-
-    // Shop rarity chances by round (simple TFT-like curve)
-    function shopChances(round){
-      // returns array weights aligned to RARITIES
-      if (round <= 3)  return [0.78,0.20,0.02,0.00,0.00];
-      if (round <= 6)  return [0.58,0.30,0.10,0.02,0.00];
-      if (round <= 10) return [0.40,0.32,0.20,0.07,0.01];
-      if (round <= 15) return [0.26,0.30,0.26,0.14,0.04];
-      if (round <= 20) return [0.16,0.24,0.30,0.22,0.08];
-      return              [0.10,0.18,0.28,0.28,0.16];
-    }
-
-    function rollRarity(weights){
-      const r = Math.random();
-      let acc = 0;
-      for (let i=0;i<weights.length;i++){
-        acc += weights[i];
-        if (r <= acc) return RARITIES[i];
-      }
-      return RARITIES[RARITIES.length-1];
-    }
-
-    function rollUnitOffer(){
-      const weights = shopChances(state.round);
-      const rar = rollRarity(weights);
-      const pool = UNIT_TEMPLATES.filter(u=>u.rarity===rar);
-      // if pool empty (shouldn't), fallback
-      return choice(pool.length?pool:UNIT_TEMPLATES);
-    }
-
-    function itemDropChance(round){
-      // chance to get an item after a win; elites/bosses give more
-      const type = roundType(round);
-      if (type === "Boss") return 1.00;
-      if (type === "Elite") return 0.70;
-      return 0.35;
-    }
-
-    function rollItem(){
-      // item rarity curve by round
-      let weights;
-      if (state.round <= 5) weights = [0.70,0.22,0.08,0.00,0.00];
-      else if (state.round <= 12) weights = [0.50,0.26,0.16,0.07,0.01];
-      else if (state.round <= 20) weights = [0.34,0.25,0.22,0.15,0.04];
-      else weights = [0.25,0.22,0.22,0.21,0.10];
-      const rar = rollRarity(weights);
-      const pool = ITEM_TEMPLATES.filter(i=>i.rarity===rar);
-      return choice(pool.length?pool:ITEM_TEMPLATES);
-    }
-
-    // ----------------------------
-    // Units + items: instances and stats
-    // ----------------------------
-    function makeUnitInstance(tpl){
-      return {
-        id: uid(),
-        tplId: tpl.id,
-        name: tpl.name,
-        rarity: tpl.rarity,
-        cost: tpl.cost,
-        classTag: tpl.classTag,
-        originTag: tpl.originTag,
-        role: tpl.role,         // melee/ranged
-        healer: !!tpl.healer,   // if true: heals allies instead of damaging enemies
-        stars: 1,
-        base: {
-          hp: tpl.hp,
-          atk: tpl.atk,
-          range: tpl.range,
-          spd: tpl.spd
-        },
-        items: [], // equipped item instance ids
-      };
-    }
-
-    function makeItemInstance(tpl){
-      return { id: uid(), tplId: tpl.id, name: tpl.name, rarity: tpl.rarity, desc: tpl.desc };
-    }
-
-    function unitSlotMax(unit){
-      return slotsByRarity[unit.rarity] || 1;
-    }
-
-    function computeUnitBattleStats(unit, synergyPack, allAlliesForAura){
-      const tpl = templateById(unit.tplId);
-      const starMult = 1 + (unit.stars-1) * 0.60; // simple scaling
-      let maxHp = tpl.hp * starMult;
-      let atk = tpl.atk * starMult;
-      let range = tpl.range;
-      let spd = tpl.spd; // attack interval seconds
-      let lifesteal = 0;
-      let dodge = 0;
-      let crit = 0.05; // base crit
-      let splashFirst = false;
-      let auraAtkPct = 0;
-
-      // Apply equipped items
-      const equipped = unit.items.map(id => state.inventory.find(x=>x.id===id)).filter(Boolean);
-      // NOTE: equipped items are removed from inventory in our system, so we store "equipped" differently:
-      // We'll keep a separate storage in unit for equipped item objects at battle time.
-      // (See buildBattleUnits)
-      // So here, equipped will be empty; we pass equippedObjects in buildBattleUnits.
-
-      // Synergy base
-      if (synergyPack && synergyPack.applyTo){
-        synergyPack.applyTo({ // dummy? no, we apply to computed stats below via direct ops
-          get maxHp(){ return maxHp }, set maxHp(v){ maxHp=v },
-          get hp(){ return maxHp }, set hp(v){ /* ignore */ },
-          get atk(){ return atk }, set atk(v){ atk=v },
-          get range(){ return range }, set range(v){ range=v },
-          get spd(){ return spd }, set spd(v){ spd=v },
-          get lifesteal(){ return lifesteal }, set lifesteal(v){ lifesteal=v },
-          get dodge(){ return dodge }, set dodge(v){ dodge=v },
-          get crit(){ return crit }, set crit(v){ crit=v },
-        }, unit);
-      }
-
-      // aura from Kingdom + banner item etc is handled separately in battle builder
-
-      return { maxHp, atk, range, spd, lifesteal, dodge, crit, splashFirst, auraAtkPct };
-    }
-
-    // ----------------------------
-    // Merging (3-of-a-kind) with item return
-    // ----------------------------
-    function tryAutoMerge(){
-      // group by tplId + stars
-      let merged = false;
-      let didSomething = true;
-
-      while (didSomething){
-        didSomething = false;
-        const keyMap = new Map();
-        for (const u of state.army){
-          const key = u.tplId + "|"+u.stars;
-          if (!keyMap.has(key)) keyMap.set(key, []);
-          keyMap.get(key).push(u);
-        }
-        for (const [key, arr] of keyMap.entries()){
-          if (arr.length >= 3){
-            // pick 3
-            const a = arr.slice(0,3);
-            // return items from consumed units
-            for (const cu of a){
-              // return equipped items (if any) to inventory
-              if (cu.equipped && cu.equipped.length){
-                for (const it of cu.equipped){
-                  state.inventory.push(it);
-                }
-                cu.equipped = [];
-              }
-              // also return any legacy storage
-              if (cu.items && cu.items.length){
-                // these ids may reference inventory items; ensure safe:
-                // treat as item objects if we stored objects previously
-                // (we won't, but keep safe)
-                cu.items = [];
-              }
-            }
-
-            // remove the three
-            state.army = state.army.filter(x => !a.some(y=>y.id===x.id));
-
-            // create upgraded
-            const base = makeUnitInstance(templateById(a[0].tplId));
-            base.stars = a[0].stars + 1;
-            base.equipped = []; // holds equipped item objects (not ids)
-            state.army.push(base);
-
-            showToast(`Merged 3x ${base.name} → ★${base.stars}! (items returned)`);
-            merged = true;
-            didSomething = true;
-            break;
-          }
-        }
-      }
-      if (merged) renderAll();
-    }
-
-    // ----------------------------
-    // Shop actions
-    // ----------------------------
-    function fillShop(){
-      state.shop = [rollUnitOffer(), rollUnitOffer()].map(tpl => ({
-        offerId: uid(),
-        tplId: tpl.id,
-        name: tpl.name,
-        rarity: tpl.rarity,
-        cost: tpl.cost
-      }));
-    }
-
-    function buyOffer(offerId){
-      const offer = state.shop.find(o=>o.offerId===offerId);
-      if (!offer) return;
-      if (state.gold < offer.cost){
-        showToast("Not enough gold");
-        return;
-      }
-      state.gold -= offer.cost;
-      const unit = makeUnitInstance(templateById(offer.tplId));
-      unit.equipped = []; // equipped item objects live here
-      state.army.push(unit);
-      // remove offer
-      state.shop = state.shop.filter(o=>o.offerId!==offerId);
-      showToast(`${unit.name} ★1 recruited`);
-      tryAutoMerge();
-      renderAll();
-    }
-
-    function reroll(){
-      const cost = 1;
-      if (state.gold < cost){ showToast("Not enough gold"); return; }
-      state.gold -= cost;
-      fillShop();
-      showToast("Shop rerolled");
-      renderAll();
-    }
-
-    // ----------------------------
-    // Inventory: equip / unequip
-    // ----------------------------
-    function getEquippedItems(unit){
-      unit.equipped = unit.equipped || [];
-      return unit.equipped;
-    }
-
-    function selectItem(itemInstanceId){
-      state.selectedItemId = itemInstanceId;
-      const it = state.inventory.find(x=>x.id===itemInstanceId);
-      $("#invSub").textContent = it ? `Selected: ${it.name}. Tap “Equip” on a unit.` : "Select an item, then tap “Equip” on a unit.";
-      renderInventory();
-    }
-
-    function equipSelectedToUnit(unitId){
-      const itemId = state.selectedItemId;
-      if (!itemId) return;
-      const item = state.inventory.find(x=>x.id===itemId);
-      const unit = state.army.find(u=>u.id===unitId);
-      if (!item || !unit) return;
-
-      const eq = getEquippedItems(unit);
-      const slots = unitSlotMax(unit);
-
-      if (eq.length >= slots){
-        openReplaceModal(unit, item);
-        return;
-      }
-
-      // remove from inventory
-      state.inventory = state.inventory.filter(x=>x.id!==itemId);
-
-      // equip
-      eq.push(item);
-      state.selectedItemId = null;
-      $("#invSub").textContent = "Select an item, then tap “Equip” on a unit.";
-      showToast(`${item.name} equipped`);
-      renderAll();
-      renderInventory();
-    }
-
-    function unequipItem(unitId, itemInstanceId){
-      const unit = state.army.find(u=>u.id===unitId);
-      if (!unit) return;
-      const eq = getEquippedItems(unit);
-      const idx = eq.findIndex(x=>x.id===itemInstanceId);
-      if (idx === -1) return;
-      const [it] = eq.splice(idx,1);
-      state.inventory.push(it);
-      showToast(`${it.name} unequipped`);
-      renderAll();
-      renderInventory();
-    }
-
-    // Replace modal (unit full)
-    let replaceCtx = null;
-    function openReplaceModal(unit, newItem){
-      replaceCtx = { unitId: unit.id, newItem };
-      $("#replaceSub").textContent = `${unit.name} ★${unit.stars} has full slots. Replace one:`;
-      const body = $("#replaceBody");
-      body.innerHTML = "";
-
-      const eq = getEquippedItems(unit);
-      for (const it of eq){
-        const row = document.createElement("div");
-        row.className = "replaceRow";
-        row.innerHTML = `
-          <div class="l">
-            <div class="n">${escapeHtml(it.name)} <span class="badge ${rarityColorClass[it.rarity]||""}">${escapeHtml(it.rarity)}</span></div>
-            <div class="d">${escapeHtml(it.desc||"")}</div>
+        <div class="planningBody">
+          <div class="panel shopPanel">
+            <div class="panelTop">
+              <div class="panelTitle">Shop</div>
+              <div class="hint">3-of-a-kind merges → ★ up</div>
+            </div>
+            <div class="shop" id="shop"></div>
           </div>
-          <button class="btn">Replace</button>
-        `;
-        row.querySelector("button").onclick = ()=>replaceItem(it.id);
-        body.appendChild(row);
-      }
 
-      const cancel = document.createElement("div");
-      cancel.style.display="flex";
-      cancel.style.justifyContent="flex-end";
-      cancel.innerHTML = `<button class="btn ghost">Cancel</button>`;
-      cancel.querySelector("button").onclick = closeReplaceModal;
-      body.appendChild(cancel);
+          <div class="panel armyPanel">
+            <div class="panelTop">
+              <div class="panelTitle">Your Army</div>
+              <div class="armyHeaderRight">
+                <button id="btnSynergies" class="btnGhost">Synergies</button>
+                <div class="pill">Permadeath ON</div>
+              </div>
+            </div>
+            <div class="armyBar" id="armyBar"></div>
+          </div>
+        </div>
 
-      $("#replaceModal").classList.add("show");
-      $("#replaceModal").setAttribute("aria-hidden","false");
-    }
+      </div>
+    </div>
 
-    function closeReplaceModal(){
-      replaceCtx = null;
-      $("#replaceModal").classList.remove("show");
-      $("#replaceModal").setAttribute("aria-hidden","true");
-    }
+    <!-- BATTLE -->
+    <div class="screen screenBattle">
+      <div class="battleWrap">
+        <div class="battleCanvasWrap">
+          <canvas id="battle"></canvas>
 
-    function replaceItem(oldItemId){
-      const ctx = replaceCtx;
-      if (!ctx) return;
-      const unit = state.army.find(u=>u.id===ctx.unitId);
-      if (!unit) return closeReplaceModal();
-
-      const eq = getEquippedItems(unit);
-      const oldIdx = eq.findIndex(x=>x.id===oldItemId);
-      if (oldIdx === -1) return closeReplaceModal();
-
-      const selectedId = state.selectedItemId;
-      const newItem = state.inventory.find(x=>x.id===selectedId);
-      if (!newItem){
-        // If selection was lost, use ctx.newItem if still in inventory
-        const fallback = state.inventory.find(x=>x.id===ctx.newItem.id);
-        if (!fallback) return closeReplaceModal();
-      }
-
-      const actualNew = state.inventory.find(x=>x.id===selectedId) || ctx.newItem;
-
-      // remove actualNew from inventory
-      state.inventory = state.inventory.filter(x=>x.id!==actualNew.id);
-
-      // return old item to inventory
-      const [oldIt] = eq.splice(oldIdx,1);
-      state.inventory.push(oldIt);
-
-      // equip new
-      eq.push(actualNew);
-
-      state.selectedItemId = null;
-      $("#invSub").textContent = "Select an item, then tap “Equip” on a unit.";
-      showToast(`Replaced ${oldIt.name} → ${actualNew.name}`);
-      closeReplaceModal();
-      renderAll();
-      renderInventory();
-    }
-
-    // ----------------------------
-    // Synergies
-    // ----------------------------
-    function countSynergies(){
-      const counts = {};
-      for (const u of state.army){
-        counts[u.classTag] = (counts[u.classTag]||0) + 1;
-        counts[u.originTag] = (counts[u.originTag]||0) + 1;
-      }
-      return counts;
-    }
-
-    function activeTierFor(key, count){
-      const def = SYNERGIES[key];
-      if (!def) return -1;
-      let tier = -1;
-      for (let i=0;i<def.thresholds.length;i++){
-        if (count >= def.thresholds[i]) tier = i;
-      }
-      return tier;
-    }
-
-    function renderSynergies(){
-      const list = $("#synList");
-      list.innerHTML = "";
-      const counts = countSynergies();
-      const keys = Object.keys(SYNERGIES);
-
-      for (const k of keys){
-        const c = counts[k] || 0;
-        const tier = activeTierFor(k, c);
-        const def = SYNERGIES[k];
-        const row = document.createElement("div");
-        row.className = "invRow";
-        const active = tier >= 0;
-        row.innerHTML = `
-          <div class="invRowTop">
-            <div>
-              <div class="n">${k} <span class="badge ${active ? "rar-uncommon":"rar-common"}">${active ? "ACTIVE" : "INACTIVE"}</span></div>
-              <div class="d">Count: <b>${c}</b> • Thresholds: ${def.thresholds.join("/")}</div>
+          <div class="overlayTop">
+            <div class="left">
+              <div class="pill" id="battleNodePill">BATTLE</div>
+              <div class="pill" id="battleStats">Round 1 • Gold 10 • HP 20 • Streak 0</div>
+            </div>
+            <div class="right">
+              <button id="btnNext" disabled>Next</button>
             </div>
           </div>
-          <div class="traitLine">${def.desc.map((d,i)=>`${def.thresholds[i]}: ${d}${i===tier?" ✅":""}`).join(" • ")}</div>
-        `;
-        list.appendChild(row);
-      }
+
+          <div class="resultBox" id="resultBox">
+            <div class="rTitle" id="resultTitle">Result</div>
+            <div class="rText" id="resultText">...</div>
+            <div class="rBtns">
+              <button id="btnResultNext" class="btnPrimary" disabled>Next</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+/* ---- iPhone error overlay ---- */
+window.addEventListener("error", (e) => {
+  const box = document.createElement("pre");
+  box.style.position="fixed";
+  box.style.left="0"; box.style.right="0"; box.style.bottom="0";
+  box.style.maxHeight="45vh"; box.style.overflow="auto";
+  box.style.zIndex="99999"; box.style.margin="0"; box.style.padding="12px";
+  box.style.background="rgba(0,0,0,0.92)"; box.style.color="white"; box.style.fontSize="12px";
+  box.textContent = "JS ERROR:\n" + (e.message||"Unknown") + "\n\n" + (e.filename||"") + ":" + (e.lineno||"") + ":" + (e.colno||"");
+  document.body.appendChild(box);
+});
+
+/* ===== Toast (override, no queue) ===== */
+const toastEl = document.getElementById("toast");
+let toastTimer = null;
+function showToast(text, type="info"){
+  clearTimeout(toastTimer);
+  toastEl.classList.remove("good","bad","show");
+  if (type === "good") toastEl.classList.add("good");
+  if (type === "bad") toastEl.classList.add("bad");
+  toastEl.textContent = text;
+  void toastEl.offsetWidth;
+  toastEl.classList.add("show");
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1000);
+}
+
+/* ===== Helpers ===== */
+function rndId(){ return (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random()).slice(2); }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function chance(p){ return Math.random() < p; }
+function randi(a,b){ return Math.floor(a + Math.random()*(b-a+1)); }
+
+/* ===== Rarity helpers ===== */
+const RARITIES = ["Common","Uncommon","Rare","Epic","Legendary"];
+function rarityColor(r){
+  if (r==="Uncommon") return getCSS("--rar-uncommon");
+  if (r==="Rare") return getCSS("--rar-rare");
+  if (r==="Epic") return getCSS("--rar-epic");
+  if (r==="Legendary") return getCSS("--rar-legendary");
+  return getCSS("--rar-common");
+}
+function raritySlots(r){
+  if (r==="Legendary") return 3;
+  if (r==="Epic") return 2;
+  if (r==="Rare") return 2;
+  return 1;
+}
+function getCSS(varName){
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+/* ===== Definitions ===== */
+const UNIT_POOL = [
+  // Existing
+  { name:"Brawler",  rarity:"Common",    cost:1, hp: 260, atk: 18, spd: 1.00, range: 18,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" },
+  { name:"Knight",   rarity:"Uncommon",  cost:2, hp: 320, atk: 22, spd: 1.05, range: 18,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" },
+  { name:"Archer",   rarity:"Common",    cost:1, hp: 180, atk: 26, spd: 0.95, range: 150, role:"Back",     classTag:"Ranger",  originTag:"Wilds"   },
+  { name:"Mage",     rarity:"Uncommon",  cost:2, hp: 170, atk: 34, spd: 1.15, range: 160, role:"Mage",     classTag:"Mage",    originTag:"Cult"    },
+  { name:"Assassin", rarity:"Rare",      cost:3, hp: 190, atk: 46, spd: 0.75, range: 22,  role:"Skirmish", classTag:"Rogue",   originTag:"Wilds"   },
+
+  // New specials (simple, readable kits)
+  { name:"Spearman",    rarity:"Uncommon",  cost:2, hp: 300, atk: 24, spd: 1.00, range: 26,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" }, // vs skirmish bonus
+  { name:"Healer",      rarity:"Uncommon",  cost:2, hp: 160, atk: 18, spd: 1.25, range: 170, role:"Mage",     classTag:"Mage",    originTag:"Cult"    }, // heal ally
+  { name:"Crossbowman", rarity:"Common",    cost:1, hp: 170, atk: 30, spd: 1.10, range: 150, role:"Back",     classTag:"Ranger",  originTag:"Kingdom" }, // heavier shot
+  { name:"Berserker",   rarity:"Rare",      cost:3, hp: 360, atk: 28, spd: 1.05, range: 18,  role:"Front",    classTag:"Warrior", originTag:"Wilds"   }, // enrage
+  { name:"Invoker",     rarity:"Rare",      cost:3, hp: 175, atk: 32, spd: 1.05, range: 170, role:"Mage",     classTag:"Mage",    originTag:"Cult"    }, // every 3rd pierce
+  { name:"Trapper",     rarity:"Rare",      cost:3, hp: 180, atk: 24, spd: 0.95, range: 160, role:"Back",     classTag:"Ranger",  originTag:"Wilds"   }, // first root
+  { name:"Warlord",     rarity:"Epic",      cost:4, hp: 460, atk: 32, spd: 1.10, range: 22,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" }, // aura DR
+  { name:"Shade",       rarity:"Legendary", cost:5, hp: 240, atk: 60, spd: 0.75, range: 22,  role:"Skirmish", classTag:"Rogue",   originTag:"Cult"    }, // blink to back
+];
+
+const ITEMS = {
+  // Common / Uncommon
+  I1:{ id:"I1", name:"Sword",        rarity:"Common",   desc:"+20% ATK",                apply:(c)=>{ c.atk = Math.round(c.atk*1.20); } },
+  I2:{ id:"I2", name:"Shield",       rarity:"Common",   desc:"+25% Max HP",             apply:(c)=>{ c.maxHP = Math.round(c.maxHP*1.25); c.hp = c.maxHP; } },
+  I3:{ id:"I3", name:"Bowstring",    rarity:"Uncommon", desc:"+15% atk speed (ranged)", apply:(c)=>{ if (isRangedUnit(c)) c.spd = c.spd*0.85; } },
+  I4:{ id:"I4", name:"Scope",        rarity:"Uncommon", desc:"+30 range",               apply:(c)=>{ c.range += 30; } },
+  I5:{ id:"I5", name:"Vamp Charm",   rarity:"Rare",     desc:"10% lifesteal",           apply:(c)=>{ c.lifesteal = Math.max(c.lifesteal||0, 0.10); } },
+  I6:{ id:"I6", name:"Bomb",         rarity:"Rare",     desc:"First hit splashes",      apply:(c)=>{ c.bombReady = true; } },
+
+  // Extra (rarity spread)
+  I7:{ id:"I7", name:"Iron Ring",    rarity:"Common",   desc:"+10% Max HP",             apply:(c)=>{ c.maxHP = Math.round(c.maxHP*1.10); c.hp = c.maxHP; } },
+  I8:{ id:"I8", name:"Boots",        rarity:"Uncommon", desc:"+10% move speed",         apply:(c)=>{ c.moveMult = (c.moveMult||1) * 1.10; } },
+  I9:{ id:"I9", name:"Chain Rune",   rarity:"Rare",     desc:"Every 4th hit chains",    apply:(c)=>{ c.chainEvery = 4; c.chainReady = 0; } },
+  I10:{id:"I10",name:"Aegis Core",   rarity:"Epic",     desc:"Start with a shield",     apply:(c)=>{ c.startShield = 0.18; } },
+  I11:{id:"I11",name:"Phoenix Feather",rarity:"Epic",   desc:"Revive once at 25% HP",   apply:(c)=>{ c.reviveOnce = true; } },
+  I12:{id:"I12",name:"Chrono Relic", rarity:"Legendary",desc:"Team +10% atk speed",     apply:(c)=>{ /* applied globally in applyTeamAura */ } },
+};
+
+const AUGMENTS = {
+  A1:{ id:"A1", name:"Rich Get Richer", desc:"+3g now, +1g each round", pickNow:(S)=>{ S.gold += 3; }, },
+  A2:{ id:"A2", name:"High Roller", desc:"Reroll costs 1g", },
+  A3:{ id:"A3", name:"Windfall", desc:"+8g now", pickNow:(S)=>{ S.gold += 8; }, },
+
+  A4:{ id:"A4", name:"Scoped Weapons", desc:"Ranged +35 range", },
+  A5:{ id:"A5", name:"Second Wind", desc:"Once per unit: below 30% HP → heal 20%", },
+  A6:{ id:"A6", name:"Knife’s Edge", desc:"+20% dmg, -10% max HP", },
+  A7:{ id:"A7", name:"Thick Skin", desc:"Warriors +10% dmg reduction", },
+  A8:{ id:"A8", name:"Rapid Fire", desc:"Rangers attack 12% faster", },
+
+  A9:{ id:"A9", name:"Warrior Crest", desc:"+1 Warrior trait", },
+  A10:{ id:"A10", name:"Ranger Crest", desc:"+1 Ranger trait", },
+  A11:{ id:"A11", name:"Mage Crest", desc:"+1 Mage trait", },
+  A12:{ id:"A12", name:"Rogue Crest", desc:"+1 Rogue trait", },
+};
+
+const EVENTS = [
+  {
+    id:"E1", name:"Duplicate", desc:"Duplicate a random unit, lose 3 HP",
+    apply:(S)=>{
+      if (!S.army.length){ showToast("No units to duplicate", "bad"); return; }
+      const u = pick(S.army);
+      S.army.push(makeUnit(u.name, u.star, "player"));
+      S.hp = Math.max(0, S.hp - 3);
+      showToast(`Duplicated ${u.name} ★${u.star} (-3 HP)`, "info");
+    }
+  },
+  {
+    id:"E2", name:"Gold Rush", desc:"+10g, next battle enemies +15% HP",
+    apply:(S)=>{
+      S.gold += 10;
+      S.nextEnemyMod = { hpMult: 1.15, atkMult: 1.0 };
+      showToast("Gold Rush (+10g) — next battle tougher", "info");
+    }
+  },
+  {
+    id:"E3", name:"Heal", desc:"+6 HP, lose 4g (if possible)",
+    apply:(S)=>{
+      const before = S.hp;
+      S.hp += 6;
+      const loss = Math.min(4, S.gold);
+      S.gold -= loss;
+      const healed = S.hp - before;
+      showToast(`Healed +${healed} HP (-${loss}g)`, "good");
+    }
+  },
+];
+
+/* ===== State ===== */
+const SAVE_KEY_V3 = "roguewar_save_v3";
+const SAVE_KEY_V2 = "roguewar_save_v2"; // legacy
+const SAVE_KEY_V1 = "roguewar_save_v1"; // legacy
+
+const S = {
+  round: 1,
+  gold: 10,
+  hp: 20,
+  streak: 0,
+
+  shop: [],
+  army: [],
+
+  augments: [],
+  items: [],
+
+  node: { type:"battle", isElite:false },
+  nextEnemyMod: null,
+
+  overlay: "none",
+  overlayQueue: [],
+
+  // replace overlay context
+  pendingEquip: null, // { unitId, pickedItemType, pickedItemId, prevOverlay }
+
+  // combat
+  P: [],
+  E: [],
+  projectiles: [],
+  floaters: [],
+
+  screen: "menu",
+  phase: "planning",
+  combatRunning: false,
+};
+
+const el = {
+  // menu
+  btnNewGame: document.getElementById("btnNewGame"),
+  btnContinue: document.getElementById("btnContinue"),
+  btnHowTo: document.getElementById("btnHowTo"),
+
+  // planning
+  roundVal: document.getElementById("roundVal"),
+  goldVal: document.getElementById("goldVal"),
+  hpVal: document.getElementById("hpVal"),
+  streakVal: document.getElementById("streakVal"),
+  unitsPill: document.getElementById("unitsPill"),
+  btnMenu: document.getElementById("btnMenu"),
+  btnInventory: document.getElementById("btnInventory"),
+  btnSynergies: document.getElementById("btnSynergies"),
+  btnStart: document.getElementById("btnStart"),
+  btnReroll: document.getElementById("btnReroll"),
+  shop: document.getElementById("shop"),
+  armyBar: document.getElementById("armyBar"),
+
+  // battle
+  battleNodePill: document.getElementById("battleNodePill"),
+  battleStats: document.getElementById("battleStats"),
+  btnNext: document.getElementById("btnNext"),
+  resultTitle: document.getElementById("resultTitle"),
+  resultText: document.getElementById("resultText"),
+  btnResultNext: document.getElementById("btnResultNext"),
+  canvas: document.getElementById("battle"),
+
+  // overlays
+  augmentChoices: document.getElementById("augmentChoices"),
+  itemRewardCard: document.getElementById("itemRewardCard"),
+  btnItemContinue: document.getElementById("btnItemContinue"),
+  nodeChoices: document.getElementById("nodeChoices"),
+  eventChoices: document.getElementById("eventChoices"),
+
+  // synergies
+  synergyList: document.getElementById("synergyList"),
+  btnSynClose: document.getElementById("btnSynClose"),
+
+  // inventory
+  invItems: document.getElementById("invItems"),
+  invUnits: document.getElementById("invUnits"),
+  invCount: document.getElementById("invCount"),
+  invUnitsCount: document.getElementById("invUnitsCount"),
+  invHint: document.getElementById("invHint"),
+  btnInvClose: document.getElementById("btnInvClose"),
+  invTabsWrap: document.getElementById("invTabsWrap"),
+  btnInvTabItems: document.getElementById("btnInvTabItems"),
+  btnInvTabUnits: document.getElementById("btnInvTabUnits"),
+  invPaneItems: document.getElementById("invPaneItems"),
+  invPaneUnits: document.getElementById("invPaneUnits"),
+
+  // replace overlay
+  replaceSub: document.getElementById("replaceSub"),
+  replaceChoices: document.getElementById("replaceChoices"),
+  btnReplaceCancel: document.getElementById("btnReplaceCancel"),
+};
+
+function hasAug(id){ return S.augments.includes(id); }
+
+/* ===== UI state ===== */
+function setOverlay(name){
+  S.overlay = name;
+  document.body.dataset.overlay = name;
+  updateButtons();
+  if (name === "inventory") applyInventoryLayoutMode();
+}
+
+function queueOverlay(name, payload=null){
+  S.overlayQueue.push({ name, payload });
+}
+function nextOverlay(){
+  const x = S.overlayQueue.shift();
+  if (!x){ setOverlay("none"); return; }
+  if (x.name === "augment") openAugmentPick();
+  else if (x.name === "item") openItemReward(x.payload);
+  else if (x.name === "node") openNodeSelect();
+  else if (x.name === "event") openEventSelect();
+  else if (x.name === "inventory") openInventory();
+  else if (x.name === "synergies") openSynergiesOverlay();
+  else setOverlay("none");
+}
+
+/* ===== Colors/shapes ===== */
+function getClassColor(role){
+  if (role === "Front")    return { fill:"#5c86c9", fx:"#8cc0ff" };
+  if (role === "Back")     return { fill:"#55d38a", fx:"#78f0ad" };
+  if (role === "Mage")     return { fill:"#b27bff", fx:"#d5b6ff" };
+  if (role === "Skirmish") return { fill:"#ff8a4c", fx:"#ffd36a" };
+  return { fill:"#6aa6ff", fx:"#cfe0ff" };
+}
+function roleToShape(role){
+  if (role === "Front") return "square";
+  if (role === "Back") return "triangle";
+  if (role === "Skirmish") return "diamond";
+  if (role === "Mage") return "hex";
+  return "circle";
+}
+function isRangedUnit(u){
+  return (u.role === "Back" || u.role === "Mage" || u.range >= 100);
+}
+
+/* ===== Unit creation ===== */
+function makeUnit(name, star=1, side="player", forcedId=null){
+  const t = UNIT_POOL.find(u=>u.name===name);
+  const hpMult = 1 + (star-1)*0.75;
+  const atkMult = 1 + (star-1)*0.60;
+  const maxHP = Math.round(t.hp * hpMult);
+  const clr = getClassColor(t.role);
+  return {
+    id: forcedId || rndId(),
+    name: t.name,
+    cost: t.cost,
+    rarity: t.rarity || "Common",
+    star,
+    side,
+    role: t.role,
+    classTag: t.classTag,
+    originTag: t.originTag,
+
+    shape: roleToShape(t.role),
+    classFill: clr.fill,
+    classFx: clr.fx,
+
+    maxHP,
+    hp: maxHP,
+    atk: Math.round(t.atk * atkMult),
+    spd: t.spd,
+    range: t.range,
+
+    itemSlotsMax: raritySlots(t.rarity || "Common"),
+    items: [], // array of {id,type}
+
+    // runtime
+    x:0,y:0, cd:0, alive:true,
+    swingT:0, aimA:0,
+  };
+}
+
+function makeOffer(template){
+  return {
+    offerId: rndId(),
+    name: template.name,
+    rarity: template.rarity || "Common",
+    cost: template.cost,
+    hp: template.hp,
+    atk: template.atk,
+    spd: template.spd,
+    range: template.range,
+    role: template.role,
+    classTag: template.classTag,
+    originTag: template.originTag,
+    itemSlotsMax: raritySlots(template.rarity || "Common"),
+  };
+}
+
+/* ===== Save/Load ===== */
+function serializeState(){
+  return {
+    v: 3,
+    ended: (S.hp <= 0),
+    round: S.round,
+    gold: S.gold,
+    hp: S.hp,
+    streak: S.streak,
+    augments: S.augments.slice(),
+    items: S.items.slice(),
+    node: S.node,
+    nextEnemyMod: S.nextEnemyMod,
+    army: S.army.map(u => ({
+      id:u.id, name:u.name, star:u.star,
+      rarity:u.rarity,
+      items: (u.items || []).slice(),
+      classTag:u.classTag,
+      originTag:u.originTag,
+    })),
+  };
+}
+function saveGame(){
+  try{ localStorage.setItem(SAVE_KEY_V3, JSON.stringify(serializeState())); }catch(e){}
+  refreshContinueBtn();
+}
+function clearSave(){
+  try{ localStorage.removeItem(SAVE_KEY_V3); }catch(e){}
+  refreshContinueBtn();
+}
+function loadGame(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY_V3);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || data.v !== 3 || data.ended) return false;
+
+    S.round = data.round ?? 1;
+    S.gold = data.gold ?? 10;
+    S.hp = data.hp ?? 20;
+    S.streak = data.streak ?? 0;
+    S.augments = Array.isArray(data.augments) ? data.augments : [];
+    S.items = Array.isArray(data.items) ? data.items : [];
+    S.node = data.node || {type:"battle", isElite:false};
+    S.nextEnemyMod = data.nextEnemyMod || null;
+
+    S.army = (data.army || []).map(a=>{
+      const u = makeUnit(a.name, a.star, "player", a.id);
+      u.rarity = a.rarity || u.rarity;
+      u.itemSlotsMax = raritySlots(u.rarity);
+      u.items = Array.isArray(a.items) ? a.items : [];
+      u.classTag = a.classTag || u.classTag;
+      u.originTag = a.originTag || u.originTag;
+      return u;
+    });
+
+    rerollShop(true);
+    renderAll();
+    setScreen("planning");
+    setPhase("planning");
+    showToast("Continued run", "info");
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+// migrate v2 -> v3 best-effort
+function tryMigrateV2(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY_V2);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || data.ended) return false;
+
+    S.round = data.round ?? 1;
+    S.gold = data.gold ?? 10;
+    S.hp = data.hp ?? 20;
+    S.streak = data.streak ?? 0;
+    S.augments = Array.isArray(data.augments) ? data.augments : [];
+    S.items = Array.isArray(data.items) ? data.items : [];
+    S.node = data.node || {type:"battle", isElite:false};
+    S.nextEnemyMod = data.nextEnemyMod || null;
+
+    S.army = (data.army || []).map(a=>{
+      const u = makeUnit(a.name, a.star, "player", a.id);
+      // v2 had single item on unit; return it into items array
+      if (a.item && a.item.type){
+        u.items = [{ id:rndId(), type:a.item.type }];
+      } else u.items = [];
+      return u;
+    });
+
+    rerollShop(true);
+    saveGame();
+    refreshContinueBtn();
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+// v1 migration (best-effort)
+function tryMigrateV1(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY_V1);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || data.ended) return false;
+
+    S.round = data.round ?? 1;
+    S.gold = data.gold ?? 10;
+    S.hp = data.hp ?? 20;
+    S.streak = data.streak ?? 0;
+    S.augments = [];
+    S.items = [];
+    S.node = {type:"battle", isElite:false};
+    S.nextEnemyMod = null;
+
+    S.army = (data.army || []).map(a => makeUnit(a.name, a.star, "player", a.id));
+    rerollShop(true);
+    saveGame();
+    refreshContinueBtn();
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
+function refreshContinueBtn(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY_V3);
+    if (!raw){ el.btnContinue.disabled = true; return; }
+    const data = JSON.parse(raw);
+    el.btnContinue.disabled = !data || data.ended;
+  }catch(e){
+    el.btnContinue.disabled = true;
+  }
+}
+
+/* ===== Screen state ===== */
+function setScreen(screen){
+  S.screen = screen;
+  document.body.dataset.screen = screen;
+  document.body.dataset.result = "hide";
+  setTimeout(resizeCanvas, 40);
+  renderStats();
+  updateButtons();
+}
+function setPhase(phase){
+  S.phase = phase;
+  renderStats();
+  updateButtons();
+}
+
+function renderStats(){
+  el.roundVal.textContent = S.round;
+  el.goldVal.textContent = S.gold;
+  el.hpVal.textContent = S.hp;
+  el.streakVal.textContent = S.streak;
+  el.unitsPill.textContent = `Units: ${S.army.length}`;
+  el.battleStats.textContent = `Round ${S.round} • Gold ${S.gold} • HP ${S.hp} • Streak ${S.streak}`;
+  el.battleNodePill.textContent = S.node.isElite ? "ELITE" : (S.node.type || "BATTLE").toUpperCase();
+  el.btnReroll.textContent = `Reroll (${hasAug("A2") ? 1 : 2}g)`;
+}
+
+function updateButtons(){
+  const overlayOpen = (S.overlay !== "none");
+
+  el.btnStart.disabled = overlayOpen || !(S.screen === "planning") || (S.army.length === 0);
+  el.btnReroll.disabled = overlayOpen || !(S.screen === "planning");
+  el.btnInventory.disabled = !(S.screen === "planning");
+  el.btnMenu.disabled = !(S.screen === "planning");
+  el.btnSynergies.disabled = !(S.screen === "planning");
+
+  const canAdvance = (!overlayOpen && S.screen === "battle" && S.phase === "result" && S.hp > 0);
+  el.btnNext.disabled = !canAdvance;
+  el.btnResultNext.disabled = !canAdvance;
+}
+
+/* ===== Synergies logic ===== */
+function getTraitCounts(units){
+  const c = { Warrior:0, Ranger:0, Mage:0, Rogue:0, Kingdom:0, Wilds:0, Cult:0 };
+  for (const u of units){
+    if (u.classTag && c[u.classTag] != null) c[u.classTag]++;
+    if (u.originTag && c[u.originTag] != null) c[u.originTag]++;
+  }
+  if (hasAug("A9")) c.Warrior++;
+  if (hasAug("A10")) c.Ranger++;
+  if (hasAug("A11")) c.Mage++;
+  if (hasAug("A12")) c.Rogue++;
+  return c;
+}
+
+function traitTier(name, count){
+  const tiers = {
+    Warrior:[2,4],
+    Ranger:[2,4],
+    Mage:[2,3],
+    Rogue:[2,3],
+    Kingdom:[2,3],
+    Wilds:[2,3],
+    Cult:[2,3],
+  }[name] || [];
+  let t = 0;
+  for (const req of tiers) if (count >= req) t++;
+  const nextReq = tiers[t] ?? null;
+  return { tier:t, nextReq, tiers };
+}
+
+function openSynergiesOverlay(){
+  setOverlay("synergies");
+  renderSynergiesOverlay();
+}
+
+function renderSynergiesOverlay(){
+  el.synergyList.innerHTML = "";
+  const counts = getTraitCounts(S.army);
+  const order = ["Warrior","Ranger","Mage","Rogue","Kingdom","Wilds","Cult"];
+
+  for (const k of order){
+    const n = counts[k] || 0;
+    const tt = traitTier(k, n);
+    const active = tt.tier > 0;
+
+    const tierText = active ? `ACTIVE (tier ${tt.tier})` : (tt.nextReq ? `Next: ${tt.nextReq}` : "—");
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+    card.style.borderColor = active ? "rgba(85,211,138,0.75)" : "rgba(42,58,99,0.95)";
+    card.innerHTML = `
+      <div class="name"><span>${k} — ${n}</span><span class="rarMini">${tierText}</span></div>
+      <div class="desc">${tt.tiers && tt.tiers.length ? `Breakpoints: ${tt.tiers.join(", ")}` : "No breakpoints"}</div>
+    `;
+    el.synergyList.appendChild(card);
+  }
+}
+
+/* ===== Shop RNG (rarity odds by round) ===== */
+function rarityOddsByRound(round, isEliteNext=false){
+  // returns {Common,Uncommon,Rare,Epic,Legendary} sum=1
+  let o;
+  if (round <= 2){
+    o = {Common:0.80, Uncommon:0.18, Rare:0.02, Epic:0.00, Legendary:0.00};
+  } else if (round <= 5){
+    o = {Common:0.55, Uncommon:0.35, Rare:0.09, Epic:0.01, Legendary:0.00};
+  } else if (round <= 9){
+    o = {Common:0.35, Uncommon:0.40, Rare:0.20, Epic:0.04, Legendary:0.01};
+  } else {
+    o = {Common:0.20, Uncommon:0.35, Rare:0.30, Epic:0.12, Legendary:0.03};
+  }
+
+  // Elite modifier (if the current node is elite battle, slightly juicier shop)
+  if (isEliteNext){
+    const addEpic = 0.02, addLeg = 0.01;
+    o.Epic += addEpic;
+    o.Legendary += addLeg;
+    // take mostly from Common (and a bit from Uncommon)
+    const take = addEpic + addLeg;
+    const takeC = Math.min(o.Common, take * 0.75);
+    o.Common -= takeC;
+    o.Uncommon = Math.max(0, o.Uncommon - (take - takeC));
+  }
+
+  // normalize
+  const sum = Object.values(o).reduce((a,b)=>a+b,0) || 1;
+  for (const k of Object.keys(o)) o[k] /= sum;
+  return o;
+}
+
+function rollRarity(odds){
+  let r = Math.random();
+  for (const k of ["Common","Uncommon","Rare","Epic","Legendary"]){
+    r -= odds[k] || 0;
+    if (r <= 0) return k;
+  }
+  return "Common";
+}
+
+function pickUnitTemplateByRarity(rarity){
+  const pool = UNIT_POOL.filter(u => (u.rarity || "Common") === rarity);
+  if (!pool.length){
+    // fallback downwards
+    const fallback = ["Legendary","Epic","Rare","Uncommon","Common"];
+    for (const rr of fallback){
+      const p2 = UNIT_POOL.filter(u => (u.rarity||"Common") === rr);
+      if (p2.length) return pick(p2);
+    }
+    return UNIT_POOL[0];
+  }
+  return pick(pool);
+}
+
+/* ===== Shop ===== */
+function rerollShop(free=false){
+  const cost = hasAug("A2") ? 1 : 2;
+  if (!free){
+    if (S.gold < cost){ showToast("Not enough gold", "bad"); return; }
+    S.gold -= cost;
+    showToast(`Shop rerolled (-${cost}g)`, "info");
+  }
+
+  const odds = rarityOddsByRound(S.round, !!S.node?.isElite);
+  S.shop = Array.from({length:5}, ()=>{
+    const rar = rollRarity(odds);
+    const t = pickUnitTemplateByRarity(rar);
+    return makeOffer(t);
+  });
+
+  renderAll();
+  saveGame();
+}
+
+function buyOffer(offerId){
+  const idx = S.shop.findIndex(o => o.offerId === offerId);
+  if (idx < 0) return;
+  const offer = S.shop[idx];
+  if (S.gold < offer.cost){ showToast("Not enough gold", "bad"); return; }
+
+  S.gold -= offer.cost;
+  const u = makeUnit(offer.name, 1, "player");
+  S.army.push(u);
+  S.shop.splice(idx, 1);
+
+  showToast(`${offer.name} ★1 recruited`, "info");
+  mergeAllSafe();
+  renderAll();
+  saveGame();
+}
+
+/* ===== Items: helpers ===== */
+function itemLabel(type){
+  return ITEMS[type]?.name || "Item";
+}
+function itemRarity(type){
+  return ITEMS[type]?.rarity || "Common";
+}
+function renderSlotRowHTML(unit){
+  const max = unit.itemSlotsMax || 1;
+  const have = (unit.items||[]);
+  let html = `<div class="slotRow">`;
+  for (let i=0;i<max;i++){
+    if (have[i] && have[i].type){
+      html += `<span class="slotPill">${itemLabel(have[i].type)}</span>`;
+    } else {
+      html += `<span class="slotPill slotEmpty">—</span>`;
+    }
+  }
+  html += `</div>`;
+  return html;
+}
+
+/* ===== Merge (returns items; upgraded unit starts empty) ===== */
+function mergeAllSafe(){
+  let didMerge = true;
+  const mergeMessages = [];
+  let totalReturned = 0;
+
+  while (didMerge){
+    didMerge = false;
+
+    const map = new Map();
+    for (const u of S.army){
+      const k = `${u.name}__${u.star}`;
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(u.id);
     }
 
-    // ----------------------------
-    // Battle system (simple DOM+canvas)
-    // ----------------------------
-    const canvas = $("#battleCanvas");
-    const ctx = canvas.getContext("2d");
-    function resizeCanvas(){
-      const wrap = $("#battleWrap");
-      const r = wrap.getBoundingClientRect();
-      canvas.width = Math.floor(r.width * devicePixelRatio);
-      canvas.height = Math.floor(r.height * devicePixelRatio);
+    let chosen = null;
+    for (const [k, ids] of map.entries()){
+      if (ids.length >= 3){
+        const [name, starStr] = k.split("__");
+        const star = Number(starStr);
+        if (star >= 3) continue;
+        chosen = { name, star, idsToConsume: ids.slice(0,3) };
+        break;
+      }
     }
-    window.addEventListener("resize", ()=>{ if ($("#battleOverlay").classList.contains("show")) { resizeCanvas(); } });
+    if (!chosen) break;
 
-    function buildBattleUnits(){
-      // compute synergies and apply modifiers into battle instances
-      const counts = countSynergies();
-      const auraFromKingdomTier = (() => {
-        const t = activeTierFor("Kingdom", counts["Kingdom"]||0);
-        if (t<0) return 0;
-        return SYNERGIES["Kingdom"].aura(t);
-      })();
+    const consumeSet = new Set(chosen.idsToConsume);
+    const consumedUnits = S.army.filter(u => consumeSet.has(u.id));
 
-      // detect banner items (aura)
-      let bannerAura = 0;
-      for (const u of state.army){
-        const eq = getEquippedItems(u);
-        for (const it of eq){
-          if (itTplById(it.tplId)?.mod?.auraAtkPct){
-            bannerAura = Math.max(bannerAura, itTplById(it.tplId).mod.auraAtkPct);
-          }
+    let returnedThisMerge = 0;
+    for (const cu of consumedUnits){
+      const arr = Array.isArray(cu.items) ? cu.items : [];
+      for (const it of arr){
+        if (it && it.type){
+          S.items.push({ id:rndId(), type: it.type });
+          returnedThisMerge++;
         }
       }
-
-      const totalAuraAtk = auraFromKingdomTier + bannerAura;
-
-      // synergy applicator for class + origin (excluding Kingdom aura which is handled as aura)
-      function applySynergiesToStats(stats, unit){
-        // class
-        const classCount = counts[unit.classTag]||0;
-        const classTier = activeTierFor(unit.classTag, classCount);
-        if (classTier >= 0 && SYNERGIES[unit.classTag]?.apply) {
-          SYNERGIES[unit.classTag].apply(stats, classTier);
-        }
-        // origin (non-kingdom auras)
-        const orgCount = counts[unit.originTag]||0;
-        const orgTier = activeTierFor(unit.originTag, orgCount);
-        if (unit.originTag !== "Kingdom" && orgTier >= 0 && SYNERGIES[unit.originTag]?.apply){
-          SYNERGIES[unit.originTag].apply(stats, orgTier);
-        }
-      }
-
-      // create player battle units
-      const player = state.army.map((u,i)=>{
-        const tpl = templateById(u.tplId);
-        const starMult = 1 + (u.stars-1) * 0.60;
-
-        const stats = {
-          maxHp: tpl.hp * starMult,
-          hp: tpl.hp * starMult,
-          atk: tpl.atk * starMult,
-          range: tpl.range,
-          spd: tpl.spd,
-          lifesteal: 0,
-          dodge: 0,
-          crit: 0.05,
-          splashFirst: false,
-        };
-
-        // Apply synergies
-        applySynergiesToStats(stats, u);
-
-        // Apply equipped items (objects)
-        const eq = getEquippedItems(u);
-        let firstHit = true;
-        for (const it of eq){
-          const itTpl = itemTplById(it.tplId);
-          if (!itTpl) continue;
-          const m = itTpl.mod || {};
-          if (m.atkPct) stats.atk *= (1+m.atkPct);
-          if (m.hpPct){ stats.maxHp *= (1+m.hpPct); stats.hp = stats.maxHp; }
-          if (m.rangeAdd) stats.range += m.rangeAdd;
-          if (m.lifesteal) stats.lifesteal += m.lifesteal;
-          if (m.dodge) stats.dodge = Math.max(stats.dodge, m.dodge);
-          if (m.splashFirst) stats.splashFirst = true;
-          if (m.classBoost && m.classBoost === u.classTag && m.classAtkPct){
-            stats.atk *= (1+m.classAtkPct);
-          }
-        }
-
-        // Aura atk
-        if (totalAuraAtk > 0) stats.atk *= (1+totalAuraAtk);
-
-        // rare+ units have more slots already; no extra needed
-
-        return {
-          side:"P",
-          id:u.id,
-          name:u.name,
-          rarity:u.rarity,
-          classTag:u.classTag,
-          originTag:u.originTag,
-          role:u.role,
-          healer: !!tpl.healer,
-          stars:u.stars,
-          shape: tpl.shape || "circle",
-          x: 0, y: 0,
-          vx: 0, vy: 0,
-          target: null,
-          atkCooldown: rand(0, .25),
-          ...stats,
-          didSplash: false,
-        };
-      });
-
-      // create enemy army based on round
-      const enemyCount = clamp(3 + Math.floor(state.round/3), 3, 12);
-      const enemy = [];
-      for (let i=0;i<enemyCount;i++){
-        // enemy uses same pool but slightly round-scaled
-        const tpl = rollUnitOffer(); // using same rarity curve
-        const stars = (Math.random() < (state.round>=10?0.25:0.12)) ? 2 : 1;
-        const starMult = 1 + (stars-1) * 0.55;
-        const hp = tpl.hp * starMult * (1 + Math.min(0.6, state.round*0.02));
-        const atk = tpl.atk * starMult * (1 + Math.min(0.45, state.round*0.015));
-        enemy.push({
-          side:"E",
-          id:uid(),
-          name:tpl.name,
-          rarity:tpl.rarity,
-          classTag:tpl.classTag,
-          originTag:tpl.originTag,
-          role:tpl.role,
-          healer:!!tpl.healer,
-          stars,
-          shape: tpl.shape || "circle",
-          x:0,y:0,vx:0,vy:0,
-          target:null,
-          atkCooldown: rand(0,.25),
-          maxHp: hp,
-          hp: hp,
-          atk: atk,
-          range: tpl.range,
-          spd: tpl.spd * (1-rand(0,0.08)),
-          lifesteal: 0,
-          dodge: 0,
-          crit: 0.04,
-          splashFirst: false,
-          didSplash: false,
-        });
-      }
-
-      // position in battlefield: melee front, ranged back
-      function place(sideArr, isEnemy){
-        const melee = sideArr.filter(u=>u.role==="melee");
-        const ranged = sideArr.filter(u=>u.role!=="melee");
-        const W = canvas.width / devicePixelRatio;
-        const H = canvas.height / devicePixelRatio;
-
-        const frontX = isEnemy ? W*0.72 : W*0.28;
-        const backX  = isEnemy ? W*0.84 : W*0.16;
-
-        function spread(arr, x){
-          const n = arr.length;
-          if (!n) return;
-          for (let i=0;i<n;i++){
-            const t = (i+1)/(n+1);
-            arr[i].x = x;
-            arr[i].y = H*(0.15 + 0.70*t);
-          }
-        }
-        spread(melee, frontX);
-        spread(ranged, backX);
-      }
-
-      place(player,false);
-      place(enemy,true);
-
-      return { player, enemy };
     }
+    totalReturned += returnedThisMerge;
 
-    function startBattle(){
-      if (state.phase !== "planning") return;
-      if (state.army.length === 0){ showToast("Buy units first"); return; }
-      state.phase = "battle";
-      $("#phaseText").textContent = "Combat: full-screen battlefield";
-      $("#battleOverlay").classList.add("show");
-      $("#battleOverlay").setAttribute("aria-hidden","false");
-      $("#battleRound").textContent = `Round ${state.round} • ${roundType(state.round)}`;
-      resizeCanvas();
+    S.army = S.army.filter(u => !consumeSet.has(u.id));
 
-      const built = buildBattleUnits();
-      state.battle = {
-        t:0,
-        done:false,
-        winner:null,
-        player: built.player,
-        enemy: built.enemy,
-        floats: [],
-        lastFrame: performance.now(),
-      };
+    const newStar = Math.min(3, chosen.star + 1);
+    const nu = makeUnit(chosen.name, newStar, "player");
+    // merged unit starts with no items (items returned)
+    nu.items = [];
+    S.army.push(nu);
 
-      requestAnimationFrame(stepBattle);
-      renderAll();
+    mergeMessages.push(`Merged ${chosen.name} ★${chosen.star} → ★${newStar}${returnedThisMerge ? ` (+${returnedThisMerge} items)` : ""}`);
+    didMerge = true;
+  }
+
+  if (mergeMessages.length){
+    const msg = totalReturned
+      ? `${mergeMessages[0]}${mergeMessages.length>1 ? ` (+${mergeMessages.length-1} more)` : ""} • returned ${totalReturned} item${totalReturned>1?"s":""}`
+      : `${mergeMessages[0]}${mergeMessages.length>1 ? ` (+${mergeMessages.length-1} more)` : ""}`;
+    showToast(msg, "good");
+    if (S.overlay === "inventory") renderInventory();
+  }
+}
+
+/* ===== Render ===== */
+function renderShop(){
+  el.shop.innerHTML = "";
+  if (!S.shop.length){
+    const empty = document.createElement("div");
+    empty.className = "card";
+    empty.style.flexBasis = "260px";
+    empty.innerHTML = `<div class="rarStrip" style="background:${rarityColor("Common")}"></div><h4>Empty</h4><div class="line">Reroll for new offers.</div>`;
+    el.shop.appendChild(empty);
+    return;
+  }
+
+  for (const offer of S.shop){
+    const clr = getClassColor(offer.role);
+    const rarCol = rarityColor(offer.rarity);
+
+    const card = document.createElement("div");
+    card.className = "card";
+
+    const strip = document.createElement("div");
+    strip.className = "rarStrip";
+    strip.style.background = rarCol;
+    card.appendChild(strip);
+
+    const h = document.createElement("h4");
+    h.innerHTML = `<span>${offer.name} (${offer.cost}g)</span>`;
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.style.background = clr.fill;
+    h.appendChild(badge);
+
+    const tags = `${offer.classTag}/${offer.originTag}`;
+    const l0 = document.createElement("div");
+    l0.className="line";
+    l0.innerHTML = `<span style="color:${rarCol}; font-weight:1000;">${offer.rarity}</span> • Slots ${offer.itemSlotsMax}`;
+
+    const l1 = document.createElement("div");
+    l1.className="line";
+    l1.textContent = `HP ${offer.hp} • ATK ${offer.atk} • ${offer.role}`;
+
+    const l2 = document.createElement("div");
+    l2.className="line";
+    l2.textContent = `${tags} • Range ${offer.range}px • Spd ${offer.spd}s`;
+
+    const btn = document.createElement("button");
+    btn.textContent = "Buy";
+    btn.disabled = (S.gold < offer.cost);
+    btn.addEventListener("click", ()=>buyOffer(offer.offerId));
+
+    card.appendChild(h);
+    card.appendChild(l0);
+    card.appendChild(l1);
+    card.appendChild(l2);
+    card.appendChild(btn);
+    el.shop.appendChild(card);
+  }
+}
+
+function renderArmy(){
+  el.armyBar.innerHTML = "";
+  if (!S.army.length){
+    const chip = document.createElement("div");
+    chip.className="chip";
+    chip.style.opacity="0.85";
+    chip.style.minWidth="220px";
+    chip.innerHTML = `<div class="t">No units</div><div class="m">Buy units to start</div>`;
+    el.armyBar.appendChild(chip);
+    return;
+  }
+
+  for (const u of S.army){
+    const clr = getClassColor(u.role);
+    const rarCol = rarityColor(u.rarity || "Common");
+    const chip = document.createElement("div");
+    chip.className="chip";
+    chip.style.borderLeftColor = rarCol;
+
+    const slotsMax = u.itemSlotsMax || raritySlots(u.rarity||"Common");
+    const slotsHave = (u.items||[]).filter(x=>x && x.type).length;
+
+    chip.innerHTML = `
+      <div class="t">
+        <span>${u.name} ${"★".repeat(u.star)}</span>
+        <span class="rarMini" style="border-color:${rarCol}; color:${rarCol};">${u.rarity}</span>
+      </div>
+      <div class="s">${u.maxHP} HP • ${u.atk} ATK • Slots ${slotsHave}/${slotsMax}</div>
+      ${renderSlotRowHTML(u)}
+      <div class="m">${u.classTag}/${u.originTag}</div>
+    `;
+    el.armyBar.appendChild(chip);
+  }
+}
+
+function renderAll(){
+  renderStats();
+  renderShop();
+  renderArmy();
+  if (S.overlay === "synergies") renderSynergiesOverlay();
+  if (S.overlay === "inventory") renderInventory();
+  updateButtons();
+}
+
+/* ===== Canvas ===== */
+const ctx = el.canvas.getContext("2d");
+let W=0, H=0;
+function resizeCanvas(){
+  const rect = el.canvas.getBoundingClientRect();
+  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  W = Math.floor(rect.width * dpr);
+  H = Math.floor(rect.height * dpr);
+  el.canvas.width = W;
+  el.canvas.height = H;
+}
+window.addEventListener("resize", () => {
+  resizeCanvas();
+  applyInventoryLayoutMode();
+});
+
+/* ===== Combat cloning + bonuses ===== */
+function cloneForCombat(rosterU, side){
+  const c = JSON.parse(JSON.stringify(rosterU));
+  c.side = side;
+  c.hp = c.maxHP;
+  c.cd = 0;
+  c.alive = true;
+  c.swingT = 0;
+  c.aimA = 0;
+  c.rosterId = rosterU.id;
+
+  c.moveMult = 1.0;
+  c.damageReduction = 0.0;
+  c.regenPerSec = 0.0;
+  c.lifesteal = 0.0;
+  c.bombReady = false;
+  c.firstHitBonus = 0.0;
+  c.firstHitReady = true;
+  c.secondWindUsed = false;
+  c.shield = 0;
+  c.shieldTimer = 0;
+
+  // special hooks
+  c.chainEvery = 0;
+  c.chainReady = 0;
+  c.startShield = 0;
+  c.reviveOnce = false;
+  c.revived = false;
+
+  c.healPulseCd = 0;       // Healer
+  c.pierceCounter = 0;     // Invoker
+  c.trapUsed = false;      // Trapper
+  c.blinkCd = 0;           // Shade
+  c.auraApplied = false;   // Warlord
+  c.enrage = 0;            // Berserker
+
+  c.tagCd = 0;             // floater tag throttle
+
+  return c;
+}
+
+function applyTeamAura(team, enemyTeam){
+  // Legendary Chrono Relic: team wide atk speed
+  const hasChrono = team.some(u => (u.items||[]).some(it => it.type === "I12"));
+  if (hasChrono){
+    for (const u of team){
+      u.spd *= 0.90;
     }
+  }
+}
 
-    function endBattle(winner, skipped=false){
-      const battle = state.battle;
-      if (!battle) return;
+function applyRunBonusesToClone(c, counts){
+  { // Warrior
+    const n = counts.Warrior || 0;
+    let mult = 1.0;
+    if (n >= 4) mult = 1.35;
+    else if (n >= 2) mult = 1.15;
+    c.maxHP = Math.round(c.maxHP * mult);
+    c.hp = c.maxHP;
+  }
 
-      battle.done = true;
-      battle.winner = winner;
+  { // Ranger
+    const n = counts.Ranger || 0;
+    if (n >= 4) c.spd = c.spd * 0.75;
+    else if (n >= 2) c.spd = c.spd * 0.90;
+  }
 
-      const win = winner === "P";
-      if (win){
-        state.streak += 1;
-        state.gold += 4 + Math.min(6, Math.floor(state.streak/2)); // base + streak bonus
-        showToast(skipped ? "WIN (skipped)" : "WIN!");
-        // item drop
-        if (Math.random() < itemDropChance(state.round)){
-          const itTpl = rollItem();
-          const it = makeItemInstance(itTpl);
-          state.inventory.push(it);
-          showToast(`Loot: ${it.name}`);
-        }
+  { // Mage
+    const n = counts.Mage || 0;
+    if (n >= 3) c.atk = Math.round(c.atk * 1.30);
+    else if (n >= 2) c.atk = Math.round(c.atk * 1.15);
+  }
+
+  { // Rogue
+    const n = counts.Rogue || 0;
+    if (n >= 3){ c.firstHitBonus = 0.45; c.moveMult *= 1.20; }
+    else if (n >= 2){ c.firstHitBonus = 0.20; c.moveMult *= 1.10; }
+  }
+
+  { // Kingdom
+    const n = counts.Kingdom || 0;
+    if (c.role === "Front"){
+      if (n >= 3) c.damageReduction += 0.20;
+      else if (n >= 2) c.damageReduction += 0.10;
+    }
+  }
+
+  { // Wilds
+    const n = counts.Wilds || 0;
+    if (n >= 3) c.regenPerSec += 0.03 * c.maxHP;
+    else if (n >= 2) c.regenPerSec += 0.015 * c.maxHP;
+  }
+
+  { // Cult
+    const n = counts.Cult || 0;
+    c.cultTier = (n >= 3) ? 2 : (n >= 2) ? 1 : 0;
+  }
+
+  if (hasAug("A4") && isRangedUnit(c)) c.range += 35;
+  if (hasAug("A6")) { c.atk = Math.round(c.atk * 1.20); c.maxHP = Math.round(c.maxHP * 0.90); c.hp = c.maxHP; }
+  if (hasAug("A7") && c.classTag === "Warrior") c.damageReduction += 0.10;
+  if (hasAug("A8") && c.classTag === "Ranger") c.spd = c.spd * 0.88;
+
+  // Apply all equipped items (multi-slot)
+  const arr = Array.isArray(c.items) ? c.items : [];
+  for (const it of arr){
+    if (!it || !it.type) continue;
+    const def = ITEMS[it.type];
+    if (def && def.apply) def.apply(c);
+  }
+
+  c.damageReduction = clamp(c.damageReduction, 0, 0.65);
+}
+
+/* ===== Enemy spawns ===== */
+function spawnEnemyWave(){
+  const r = S.round;
+  const baseCount = Math.min(18, 3 + Math.floor(r/2));
+  const count = S.node.isElite ? Math.min(22, baseCount + 2) : baseCount;
+
+  // enemies use rarity odds too (keeps it spicy)
+  const odds = rarityOddsByRound(r, !!S.node?.isElite);
+
+  let hpMult = 1.0, atkMult = 1.0;
+  if (S.node.isElite){ hpMult *= 1.25; atkMult *= 1.10; }
+  if (S.nextEnemyMod){
+    hpMult *= (S.nextEnemyMod.hpMult || 1.0);
+    atkMult *= (S.nextEnemyMod.atkMult || 1.0);
+  }
+
+  S.E = [];
+  for (let i=0;i<count;i++){
+    const rar = rollRarity(odds);
+    const t = pickUnitTemplateByRarity(rar);
+    const star = (r >= 6 && Math.random()<0.35) ? 2 : 1;
+    const e = makeUnit(t.name, star, "enemy");
+    e.maxHP = Math.round(e.maxHP * hpMult);
+    e.hp = e.maxHP;
+    e.atk = Math.round(e.atk * atkMult);
+    // enemies don't equip items (for now)
+    e.items = [];
+    S.E.push(e);
+  }
+
+  S.nextEnemyMod = null;
+}
+
+/* ===== Formation deployment ===== */
+function deployArmies(){
+  S.projectiles = [];
+  S.floaters = [];
+
+  const counts = getTraitCounts(S.army);
+  S.P = S.army.map(u => {
+    const c = cloneForCombat(u, "player");
+    applyRunBonusesToClone(c, counts);
+    return c;
+  });
+  S.E = S.E.map(u => cloneForCombat(u, "enemy"));
+
+  // team aura (chrono relic)
+  applyTeamAura(S.P, S.E);
+
+  const centerLineX = W/2;
+  const sidePadX = W*0.08;
+  const topPadY  = H*0.14;
+  const bottomPadY = H*0.10;
+  const usableH = Math.max(80, H - topPadY - bottomPadY);
+
+  const frontDepth = W*0.12;
+  const backGap = W*0.08;
+
+  function splitGroups(arr){
+    const front = [];
+    const back = [];
+    const flank = [];
+    for (const u of arr){
+      if (u.role === "Skirmish") flank.push(u);
+      else if (isRangedUnit(u)) back.push(u);
+      else front.push(u);
+    }
+    return {front, back, flank};
+  }
+
+  function placeRank(units, baseX, sideSign){
+    const n = units.length;
+    if (!n) return;
+
+    const maxRowsTarget = 10;
+    const cols = Math.min(4, Math.max(1, Math.ceil(n / maxRowsTarget)));
+    const rows = Math.max(1, Math.ceil(n / cols));
+    const yStep = usableH / (rows + 1);
+
+    const colOffset = Math.max(14, W*0.02);
+
+    for (let i=0;i<n;i++){
+      const col = Math.floor(i / rows);
+      const row = i % rows;
+
+      let x = baseX + sideSign * (col * colOffset);
+      let y = topPadY + (row + 1) * yStep;
+
+      y += (i % 2 ? 6 : -6);
+      x += ((i % 3) - 1) * 4;
+
+      x = clamp(x, 16, W-16);
+      y = clamp(y, 16, H-16);
+
+      units[i].x = x;
+      units[i].y = y;
+    }
+  }
+
+  function placeFlanks(units, baseX, sideSign){
+    const n = units.length;
+    if (!n) return;
+
+    const half = Math.ceil(n / 2);
+    const topCount = half;
+    const botCount = n - half;
+
+    const band = usableH * 0.28;
+    const topStart = topPadY;
+    const botStart = topPadY + usableH - band;
+
+    const colOffset = Math.max(14, W*0.02);
+    const cols = Math.min(3, Math.max(1, Math.ceil(n / 8)));
+    const rows = Math.max(1, Math.ceil(n / cols));
+    const yStepTop = band / (Math.min(topCount, rows) + 1);
+    const yStepBot = band / (Math.min(botCount, rows) + 1);
+
+    for (let i=0;i<n;i++){
+      const col = Math.floor(i / rows);
+      const row = i % rows;
+
+      let x = baseX + sideSign * (col * colOffset + backGap*0.35);
+      let y;
+
+      if (i < topCount){
+        y = topStart + (Math.min(row, topCount-1) + 1) * yStepTop;
       } else {
-        state.streak = 0;
-        state.hp -= (roundType(state.round)==="Boss")?3:(roundType(state.round)==="Elite")?2:1;
-        showToast(skipped ? "LOSS (skipped)" : "LOSS!");
-        if (state.hp <= 0){
-          state.hp = 0;
-          showToast("Run ended. Restart in Menu.");
-        }
+        const j = i - topCount;
+        y = botStart + (Math.min(j % rows, Math.max(1, botCount)-1) + 1) * yStepBot;
       }
 
-      // permadeath: remove dead units if ON
-      if (state.permaDeath){
-        const survivors = [];
-        const deadIds = new Set();
-        for (const pu of battle.player){
-          if (pu.hp <= 0) deadIds.add(pu.id);
-        }
-        for (const u of state.army){
-          if (!deadIds.has(u.id)) survivors.push(u);
-        }
-        if (deadIds.size){
-          showToast(`Permadeath: ${deadIds.size} unit(s) lost`);
-        }
-        state.army = survivors;
+      y += (i % 2 ? 6 : -6);
+      x += ((i % 3) - 1) * 4;
+
+      x = clamp(x, 16, W-16);
+      y = clamp(y, 16, H-16);
+
+      units[i].x = x;
+      units[i].y = y;
+    }
+  }
+
+  function placeSide(arr, side){
+    const sideSign = (side === "player") ? -1 : 1;
+    const {front, back, flank} = splitGroups(arr);
+
+    const frontX = centerLineX + sideSign * frontDepth;
+    const backX  = centerLineX + sideSign * (frontDepth + backGap);
+
+    const minX = sidePadX;
+    const maxX = W - sidePadX;
+    const clampX = (x)=> clamp(x, minX, maxX);
+
+    placeRank(front, clampX(frontX), sideSign);
+    placeRank(back,  clampX(backX), sideSign);
+    placeFlanks(flank, clampX(frontX), sideSign);
+  }
+
+  placeSide(S.P, "player");
+  placeSide(S.E, "enemy");
+
+  // apply start shields (Aegis Core)
+  for (const u of S.P){
+    if (u.startShield && u.startShield > 0){
+      const amt = u.maxHP * u.startShield;
+      u.shield = Math.max(u.shield||0, amt);
+      u.shieldTimer = 3.0;
+      pushTag(u, "Shield");
+    }
+  }
+}
+
+function alive(arr){ return arr.filter(u => u.alive && u.hp > 0); }
+function findNearest(att, enemies){
+  let best=null, bestD=1e18;
+  for (const e of enemies){
+    if (!e.alive) continue;
+    const dx = e.x - att.x;
+    const dy = e.y - att.y;
+    const d = dx*dx + dy*dy;
+    if (d < bestD){ bestD=d; best=e; }
+  }
+  return best;
+}
+function findWeakestBackliner(enemies){
+  // prefer ranged/mage
+  const cand = enemies.filter(e=>e.alive && (isRangedUnit(e) || e.role==="Mage"));
+  const list = cand.length ? cand : enemies.filter(e=>e.alive);
+  if (!list.length) return null;
+  let best=list[0];
+  for (const e of list){
+    if (e.hp < best.hp) best = e;
+  }
+  return best;
+}
+function findByIdAnySide(id){
+  for (const u of S.P) if (u.id === id) return u;
+  for (const u of S.E) if (u.id === id) return u;
+  return null;
+}
+
+/* ===== Floating numbers ===== */
+function pushFloater(x, y, text, kind){
+  if (S.floaters.length > 80) S.floaters.shift();
+  S.floaters.push({
+    x, y,
+    text: String(text),
+    kind,
+    ttl: 0.9,
+    vy: -28,
+    vx: (Math.random()*18 - 9),
+    alpha: 1
+  });
+}
+function pushDamage(tgt, amount){
+  pushFloater(tgt.x + (Math.random()*10-5), tgt.y - 18 + (Math.random()*6-3), Math.round(amount), "dmg");
+}
+function pushHeal(tgt, amount){
+  pushFloater(tgt.x + (Math.random()*10-5), tgt.y - 18 + (Math.random()*6-3), `+${Math.round(amount)}`, "heal");
+}
+function pushShield(tgt, amount){
+  pushFloater(tgt.x + (Math.random()*10-5), tgt.y - 18 + (Math.random()*6-3), `Abs ${Math.round(amount)}`, "shield");
+}
+function pushTag(u, txt){
+  if (u.tagCd && u.tagCd > 0) return;
+  u.tagCd = 0.5;
+  pushFloater(u.x + (Math.random()*10-5), u.y - 34, txt, "tag");
+}
+function updateFloaters(dt){
+  for (let i=S.floaters.length-1;i>=0;i--){
+    const f = S.floaters[i];
+    f.ttl -= dt;
+    f.y += f.vy * dt;
+    f.x += f.vx * dt;
+    f.alpha = clamp(f.ttl / 0.9, 0, 1);
+    if (f.ttl <= 0) S.floaters.splice(i,1);
+  }
+}
+
+/* ===== Damage system ===== */
+function applyDamage(att, tgt, rawDmg){
+  if (!tgt.alive) return;
+  let dmg = rawDmg;
+
+  // Rogue first hit bonus (synergy)
+  if (att && att.firstHitReady && att.firstHitBonus > 0){
+    dmg = dmg * (1 + att.firstHitBonus);
+    att.firstHitReady = false;
+    pushTag(att, "First Hit");
+  }
+
+  // Berserker enrage: as HP drops, faster + stronger
+  if (att && att.name === "Berserker"){
+    const pct = 1 - (att.hp / att.maxHP);
+    if (pct > 0.15){
+      const mult = 1 + Math.min(0.35, pct*0.45);
+      dmg *= mult;
+      if (pct > 0.35) pushTag(att, "Enrage");
+    }
+  }
+
+  // reduction
+  dmg = dmg * (1 - (tgt.damageReduction || 0));
+
+  // shields absorb
+  let absorbed = 0;
+  if (tgt.shield && tgt.shield > 0){
+    absorbed = Math.min(tgt.shield, dmg);
+    tgt.shield -= absorbed;
+    dmg -= absorbed;
+    if (absorbed > 0) pushShield(tgt, absorbed);
+  }
+
+  dmg = Math.max(0, dmg);
+  if (dmg > 0) pushDamage(tgt, dmg);
+
+  if (dmg <= 0) return;
+
+  tgt.hp = Math.max(0, tgt.hp - dmg);
+
+  // chain rune (every 4th hit chains 30% dmg)
+  if (att && att.chainEvery && att.chainEvery > 0){
+    att.chainReady = (att.chainReady||0) + 1;
+    if (att.chainReady >= att.chainEvery){
+      att.chainReady = 0;
+      const foes = (att.side === "player") ? alive(S.E) : alive(S.P);
+      let near=null, best=1e18;
+      for (const f of foes){
+        if (f.id === tgt.id) continue;
+        const dx = f.x - tgt.x;
+        const dy = f.y - tgt.y;
+        const d = dx*dx + dy*dy;
+        if (d < best){ best=d; near=f; }
       }
+      if (near && best <= (80*80)){
+        pushTag(att, "Chain");
+        applyDamage(att, near, dmg * 0.30);
+      }
+    }
+  }
 
-      // advance to next round (directly into shop/planning)
-      state.round += 1;
-      state.nextType = roundType(state.round);
-      state.phase = "planning";
+  // death / revive
+  if (tgt.hp <= 0){
+    if (tgt.reviveOnce && !tgt.revived){
+      tgt.revived = true;
+      tgt.hp = Math.max(1, Math.round(tgt.maxHP * 0.25));
+      pushTag(tgt, "Revive");
+      pushHeal(tgt, tgt.hp);
+    } else {
+      tgt.alive = false;
+      onKill(att, tgt);
+    }
+  }
 
-      // end screen
-      $("#battleOverlay").classList.remove("show");
-      $("#battleOverlay").setAttribute("aria-hidden","true");
-      state.battle = null;
+  // lifesteal
+  if (att && att.lifesteal && att.lifesteal > 0 && att.alive){
+    const heal = dmg * att.lifesteal;
+    const before = att.hp;
+    att.hp = Math.min(att.maxHP, att.hp + heal);
+    const actual = att.hp - before;
+    if (actual > 0) pushHeal(att, actual);
+  }
 
-      // refill shop + income
-      state.gold += 2; // small start-of-round income
-      fillShop();
+  // Bomb (first hit splash)
+  if (att && att.bombReady){
+    const foes = (att.side === "player") ? alive(S.E) : alive(S.P);
+    let near=null, best=1e18;
+    for (const f of foes){
+      if (f.id === tgt.id) continue;
+      const dx = f.x - tgt.x;
+      const dy = f.y - tgt.y;
+      const d = dx*dx + dy*dy;
+      if (d < best){ best=d; near=f; }
+    }
+    if (near && best <= (50*50)){
+      pushTag(att, "Splash");
+      applyDamage(att, near, dmg * 0.35);
+    }
+    att.bombReady = false;
+  }
+}
 
-      // auto merge (in case new units got added earlier)
-      tryAutoMerge();
-      renderAll();
+function onKill(att, deadTarget){
+  if (!att || !att.alive) return;
+
+  // Cult shield on kill
+  if (att.cultTier && att.cultTier > 0){
+    const pct = (att.cultTier === 2) ? 0.16 : 0.08;
+    const amt = att.maxHP * pct;
+    att.shield = Math.max(att.shield || 0, amt);
+    att.shieldTimer = 2.0;
+    pushTag(att, "Cult");
+    pushShield(att, amt);
+  }
+}
+
+/* ===== Projectiles + melee swing ===== */
+function spawnProjectile(att, target, extra={}) {
+  if (S.projectiles.length > 90) S.projectiles.shift();
+
+  const dx = target.x - att.x;
+  const dy = target.y - att.y;
+  const dist = Math.max(1, Math.sqrt(dx*dx + dy*dy));
+  const flight = Math.max(0.22, Math.min(0.45, dist / 520));
+  const vx = dx / flight;
+  const vy = dy / flight;
+
+  S.projectiles.push({
+    x: att.x, y: att.y,
+    vx, vy,
+    ttl: flight + 0.08,
+    targetId: target.id,
+    damage: att.atk,
+    color: att.classFx || "#cfe0ff",
+    attackerId: att.id,
+    pierce: !!extra.pierce,
+    root: !!extra.root,
+    rootDur: extra.rootDur || 0,
+  });
+}
+
+function updateProjectiles(dt){
+  for (let i=S.projectiles.length-1; i>=0; i--){
+    const p = S.projectiles[i];
+    p.ttl -= dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+
+    const tgt = findByIdAnySide(p.targetId);
+    if (!tgt || !tgt.alive){
+      S.projectiles.splice(i,1);
+      continue;
     }
 
-    function nearestTarget(attacker, enemies){
-      let best = null, bestD = 1e9;
-      for (const e of enemies){
-        if (e.hp <= 0) continue;
-        const dx = e.x - attacker.x;
-        const dy = e.y - attacker.y;
-        const d2 = dx*dx + dy*dy;
-        if (d2 < bestD){ bestD=d2; best=e; }
+    const dx = tgt.x - p.x;
+    const dy = tgt.y - p.y;
+    const d = Math.sqrt(dx*dx + dy*dy);
+
+    if (d < 14 || p.ttl <= 0){
+      const att = findByIdAnySide(p.attackerId);
+
+      if (p.root && tgt.alive){
+        tgt.rootT = Math.max(tgt.rootT||0, p.rootDur);
+        pushTag(tgt, "Root");
       }
-      return best;
+
+      applyDamage(att, tgt, p.damage);
+
+      if (p.pierce){
+        // do not delete immediately; let it continue briefly to hit another nearby target
+        p.ttl = 0.12;
+        p.targetId = ""; // no lock
+        p.pierce = false;
+      } else {
+        S.projectiles.splice(i,1);
+      }
+    }
+  }
+}
+
+/* ===== Combat step ===== */
+function stepCombat(dt){
+  const P = alive(S.P);
+  const E = alive(S.E);
+
+  if (P.length === 0 || E.length === 0){
+    endCombat(P.length > 0);
+    return;
+  }
+
+  // per-unit timers + regen/heal numbers
+  for (const u of S.P){
+    u.swingT = Math.max(0, u.swingT - dt);
+    u.tagCd = Math.max(0, (u.tagCd||0) - dt);
+
+    if (u.shieldTimer && u.shieldTimer > 0){
+      u.shieldTimer -= dt;
+      if (u.shieldTimer <= 0) u.shield = 0;
     }
 
-    function nearestAllyNeedingHeal(healer, allies){
-      let best=null, bestScore=1e9;
-      for (const a of allies){
-        if (a.hp<=0) continue;
-        if (a.hp >= a.maxHp*0.999) continue;
-        const dx=a.x-healer.x, dy=a.y-healer.y;
-        const d2=dx*dx+dy*dy;
-        if (d2<bestScore){bestScore=d2;best=a;}
-      }
-      return best;
+    if (u.rootT && u.rootT > 0) u.rootT -= dt;
+
+    // Wilds regen / etc
+    if (u.regenPerSec && u.regenPerSec > 0 && u.alive){
+      const before = u.hp;
+      u.hp = Math.min(u.maxHP, u.hp + u.regenPerSec * dt);
+      const healed = u.hp - before;
+      if (healed > 0 && chance(0.25)) pushHeal(u, healed); // lightly throttled
     }
 
-    function spawnFloat(x,y,text,kind){
-      const wrap = $("#battleWrap");
-      const el = document.createElement("div");
-      el.className = `numFloat ${kind}`;
-      el.textContent = text;
-      wrap.appendChild(el);
+    // Second wind (augment)
+    if (hasAug("A5") && !u.secondWindUsed && u.hp > 0 && u.hp < 0.30*u.maxHP){
+      const before = u.hp;
+      u.hp = Math.min(u.maxHP, u.hp + 0.20*u.maxHP);
+      const healed = u.hp - before;
+      u.secondWindUsed = true;
+      if (healed > 0){ pushTag(u, "Second Wind"); pushHeal(u, healed); }
+    }
 
-      const start = performance.now();
-      const dur = 650;
-      const ox = rand(-10,10);
-      const oy = rand(-6,6);
-
-      function tick(){
-        const t = (performance.now()-start)/dur;
-        if (t>=1){
-          el.remove();
-          return;
+    // Healer: pulse heal lowest ally every ~2.5s
+    if (u.name === "Healer" && u.alive){
+      u.healPulseCd -= dt;
+      if (u.healPulseCd <= 0){
+        u.healPulseCd = 2.5;
+        let low = null;
+        for (const a of P){
+          if (!a.alive) continue;
+          if (!low || (a.hp/a.maxHP) < (low.hp/low.maxHP)) low = a;
         }
-        const yy = y - 18 - t*38 + oy;
-        const xx = x + ox;
-        el.style.transform = `translate(${xx}px, ${yy}px)`;
-        el.style.opacity = String(1 - t);
-        requestAnimationFrame(tick);
-      }
-      tick();
-    }
-
-    function drawUnit(u){
-      const W = canvas.width, H = canvas.height;
-      const scale = devicePixelRatio;
-      const x = u.x * scale;
-      const y = u.y * scale;
-
-      // color by class
-      const col = ({
-        "Warrior":"rgba(110,170,255,.95)",
-        "Ranger":"rgba(90,255,170,.95)",
-        "Mage":"rgba(185,120,255,.95)",
-        "Rogue":"rgba(255,150,90,.95)"
-      })[u.classTag] || "rgba(140,190,255,.95)";
-
-      const enemyTint = u.side==="E" ? "rgba(255,90,122,.92)" : col;
-      const size = (u.role==="melee"? 14 : 12) * scale;
-
-      // body
-      ctx.save();
-      ctx.translate(x,y);
-      ctx.globalAlpha = (u.hp>0?1:0.25);
-
-      // shape
-      ctx.fillStyle = enemyTint;
-      ctx.strokeStyle = "rgba(255,255,255,.15)";
-      ctx.lineWidth = 2*scale;
-
-      if (u.shape==="square"){
-        ctx.beginPath();
-        ctx.roundRect(-size, -size, size*2, size*2, 6*scale);
-        ctx.fill(); ctx.stroke();
-      } else if (u.shape==="triangle"){
-        ctx.beginPath();
-        ctx.moveTo(0,-size);
-        ctx.lineTo(size, size);
-        ctx.lineTo(-size, size);
-        ctx.closePath();
-        ctx.fill(); ctx.stroke();
-      } else if (u.shape==="diamond"){
-        ctx.beginPath();
-        ctx.moveTo(0,-size);
-        ctx.lineTo(size,0);
-        ctx.lineTo(0,size);
-        ctx.lineTo(-size,0);
-        ctx.closePath();
-        ctx.fill(); ctx.stroke();
-      } else if (u.shape==="hex"){
-        ctx.beginPath();
-        for (let i=0;i<6;i++){
-          const ang = (Math.PI/3)*i - Math.PI/6;
-          const px = Math.cos(ang)*size;
-          const py = Math.sin(ang)*size;
-          if (i===0) ctx.moveTo(px,py);
-          else ctx.lineTo(px,py);
-        }
-        ctx.closePath();
-        ctx.fill(); ctx.stroke();
-      } else { // circle
-        ctx.beginPath();
-        ctx.arc(0,0,size,0,Math.PI*2);
-        ctx.fill(); ctx.stroke();
-      }
-
-      // hp bar
-      const bw = 44*scale, bh = 6*scale;
-      const p = clamp(u.hp/u.maxHp,0,1);
-      ctx.fillStyle = "rgba(0,0,0,.35)";
-      ctx.fillRect(-bw/2, -size-14*scale, bw, bh);
-      ctx.fillStyle = u.side==="E" ? "rgba(255,90,122,.95)" : "rgba(90,255,170,.95)";
-      ctx.fillRect(-bw/2, -size-14*scale, bw*p, bh);
-
-      // stars
-      ctx.fillStyle = "rgba(255,255,255,.85)";
-      ctx.font = `${11*scale}px ui-sans-serif, system-ui`;
-      ctx.textAlign="center";
-      ctx.fillText("★".repeat(u.stars), 0, size+16*scale);
-
-      ctx.restore();
-    }
-
-    function stepBattle(now){
-      const battle = state.battle;
-      if (!battle) return;
-      const dt = Math.min(0.033, (now - battle.lastFrame)/1000);
-      battle.lastFrame = now;
-
-      const W = canvas.width / devicePixelRatio;
-      const H = canvas.height / devicePixelRatio;
-
-      // background
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      ctx.save();
-      ctx.scale(devicePixelRatio, devicePixelRatio);
-      ctx.fillStyle = "rgba(255,255,255,.03)";
-      for (let x=0;x<W;x+=40){
-        ctx.fillRect(x,0,1,H);
-      }
-      ctx.restore();
-
-      const P = battle.player;
-      const E = battle.enemy;
-
-      // victory check
-      const pAlive = P.some(u=>u.hp>0);
-      const eAlive = E.some(u=>u.hp>0);
-      if (!pAlive || !eAlive){
-        // stop & resolve
-        endBattle(pAlive ? "P" : "E");
-        return;
-      }
-
-      // update all units
-      function updateSide(sideArr, enemyArr, allyArr){
-        for (const u of sideArr){
-          if (u.hp<=0) continue;
-
-          // choose target
-          if (u.healer){
-            u.target = nearestAllyNeedingHeal(u, allyArr);
-          } else {
-            u.target = nearestTarget(u, enemyArr);
+        if (low){
+          const amt = 18 + (u.star-1)*12;
+          const before = low.hp;
+          low.hp = Math.min(low.maxHP, low.hp + amt);
+          const healed = low.hp - before;
+          if (healed > 0){
+            pushTag(u, "Heal");
+            pushHeal(low, healed);
           }
-          if (!u.target) continue;
+        }
+      }
+    }
 
-          const tx = u.target.x, ty = u.target.y;
-          const dx = tx - u.x, dy = ty - u.y;
-          const dist = Math.hypot(dx,dy);
+    // Shade blink: every ~4s teleport near weakest backliner
+    if (u.name === "Shade" && u.alive){
+      u.blinkCd -= dt;
+      if (u.blinkCd <= 0){
+        u.blinkCd = 4.0;
+        const target = findWeakestBackliner(E);
+        if (target){
+          u.x = clamp(target.x - 26, 18, W-18);
+          u.y = clamp(target.y + (Math.random()*18-9), 18, H-18);
+          pushTag(u, "Blink");
+        }
+      }
+    }
 
-          // if in range -> attack
-          u.atkCooldown -= dt;
-          if (dist <= u.range){
-            if (u.atkCooldown <= 0){
-              u.atkCooldown = u.spd;
-              if (u.healer){
-                // heal
-                const base = u.atk; // healer "atk" is heal power
-                const amount = Math.max(6, Math.floor(base));
-                u.target.hp = Math.min(u.target.maxHp, u.target.hp + amount);
-                spawnFloat(u.target.x, u.target.y, `+${amount}`, "numHeal");
-              } else {
-                // hit
-                // dodge
-                if (Math.random() < (u.target.dodge||0)){
-                  spawnFloat(u.target.x, u.target.y, "DODGE", "numCrit");
-                } else {
-                  let dmg = u.atk;
-                  let crit = false;
-                  const critChance = (u.crit||0.05);
-                  if (Math.random() < critChance){
-                    dmg *= 1.6;
-                    crit = true;
-                  }
-                  dmg = Math.max(3, Math.floor(dmg));
+    // Warlord aura: allies near gain extra DR
+    if (u.name === "Warlord" && u.alive){
+      // applied continuously but small
+      for (const a of P){
+        if (!a.alive) continue;
+        const dx = a.x - u.x, dy = a.y - u.y;
+        if (dx*dx + dy*dy <= (110*110)){
+          a.damageReduction = clamp((a.damageReduction||0) + 0.0008, 0, 0.65);
+        }
+      }
+    }
+  }
 
-                  // splash (first hit)
-                  if (u.splashFirst && !u.didSplash){
-                    u.didSplash = true;
-                    // primary
-                    u.target.hp -= dmg;
-                    spawnFloat(u.target.x, u.target.y, `-${dmg}`, crit ? "numCrit":"numDmg");
-                    // splash nearby
-                    for (const e of enemyArr){
-                      if (e.hp<=0 || e.id===u.target.id) continue;
-                      const dd = Math.hypot(e.x-u.target.x, e.y-u.target.y);
-                      if (dd < 55){
-                        const sd = Math.floor(dmg*0.45);
-                        e.hp -= sd;
-                        spawnFloat(e.x, e.y, `-${sd}`, "numDmg");
-                      }
-                    }
-                  } else {
-                    u.target.hp -= dmg;
-                    spawnFloat(u.target.x, u.target.y, `-${dmg}`, crit ? "numCrit":"numDmg");
-                  }
+  for (const u of S.E){
+    u.swingT = Math.max(0, u.swingT - dt);
+    if (u.rootT && u.rootT > 0) u.rootT -= dt;
+  }
 
-                  // lifesteal
-                  const ls = (u.lifesteal||0);
-                  if (ls>0){
-                    const heal = Math.floor(dmg * ls);
-                    if (heal>0){
-                      u.hp = Math.min(u.maxHp, u.hp + heal);
-                      spawnFloat(u.x, u.y, `+${heal}`, "numHeal");
-                    }
-                  }
-                }
-              }
+  updateProjectiles(dt);
+  updateFloaters(dt);
+
+  function stepSide(friends, foes){
+    for (const u of friends){
+      u.cd -= dt;
+      const t = findNearest(u, foes);
+      if (!t) continue;
+
+      const dx = t.x - u.x;
+      const dy = t.y - u.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const inRange = dist <= u.range;
+
+      // if rooted, cannot move
+      const rooted = (u.rootT && u.rootT > 0);
+
+      if (!inRange && !rooted){
+        const baseSpeed = 62 + (u.star-1)*8;
+        const speed = baseSpeed * (u.moveMult || 1);
+        const nx = dx / (dist||1);
+        const ny = dy / (dist||1);
+        u.x += nx * speed * dt;
+        u.y += ny * speed * dt;
+        u.x = clamp(u.x, 18, W-18);
+        u.y = clamp(u.y, 18, H-18);
+      }
+
+      if (u.cd <= 0 && inRange){
+        const ang = Math.atan2(dy, dx);
+        u.aimA = ang;
+
+        if (isRangedUnit(u)){
+          // Trapper: first projectile roots
+          let extra = {};
+          if (u.name === "Trapper" && !u.trapUsed){
+            u.trapUsed = true;
+            extra.root = true;
+            extra.rootDur = 0.7;
+            pushTag(u, "Trap");
+          }
+          // Invoker: every 3rd attack pierces
+          if (u.name === "Invoker"){
+            u.pierceCounter = (u.pierceCounter||0) + 1;
+            if (u.pierceCounter >= 3){
+              u.pierceCounter = 0;
+              extra.pierce = true;
+              pushTag(u, "Pierce");
             }
-          } else {
-            // move toward target
-            const speed = 65; // px/sec
-            const nx = dx/(dist||1), ny = dy/(dist||1);
-            u.x += nx * speed * dt;
-            u.y += ny * speed * dt;
-            u.x = clamp(u.x, 16, W-16);
-            u.y = clamp(u.y, 16, H-16);
           }
-        }
-      }
-
-      updateSide(P, E, P);
-      updateSide(E, P, E);
-
-      // draw units
-      ctx.save();
-      ctx.scale(devicePixelRatio, devicePixelRatio);
-      for (const u of [...P,...E]){
-        drawUnit(u);
-      }
-      ctx.restore();
-
-      requestAnimationFrame(stepBattle);
-    }
-
-    // ----------------------------
-    // Render
-    // ----------------------------
-    function escapeHtml(s){
-      return String(s).replace(/[&<>"']/g, (m)=>({
-        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-      }[m]));
-    }
-
-    function renderShop(){
-      const grid = $("#shopGrid");
-      grid.innerHTML = "";
-      if (state.shop.length === 0){
-        const empty = document.createElement("div");
-        empty.className = "card";
-        empty.innerHTML = `<div class="name">Empty</div><div class="traitLine">Reroll for new offers.</div>`;
-        grid.appendChild(empty);
-        return;
-      }
-
-      for (const offer of state.shop){
-        const tpl = templateById(offer.tplId);
-        const el = document.createElement("div");
-        el.className = "card";
-        el.innerHTML = `
-          <div class="cardTop">
-            <div>
-              <div class="name">${escapeHtml(tpl.name)} (${tpl.cost}g)</div>
-              <div class="meta">
-                <span class="badge ${rarityColorClass[tpl.rarity]||""}">${escapeHtml(tpl.rarity)}</span>
-                <span class="badge">${escapeHtml(tpl.role==="melee"?"Front":"Back")}</span>
-              </div>
-            </div>
-            <div class="stars">★</div>
-          </div>
-          <div class="traitLine">${escapeHtml(tpl.classTag)}/${escapeHtml(tpl.originTag)} • HP ${tpl.hp} • ATK ${tpl.atk} • Range ${tpl.range}px • Spd ${tpl.spd.toFixed(2)}s</div>
-          <div class="buyRow">
-            <button class="btn primary">Buy</button>
-            <div class="badge">${escapeHtml(tpl.classTag)}</div>
-          </div>
-        `;
-        el.querySelector("button").onclick = ()=>buyOffer(offer.offerId);
-        grid.appendChild(el);
-      }
-    }
-
-    function renderArmy(){
-      const strip = $("#armyStrip");
-      strip.innerHTML = "";
-      $("#unitsTag").textContent = `Units: ${state.army.length}`;
-      $("#permaTag").textContent = `Permadeath ${state.permaDeath ? "ON":"OFF"}`;
-      $("#permaTag").className = `pill small ${state.permaDeath ? "":"bad"}`;
-
-      if (!state.army.length){
-        const p = document.createElement("div");
-        p.className = "hint";
-        p.textContent = "No units yet. Buy from the shop.";
-        strip.appendChild(p);
-        $("#armyNote").textContent = "Tip: 3-of-a-kind merges automatically. Merging returns items to Inventory.";
-        return;
-      }
-
-      const counts = countSynergies();
-      const active = [];
-      for (const k of Object.keys(SYNERGIES)){
-        const tier = activeTierFor(k, counts[k]||0);
-        if (tier>=0) active.push(`${k}: ${counts[k]} (ACTIVE)`);
-      }
-      $("#armyNote").textContent = active.length
-        ? `Active: ${active.slice(0,4).join(" • ")}${active.length>4 ? " • +" + (active.length-4) + " more" : ""}`
-        : "No synergies active yet. Mix traits to activate bonuses.";
-
-      for (const u of state.army){
-        const tpl = templateById(u.tplId);
-        const eq = getEquippedItems(u);
-        const slots = unitSlotMax(u);
-
-        const chip = document.createElement("div");
-        chip.className = "unitChip";
-        chip.innerHTML = `
-          <div class="chipTop">
-            <div>
-              <div class="chipName">${escapeHtml(tpl.name)} ${"★".repeat(u.stars)}</div>
-              <div class="chipMeta">
-                <span class="badge ${rarityColorClass[u.rarity]||""}">${escapeHtml(u.rarity)}</span>
-                <span class="badge">Slots ${eq.length}/${slots}</span>
-              </div>
-            </div>
-          </div>
-          <div class="chipStats">
-            <span>HP ${Math.floor(tpl.hp*(1+(u.stars-1)*0.60))}</span>
-            <span>ATK ${Math.floor(tpl.atk*(1+(u.stars-1)*0.60))}</span>
-            <span>${escapeHtml(tpl.role==="melee"?"Front":"Back")}</span>
-          </div>
-          <div class="traitLine">${escapeHtml(u.classTag)}/${escapeHtml(u.originTag)}</div>
-          <div class="itemsInline" id="items-${u.id}"></div>
-          <div class="chipActions">
-            <button class="miniBtn ghost" data-sell="${u.id}">Sell (+${Math.max(1, Math.floor(u.cost*0.6))}g)</button>
-            <button class="miniBtn" data-openinv="${u.id}">Equip</button>
-          </div>
-        `;
-
-        // items inline
-        const itemsWrap = chip.querySelector(`#items-${CSS.escape(u.id)}`);
-        if (!eq.length){
-          const sp = document.createElement("div");
-          sp.className = "itemPill";
-          sp.textContent = "No items";
-          itemsWrap.appendChild(sp);
+          spawnProjectile(u, t, extra);
         } else {
-          for (const it of eq){
-            const pill = document.createElement("div");
-            pill.className = "itemPill";
-            pill.innerHTML = `${escapeHtml(it.name)} <span class="badge ${rarityColorClass[it.rarity]||""}">${escapeHtml(it.rarity)}</span> <button title="Unequip">×</button>`;
-            pill.querySelector("button").onclick = ()=>unequipItem(u.id, it.id);
-            itemsWrap.appendChild(pill);
+          // Spearman: bonus vs Skirmish
+          let dmg = u.atk;
+          if (u.name === "Spearman" && t.role === "Skirmish"){
+            dmg *= 1.25;
+            pushTag(u, "Counter");
           }
+          applyDamage(u, t, dmg);
+          u.swingT = 0.18;
         }
 
-        chip.querySelector(`[data-sell="${u.id}"]`).onclick = ()=>{
-          const idx = state.army.findIndex(x=>x.id===u.id);
-          if (idx===-1) return;
-          // return items
-          const eq2 = getEquippedItems(u);
-          for (const it of eq2){ state.inventory.push(it); }
-          u.equipped = [];
-          state.army.splice(idx,1);
-          state.gold += Math.max(1, Math.floor(u.cost*0.6));
-          showToast(`Sold ${u.name} (items returned)`);
-          renderAll();
-        };
-        chip.querySelector(`[data-openinv="${u.id}"]`).onclick = ()=>{
-          openInventory();
-        };
-
-        strip.appendChild(chip);
+        u.cd = u.spd;
       }
     }
+  }
 
-    function renderInventory(){
-      $("#invItemsCount").textContent = `${state.inventory.length} item${state.inventory.length===1?"":"s"}`;
-      $("#invUnitsCount").textContent = `${state.army.length} unit${state.army.length===1?"":"s"}`;
+  stepSide(P, E);
+  stepSide(E, P);
+}
 
-      // Items
-      const itemsEl = $("#invItems");
-      itemsEl.innerHTML = "";
-      if (!state.inventory.length){
-        const row = document.createElement("div");
-        row.className = "invRow";
-        row.innerHTML = `<div class="invRowTop"><div><div class="n">No items</div><div class="d">Win fights to loot items.</div></div></div>`;
-        itemsEl.appendChild(row);
+/* ===== Drawing ===== */
+function drawPoly(points){
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i=1;i<points.length;i++) ctx.lineTo(points[i].x, points[i].y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+function drawShape(x,y,r,shape){
+  const pts = [];
+  if (shape === "square"){
+    const s = r * 0.95;
+    pts.push({x:x-s, y:y-s},{x:x+s, y:y-s},{x:x+s, y:y+s},{x:x-s, y:y+s});
+    drawPoly(pts); return;
+  }
+  if (shape === "triangle"){
+    const s = r * 1.05;
+    pts.push({x:x, y:y-s},{x:x+s, y:y+s},{x:x-s, y:y+s});
+    drawPoly(pts); return;
+  }
+  if (shape === "diamond"){
+    const s = r * 1.05;
+    pts.push({x:x, y:y-s},{x:x+s, y:y},{x:x, y:y+s},{x:x-s, y:y});
+    drawPoly(pts); return;
+  }
+  if (shape === "hex"){
+    const s = r * 1.02;
+    for (let i=0;i<6;i++){
+      const a = (Math.PI/3)*i - Math.PI/6;
+      pts.push({x: x + Math.cos(a)*s, y: y + Math.sin(a)*s});
+    }
+    drawPoly(pts); return;
+  }
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+}
+function drawSwing(u, r){
+  if (u.swingT <= 0) return;
+  const p = Math.min(1, u.swingT / 0.18);
+  const len = r * 1.7;
+  const a = u.aimA;
+  ctx.save();
+  ctx.globalAlpha = 0.10 + 0.35 * p;
+  ctx.strokeStyle = u.classFx || "#ffd36a";
+  ctx.lineWidth = 2 + 2*p;
+
+  const x1 = u.x + Math.cos(a - 0.55) * (r*0.7);
+  const y1 = u.y + Math.sin(a - 0.55) * (r*0.7);
+  const x2 = u.x + Math.cos(a + 0.35) * len;
+  const y2 = u.y + Math.sin(a + 0.35) * len;
+
+  ctx.beginPath();
+  ctx.moveTo(x1,y1);
+  ctx.lineTo(x2,y2);
+  ctx.stroke();
+  ctx.restore();
+}
+function drawProjectiles(){
+  for (const p of S.projectiles){
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = p.color || "#cfe0ff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(p.x - p.vx*0.02, p.y - p.vy*0.02);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.95;
+    ctx.fillStyle = "#e8eefc";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+function drawFloaters(){
+  if (!S.floaters.length) return;
+  ctx.save();
+  const base = Math.max(12, Math.floor(W/70));
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (const f of S.floaters){
+    ctx.globalAlpha = 0.95 * f.alpha;
+    let color = getCSS("--tag");
+    let size = base;
+    if (f.kind === "dmg"){ color = getCSS("--dmg"); size = base + 1; }
+    if (f.kind === "heal"){ color = getCSS("--heal"); size = base + 0; }
+    if (f.kind === "shield"){ color = getCSS("--shield"); size = base - 1; }
+    if (f.kind === "tag"){ color = getCSS("--tag"); size = base - 1; ctx.globalAlpha = 0.75 * f.alpha; }
+
+    ctx.fillStyle = color;
+    ctx.font = `${size}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+    ctx.fillText(f.text, f.x, f.y);
+  }
+  ctx.restore();
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = "#0b1020";
+  ctx.fillRect(0,0,W,H);
+
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = "#141d35";
+  for (let i=0;i<10;i++){
+    ctx.fillRect(i*(W/10), 0, (W/10)-2, H);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.globalAlpha = 0.55;
+  ctx.strokeStyle = "#233357";
+  ctx.lineWidth = Math.max(2, Math.floor(W/320));
+  ctx.beginPath();
+  ctx.moveTo(W/2, 10);
+  ctx.lineTo(W/2, H-10);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  drawProjectiles();
+
+  function drawUnit(u){
+    const r = 14 + (u.star-1)*4;
+
+    ctx.fillStyle = u.classFill || "#6aa6ff";
+    ctx.strokeStyle = (u.side==="player") ? "#cfe0ff" : "#ffd0d9";
+    ctx.lineWidth = 2;
+    drawShape(u.x, u.y, r, u.shape);
+
+    if (u.shield && u.shield > 0){
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+      ctx.strokeStyle = "#8cc0ff";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(u.x, u.y, r+5, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    drawSwing(u, r);
+
+    ctx.fillStyle = "#e8eefc";
+    ctx.font = `${Math.max(11, Math.floor(W/60))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(u.name, u.x, u.y - r - 4);
+
+    ctx.fillStyle = "#cfe0ff";
+    ctx.font = `${Math.max(10, Math.floor(W/70))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+    ctx.textBaseline = "top";
+    ctx.fillText("★".repeat(u.star), u.x, u.y + r + 2);
+
+    const barW = 52 + (u.star-1)*10;
+    const barH = 6;
+    const x = u.x - barW/2;
+    const y = u.y - r - 14;
+    ctx.fillStyle = "#1d2638";
+    ctx.fillRect(x, y, barW, barH);
+    ctx.fillStyle = (u.side==="player") ? "#55d38a" : "#ff5c7a";
+    ctx.fillRect(x, y, barW * (u.hp/u.maxHP), barH);
+  }
+
+  for (const u of S.P) if (u.alive) drawUnit(u);
+  for (const u of S.E) if (u.alive) drawUnit(u);
+
+  drawFloaters();
+}
+
+/* ===== Main loop ===== */
+let lastT = 0;
+let rafId = null;
+function loop(t){
+  if (!lastT) lastT = t;
+  const dt = Math.min(0.05, (t-lastT)/1000);
+  lastT = t;
+
+  if (S.combatRunning) stepCombat(dt);
+  if (S.screen === "battle") draw();
+
+  rafId = requestAnimationFrame(loop);
+}
+
+/* ===== Permadeath ===== */
+function applyPermadeath(){
+  const dead = S.P.filter(u => !u.alive || u.hp <= 0);
+  if (!dead.length) return;
+
+  const deadIds = new Set(dead.map(u => u.rosterId).filter(Boolean));
+  const deadNames = dead.map(u => `${u.name} ★${u.star}`);
+
+  // return their items too (permadeath should not delete items)
+  let returned = 0;
+  for (const roster of S.army){
+    if (deadIds.has(roster.id)){
+      const arr = Array.isArray(roster.items) ? roster.items : [];
+      for (const it of arr){
+        if (it && it.type){
+          S.items.push({ id:rndId(), type: it.type });
+          returned++;
+        }
+      }
+      roster.items = [];
+    }
+  }
+
+  S.army = S.army.filter(u => !deadIds.has(u.id));
+
+  const extra = returned ? ` • returned ${returned} item${returned>1?"s":""}` : "";
+  if (deadNames.length === 1) showToast(`${deadNames[0]} died${extra}`, "bad");
+  else if (deadNames.length > 1) showToast(`Units lost: ${deadNames.join(", ")}${extra}`, "bad");
+
+  if (S.overlay === "inventory") renderInventory();
+}
+
+/* ===== Battle flow ===== */
+function startCombat(){
+  if (S.army.length === 0){ showToast("Not enough units", "bad"); return; }
+  if (S.overlay !== "none") return;
+
+  setScreen("battle");
+  setPhase("combat");
+  S.combatRunning = true;
+
+  showToast("Battle started", "info");
+  resizeCanvas();
+
+  spawnEnemyWave();
+  deployArmies();
+
+  document.body.dataset.result = "hide";
+  updateButtons();
+}
+
+function showResult(win, summary, type){
+  S.combatRunning = false;
+  setPhase("result");
+
+  document.body.dataset.result = "show";
+  el.resultTitle.textContent = win ? "Victory" : "Defeat";
+  el.resultTitle.style.color = win ? "var(--good)" : "var(--bad)";
+  el.resultText.textContent = summary;
+  showToast(summary, type);
+
+  updateButtons();
+  renderStats();
+}
+
+function endCombat(win){
+  applyPermadeath();
+  renderAll();
+
+  if (win){
+    S.streak += 1;
+    const base = 4 + Math.floor(S.round/2);
+    const streakBonus = Math.min(4, Math.floor(S.streak/2));
+    const goldGain = base + streakBonus;
+    S.gold += goldGain;
+    showResult(true, `Victory! +${goldGain}g`, "good");
+  } else {
+    S.streak = 0;
+    const dmg = 2 + Math.floor(S.round/2);
+    S.hp = Math.max(0, S.hp - dmg);
+    S.gold += 3;
+
+    if (S.hp <= 0){
+      document.body.dataset.result = "show";
+      el.resultTitle.textContent = "Game Over";
+      el.resultTitle.style.color = "var(--bad)";
+      el.resultText.textContent = "You ran out of HP. Start a new run from the menu.";
+      showToast("Game Over", "bad");
+
+      el.btnNext.disabled = true;
+      el.btnResultNext.disabled = true;
+
+      try{
+        const data = serializeState();
+        data.ended = true;
+        localStorage.setItem(SAVE_KEY_V3, JSON.stringify(data));
+      }catch(e){}
+      refreshContinueBtn();
+      return;
+    } else {
+      showResult(false, `Defeat. -${dmg} HP, +3g`, "bad");
+    }
+  }
+
+  saveGame();
+}
+
+/* ===== Post-battle roguelike pipeline ===== */
+function randomItemDrop(){
+  // roll item rarity first, then pick from pool
+  const r = S.round;
+  let odds;
+  if (r <= 3) odds = {Common:0.70, Uncommon:0.25, Rare:0.05, Epic:0.00, Legendary:0.00};
+  else if (r <= 7) odds = {Common:0.45, Uncommon:0.35, Rare:0.16, Epic:0.04, Legendary:0.00};
+  else odds = {Common:0.30, Uncommon:0.35, Rare:0.22, Epic:0.10, Legendary:0.03};
+
+  // elite sweeter
+  if (S.node.isElite){
+    odds.Epic += 0.03; odds.Legendary += 0.01;
+    odds.Common = Math.max(0, odds.Common - 0.03);
+    odds.Uncommon = Math.max(0, odds.Uncommon - 0.01);
+  }
+  // normalize
+  const sum = Object.values(odds).reduce((a,b)=>a+b,0) || 1;
+  for (const k of Object.keys(odds)) odds[k]/=sum;
+
+  const rar = rollRarity(odds);
+  const pool = Object.keys(ITEMS).filter(id => (ITEMS[id].rarity||"Common") === rar);
+  const id = pool.length ? pick(pool) : pick(Object.keys(ITEMS));
+  return { id:rndId(), type:id };
+}
+
+function beginPostBattleFlow(){
+  if (S.hp <= 0) return;
+
+  S.overlayQueue = [];
+
+  const lastWasWin = (el.resultTitle.textContent === "Victory");
+  if (lastWasWin){
+    if (S.node.isElite){
+      const it = randomItemDrop();
+      S.items.push(it);
+      queueOverlay("item", it);
+      queueOverlay("augment");
+    } else {
+      if (chance(0.40)){
+        const it = randomItemDrop();
+        S.items.push(it);
+        queueOverlay("item", it);
+      }
+      if (S.round % 3 === 0) queueOverlay("augment");
+    }
+  } else {
+    if (S.round % 3 === 0) queueOverlay("augment");
+  }
+
+  queueOverlay("node");
+
+  saveGame();
+  nextOverlay();
+}
+
+function startNextRoundPlanning(){
+  S.round += 1;
+  S.gold += 2;
+  if (hasAug("A1")) S.gold += 1;
+
+  if (!S.node) S.node = { type:"battle", isElite:false };
+
+  showToast(`Round ${S.round} — +${hasAug("A1") ? 3 : 2}g`, "info");
+
+  setScreen("planning");
+  setPhase("planning");
+  rerollShop(true);
+  renderAll();
+  saveGame();
+}
+
+/* ===== Overlays ===== */
+function openAugmentPick(){
+  setOverlay("augment");
+  el.augmentChoices.innerHTML = "";
+
+  const pool = Object.keys(AUGMENTS).filter(id => !S.augments.includes(id));
+  const picks = [];
+  while (picks.length < 3 && pool.length){
+    const id = pool.splice(Math.floor(Math.random()*pool.length), 1)[0];
+    picks.push(id);
+  }
+  while (picks.length < 3){
+    picks.push(pick(Object.keys(AUGMENTS)));
+  }
+
+  for (const id of picks){
+    const a = AUGMENTS[id];
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+    card.innerHTML = `<div class="name"><span>${a.name}</span><span class="rarMini">Augment</span></div><div class="desc">${a.desc}</div>`;
+    const btn = document.createElement("button");
+    btn.className = "btnPrimary";
+    btn.textContent = "Pick";
+    btn.addEventListener("click", ()=>{
+      S.augments.push(id);
+      if (a.pickNow) a.pickNow(S);
+      showToast(`Augment: ${a.name}`, "good");
+      renderAll();
+      saveGame();
+      nextOverlay();
+    });
+    card.appendChild(btn);
+    el.augmentChoices.appendChild(card);
+  }
+}
+
+function openItemReward(itemObj){
+  setOverlay("item");
+  const def = ITEMS[itemObj.type];
+  const rarCol = rarityColor(def.rarity || "Common");
+  el.itemRewardCard.innerHTML = `
+    <div class="name"><span>${def.name}</span><span class="rarMini" style="border-color:${rarCol}; color:${rarCol};">${def.rarity||"Common"}</span></div>
+    <div class="desc">${def.desc}</div>
+    <div class="desc" style="margin-top:6px;">Inventory → equip (higher rarity units hold more). Unequip returns items.</div>
+  `;
+}
+el.btnItemContinue.addEventListener("click", ()=>{ nextOverlay(); });
+
+function openNodeSelect(){
+  setOverlay("node");
+  el.nodeChoices.innerHTML = "";
+
+  const nodes = [
+    { type:"battle", isElite:false, title:"Battle", desc:"Normal fight." },
+    { type:"battle", isElite:true,  title:"Elite",  desc:"Harder enemies. Guaranteed item + augment on win." },
+    { type:"event",  isElite:false, title:"Event",  desc:"Pick one risk/reward outcome." },
+  ];
+
+  for (const n of nodes){
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+    card.innerHTML = `<div class="name"><span>${n.title}</span><span class="rarMini">${n.isElite?"Elite":"Node"}</span></div><div class="desc">${n.desc}</div>`;
+    const btn = document.createElement("button");
+    btn.className = "btnPrimary";
+    btn.textContent = "Choose";
+    btn.addEventListener("click", ()=>{
+      if (n.type === "event"){
+        S.node = { type:"event", isElite:false };
+        saveGame();
+        openEventSelect();
       } else {
-        for (const it of state.inventory){
-          const tpl = itemTplById(it.tplId);
-          const row = document.createElement("div");
-          row.className = "invRow" + (state.selectedItemId===it.id ? " selectedRow":"");
-          row.innerHTML = `
-            <div class="invRowTop">
-              <div>
-                <div class="n">${escapeHtml(tpl.name)} <span class="badge ${rarityColorClass[tpl.rarity]||""}">${escapeHtml(tpl.rarity)}</span></div>
-                <div class="d">${escapeHtml(tpl.desc)}</div>
-              </div>
-            </div>
-            <div class="invRowActions">
-              <button class="btn ${state.selectedItemId===it.id ? "primary":"ghost"}">${state.selectedItemId===it.id ? "Selected":"Select"}</button>
-            </div>
-          `;
-          row.querySelector("button").onclick = ()=>selectItem(it.id);
-          itemsEl.appendChild(row);
-        }
+        S.node = { type:"battle", isElite: !!n.isElite };
+        saveGame();
+        setOverlay("none");
+        startNextRoundPlanning();
       }
+    });
+    card.appendChild(btn);
+    el.nodeChoices.appendChild(card);
+  }
+}
 
-      // Units
-      const unitsEl = $("#invUnits");
-      unitsEl.innerHTML = "";
-      if (!state.army.length){
-        const row = document.createElement("div");
-        row.className = "invRow";
-        row.innerHTML = `<div class="invRowTop"><div><div class="n">No units</div><div class="d">Buy units in the shop.</div></div></div>`;
-        unitsEl.appendChild(row);
-      } else {
-        for (const u of state.army){
-          const tpl = templateById(u.tplId);
-          const eq = getEquippedItems(u);
-          const slots = unitSlotMax(u);
+function openEventSelect(){
+  setOverlay("event");
+  el.eventChoices.innerHTML = "";
 
-          const row = document.createElement("div");
-          row.className = "invRow";
-          row.innerHTML = `
-            <div class="invRowTop">
-              <div>
-                <div class="n">${escapeHtml(tpl.name)} ${"★".repeat(u.stars)} <span class="badge ${rarityColorClass[u.rarity]||""}">${escapeHtml(u.rarity)}</span></div>
-                <div class="traitLine">${escapeHtml(u.classTag)}/${escapeHtml(u.originTag)} • ${escapeHtml(tpl.role==="melee"?"Front":"Back")}</div>
-                <div class="slotLine">Slots ${eq.length}/${slots}</div>
-              </div>
-              <div class="badge">${escapeHtml(u.classTag)}</div>
-            </div>
+  const pool = EVENTS.slice();
+  const picks = [];
+  while (picks.length < 3 && pool.length){
+    picks.push(pool.splice(Math.floor(Math.random()*pool.length), 1)[0]);
+  }
 
-            <div class="itemsInline" id="invEq-${u.id}"></div>
+  for (const ev of picks){
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+    card.innerHTML = `<div class="name"><span>${ev.name}</span><span class="rarMini">Event</span></div><div class="desc">${ev.desc}</div>`;
+    const btn = document.createElement("button");
+    btn.className = "btnPrimary";
+    btn.textContent = "Take";
+    btn.addEventListener("click", ()=>{
+      ev.apply(S);
+      mergeAllSafe();
+      renderAll();
+      saveGame();
 
-            <div class="invRowActions">
-              <button class="btn primary" ${state.selectedItemId ? "" : "disabled"}>Equip</button>
-            </div>
-          `;
+      S.node = { type:"battle", isElite:false };
+      setOverlay("none");
+      startNextRoundPlanning();
+    });
+    card.appendChild(btn);
+    el.eventChoices.appendChild(card);
+  }
+}
 
-          // equipped list with unequip
-          const eqWrap = row.querySelector(`#invEq-${CSS.escape(u.id)}`);
-          if (!eq.length){
-            const sp = document.createElement("div");
-            sp.className = "itemPill";
-            sp.textContent = "No items equipped";
-            eqWrap.appendChild(sp);
-          } else {
-            for (const it of eq){
-              const pill = document.createElement("div");
-              pill.className = "itemPill";
-              pill.innerHTML = `${escapeHtml(it.name)} <span class="badge ${rarityColorClass[it.rarity]||""}">${escapeHtml(it.rarity)}</span> <button title="Unequip">×</button>`;
-              pill.querySelector("button").onclick = ()=>unequipItem(u.id, it.id);
-              eqWrap.appendChild(pill);
-            }
-          }
+/* ===== Inventory overlay (scroll + tabs + multi-slot equip/unequip) ===== */
+let selectedInvItemId = null;
 
-          row.querySelector("button").onclick = ()=>equipSelectedToUnit(u.id);
-          unitsEl.appendChild(row);
-        }
-      }
-    }
+function applyInventoryLayoutMode(){
+  const narrow = window.innerWidth <= 420;
+  if (!el.invTabsWrap) return;
 
-    function renderAll(){
-      $("#roundV").textContent = state.round;
-      $("#goldV").textContent = state.gold;
-      $("#hpV").textContent = state.hp;
-      $("#streakV").textContent = state.streak;
-      $("#nextTag").textContent = `Next: ${state.nextType}`;
-      $("#btnStartFight").disabled = state.phase !== "planning" || state.hp<=0;
-      $("#btnReroll").disabled = state.phase !== "planning" || state.hp<=0;
+  if (narrow){
+    el.invTabsWrap.style.display = "block";
+    setInventoryTab(document.body.dataset.invtab || "items");
+  } else {
+    el.invTabsWrap.style.display = "none";
+    el.invPaneItems.classList.remove("hidden");
+    el.invPaneUnits.classList.remove("hidden");
+  }
+}
 
-      renderShop();
-      renderArmy();
-      renderSynergies();
-      if ($("#invOverlay").classList.contains("show")) renderInventory();
-      if (state.phase === "planning"){
-        $("#phaseText").textContent = "Planning: buy/merge • Start Fight to battle";
-      }
-    }
+function setInventoryTab(tab){
+  document.body.dataset.invtab = tab;
+  const narrow = window.innerWidth <= 420;
 
-    // ----------------------------
-    // Overlay open/close
-    // ----------------------------
-    function openInventory(){
-      $("#invOverlay").classList.add("show");
-      $("#invOverlay").setAttribute("aria-hidden","false");
+  if (!narrow){
+    el.invPaneItems.classList.remove("hidden");
+    el.invPaneUnits.classList.remove("hidden");
+    return;
+  }
+
+  if (tab === "items"){
+    el.invPaneItems.classList.remove("hidden");
+    el.invPaneUnits.classList.add("hidden");
+    el.btnInvTabItems.className = "btnPrimary";
+    el.btnInvTabUnits.className = "btnGhost";
+  } else {
+    el.invPaneUnits.classList.remove("hidden");
+    el.invPaneItems.classList.add("hidden");
+    el.btnInvTabUnits.className = "btnPrimary";
+    el.btnInvTabItems.className = "btnGhost";
+  }
+}
+
+function openInventory(){
+  setOverlay("inventory");
+  selectedInvItemId = null;
+  el.invHint.textContent = "Tap an item, then tap a unit to equip. Unequip returns to inventory.";
+  applyInventoryLayoutMode();
+  renderInventory();
+}
+
+function renderInventory(){
+  el.invItems.innerHTML = "";
+  el.invUnits.innerHTML = "";
+  el.invCount.textContent = `${S.items.length} item${S.items.length===1?"":"s"}`;
+  el.invUnitsCount.textContent = `${S.army.length} unit${S.army.length===1?"":"s"}`;
+
+  // Items list
+  for (const it of S.items){
+    const def = ITEMS[it.type];
+    const rarCol = rarityColor(def.rarity || "Common");
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+    const sel = (selectedInvItemId === it.id);
+    card.style.borderColor = sel ? "rgba(106,166,255,0.95)" : "rgba(42,58,99,0.95)";
+    card.innerHTML = `
+      <div class="name"><span>${def.name}</span><span class="rarMini" style="border-color:${rarCol}; color:${rarCol};">${def.rarity||"Common"}</span></div>
+      <div class="desc">${def.desc}</div>
+    `;
+    const btn = document.createElement("button");
+    btn.className = sel ? "btnPrimary" : "";
+    btn.textContent = sel ? "Selected" : "Select";
+    btn.addEventListener("click", ()=>{
+      selectedInvItemId = it.id;
+      el.invHint.textContent = `Selected: ${def.name}. Now open Units and tap Equip.`;
       renderInventory();
+    });
+    card.appendChild(btn);
+    el.invItems.appendChild(card);
+  }
+
+  if (!S.items.length){
+    const empty = document.createElement("div");
+    empty.className = "choiceCard";
+    empty.innerHTML = `<div class="name">No items</div><div class="desc">Win fights to find items.</div>`;
+    el.invItems.appendChild(empty);
+  }
+
+  // Units list (equip/unequip per slot)
+  for (const u of S.army){
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+
+    const rarCol = rarityColor(u.rarity || "Common");
+    const have = (u.items||[]).filter(x=>x && x.type).length;
+    const max = u.itemSlotsMax || 1;
+
+    card.innerHTML = `
+      <div class="name">
+        <span>${u.name} ${"★".repeat(u.star)}</span>
+        <span class="rarMini" style="border-color:${rarCol}; color:${rarCol};">${u.rarity}</span>
+      </div>
+      <div class="desc">${u.classTag}/${u.originTag} • Slots ${have}/${max}</div>
+      ${renderSlotRowHTML(u)}
+    `;
+
+    // Equip button (select item first)
+    const equipBtn = document.createElement("button");
+    equipBtn.className = "btnPrimary";
+    equipBtn.textContent = "Equip Here";
+    equipBtn.disabled = !selectedInvItemId;
+
+    equipBtn.addEventListener("click", ()=>{
+      if (!selectedInvItemId){
+        showToast("Select an item first", "bad");
+        return;
+      }
+      const invIdx = S.items.findIndex(x => x.id === selectedInvItemId);
+      if (invIdx < 0){
+        showToast("Item not found", "bad");
+        selectedInvItemId = null;
+        renderInventory();
+        return;
+      }
+      const pickedItem = S.items[invIdx]; // keep until committed
+
+      const cur = Array.isArray(u.items) ? u.items : (u.items=[]);
+      const maxSlots = u.itemSlotsMax || 1;
+
+      if (cur.length < maxSlots){
+        // consume inventory item -> equip new slot
+        S.items.splice(invIdx, 1);
+        cur.push({ id:rndId(), type:pickedItem.type });
+        selectedInvItemId = null;
+        showToast(`${itemLabel(pickedItem.type)} equipped to ${u.name}`, "good");
+        renderAll();
+        saveGame();
+        renderInventory();
+      } else {
+        // open replace overlay
+        S.pendingEquip = {
+          unitId: u.id,
+          pickedItemType: pickedItem.type,
+          pickedItemId: pickedItem.id,
+          prevOverlay: "inventory"
+        };
+        openReplaceOverlay();
+      }
+    });
+
+    // Unequip buttons per slot
+    const unequipWrap = document.createElement("div");
+    unequipWrap.style.display = "flex";
+    unequipWrap.style.flexDirection = "column";
+    unequipWrap.style.gap = "8px";
+
+    const curItems = Array.isArray(u.items) ? u.items : [];
+    if (curItems.length){
+      for (let i=0;i<curItems.length;i++){
+        const it = curItems[i];
+        if (!it || !it.type) continue;
+        const row = document.createElement("div");
+        row.style.display = "grid";
+        row.style.gridTemplateColumns = "1.2fr 1fr";
+        row.style.gap = "8px";
+        const def = ITEMS[it.type];
+        const rar = def?.rarity || "Common";
+        const col = rarityColor(rar);
+
+        const label = document.createElement("div");
+        label.className = "pill";
+        label.style.display = "flex";
+        label.style.justifyContent = "space-between";
+        label.style.alignItems = "center";
+        label.innerHTML = `<span>${def?.name || "Item"}</span><span style="color:${col}; font-weight:1000;">${rar}</span>`;
+
+        const btn = document.createElement("button");
+        btn.className = "btnGhost";
+        btn.textContent = "Unequip";
+        btn.addEventListener("click", ()=>{
+          const removed = u.items.splice(i,1)[0];
+          if (removed && removed.type){
+            S.items.push({ id:rndId(), type: removed.type });
+            selectedInvItemId = null;
+            showToast(`Unequipped ${itemLabel(removed.type)} from ${u.name}`, "info");
+            renderAll();
+            saveGame();
+            renderInventory();
+          }
+        });
+
+        row.appendChild(label);
+        row.appendChild(btn);
+        unequipWrap.appendChild(row);
+      }
     }
-    function closeInventory(){
-      $("#invOverlay").classList.remove("show");
-      $("#invOverlay").setAttribute("aria-hidden","true");
-      state.selectedItemId = null;
-      $("#invSub").textContent = "Select an item, then tap “Equip” on a unit.";
-    }
 
-    function openSynergies(){
-      $("#synOverlay").classList.add("show");
-      $("#synOverlay").setAttribute("aria-hidden","false");
-      renderSynergies();
-    }
-    function closeSynergies(){
-      $("#synOverlay").classList.remove("show");
-      $("#synOverlay").setAttribute("aria-hidden","true");
-    }
+    // Add buttons
+    card.appendChild(equipBtn);
+    if (curItems.length) card.appendChild(unequipWrap);
 
-    function openMenu(){
-      $("#menuOverlay").classList.add("show");
-      $("#menuOverlay").setAttribute("aria-hidden","false");
-      $("#menuPermaBadge").textContent = state.permaDeath ? "ON":"OFF";
-      $("#menuPermaBadge").className = `badge ${state.permaDeath ? "rar-uncommon":"rar-rare"}`;
-    }
-    function closeMenu(){
-      $("#menuOverlay").classList.remove("show");
-      $("#menuOverlay").setAttribute("aria-hidden","true");
-    }
+    el.invUnits.appendChild(card);
+  }
 
-    // ----------------------------
-    // Wiring
-    // ----------------------------
-    $("#btnInventory").onclick = openInventory;
-    $("#btnInvClose").onclick = closeInventory;
+  if (!S.army.length){
+    const empty = document.createElement("div");
+    empty.className = "choiceCard";
+    empty.innerHTML = `<div class="name">No units</div><div class="desc">Buy units in the shop.</div>`;
+    el.invUnits.appendChild(empty);
+  }
+}
 
-    $("#btnSynergies").onclick = openSynergies;
-    $("#btnSynClose").onclick = closeSynergies;
+/* ===== Replace overlay ===== */
+function openReplaceOverlay(){
+  if (!S.pendingEquip) return;
+  setOverlay("replace");
+  renderReplaceOverlay();
+}
+function renderReplaceOverlay(){
+  el.replaceChoices.innerHTML = "";
+  const pe = S.pendingEquip;
+  const unit = S.army.find(u=>u.id===pe.unitId);
+  if (!unit){
+    S.pendingEquip = null;
+    setOverlay("inventory");
+    renderInventory();
+    return;
+  }
 
-    $("#btnMenu").onclick = openMenu;
-    $("#btnMenuClose").onclick = closeMenu;
+  const pickedDef = ITEMS[pe.pickedItemType];
+  el.replaceSub.textContent = `Replace an item on ${unit.name} with ${pickedDef?.name || "Item"}.`;
 
-    $("#btnReroll").onclick = reroll;
-    $("#btnStartFight").onclick = startBattle;
+  const items = Array.isArray(unit.items) ? unit.items : [];
+  for (let i=0;i<items.length;i++){
+    const it = items[i];
+    const def = ITEMS[it.type];
+    const rarCol = rarityColor(def?.rarity || "Common");
 
-    $("#btnSkipBattle").onclick = ()=>{
-      const b = state.battle;
-      if (!b) return;
-      // decide winner quickly based on total power
-      const pPow = b.player.reduce((s,u)=>s + Math.max(0,u.hp) + u.atk*8, 0);
-      const ePow = b.enemy.reduce((s,u)=>s + Math.max(0,u.hp) + u.atk*8, 0);
-      endBattle(pPow >= ePow ? "P":"E", true);
-    };
+    const card = document.createElement("div");
+    card.className = "choiceCard";
+    card.innerHTML = `
+      <div class="name"><span>Replace: ${def?.name || "Item"}</span><span class="rarMini" style="border-color:${rarCol}; color:${rarCol};">${def?.rarity || "Common"}</span></div>
+      <div class="desc">${def?.desc || ""}</div>
+    `;
+    const btn = document.createElement("button");
+    btn.className = "btnPrimary";
+    btn.textContent = "Replace this slot";
+    btn.addEventListener("click", ()=>{
+      commitReplace(i);
+    });
+    card.appendChild(btn);
+    el.replaceChoices.appendChild(card);
+  }
 
-    $("#btnTogglePerma").onclick = ()=>{
-      state.permaDeath = !state.permaDeath;
-      $("#menuPermaBadge").textContent = state.permaDeath ? "ON":"OFF";
-      $("#menuPermaBadge").className = `badge ${state.permaDeath ? "rar-uncommon":"rar-rare"}`;
-      renderAll();
-    };
+  const cancel = document.createElement("div");
+  cancel.className = "choiceCard";
+  cancel.innerHTML = `<div class="name">Cancel</div><div class="desc">Keep current items.</div>`;
+  el.replaceChoices.appendChild(cancel);
+}
+function commitReplace(slotIndex){
+  const pe = S.pendingEquip;
+  const unit = S.army.find(u=>u.id===pe.unitId);
+  if (!pe || !unit){ S.pendingEquip=null; setOverlay("inventory"); renderInventory(); return; }
 
-    $("#btnRestart").onclick = ()=>{
-      // reset state
-      state.round = 1;
-      state.gold = 6;
-      state.hp = 20;
-      state.streak = 0;
-      state.phase = "planning";
-      state.shop = [];
-      state.army = [];
-      state.inventory = [];
-      state.selectedItemId = null;
-      state.nextType = roundType(state.round);
-      fillShop();
-      showToast("Run restarted");
-      renderAll();
-      closeMenu();
-    };
+  const invIdx = S.items.findIndex(x => x.id === pe.pickedItemId);
+  if (invIdx < 0){
+    showToast("Item not in inventory", "bad");
+    S.pendingEquip=null;
+    setOverlay("inventory");
+    renderInventory();
+    return;
+  }
 
-    // Close overlays on backdrop tap (but not on card)
-    for (const [overlayId, closeFn] of [
-      ["invOverlay", closeInventory],
-      ["synOverlay", closeSynergies],
-      ["menuOverlay", closeMenu],
-    ]){
-      const ov = $("#"+overlayId);
-      ov.addEventListener("click", (e)=>{
-        if (e.target === ov) closeFn();
-      });
-    }
-    $("#replaceModal").addEventListener("click",(e)=>{ if (e.target===$("#replaceModal")) closeReplaceModal(); });
+  // return the replaced item to inventory
+  const cur = Array.isArray(unit.items) ? unit.items : (unit.items=[]);
+  const replaced = cur[slotIndex];
+  if (replaced && replaced.type){
+    S.items.push({ id:rndId(), type: replaced.type });
+  }
 
-    // ----------------------------
-    // Init
-    // ----------------------------
-    function init(){
-      state.nextType = roundType(state.round);
-      fillShop();
+  // consume selected item
+  const picked = S.items.splice(invIdx,1)[0];
+  cur[slotIndex] = { id:rndId(), type: picked.type };
 
-      // Start with a couple items to test equip flow
-      // (Remove if you don't want freebies)
-      state.inventory.push(makeItemInstance(itemTplById("shield")));
-      state.inventory.push(makeItemInstance(itemTplById("sword")));
+  showToast(`${itemLabel(picked.type)} equipped to ${unit.name}`, "good");
+  selectedInvItemId = null;
+  S.pendingEquip = null;
 
-      renderAll();
-    }
-    init();
-  </script>
+  renderAll();
+  saveGame();
+
+  // back to inventory
+  setOverlay("inventory");
+  renderInventory();
+}
+el.btnReplaceCancel.addEventListener("click", ()=>{
+  S.pendingEquip = null;
+  setOverlay("inventory");
+  renderInventory();
+});
+
+/* ===== Result "Next" handling ===== */
+function proceedFromResult(){
+  if (S.overlay !== "none") return;
+  document.body.dataset.result = "hide";
+  setOverlay("none");
+  beginPostBattleFlow();
+}
+
+/* ===== Events wiring ===== */
+el.btnReroll.addEventListener("click", () => rerollShop(false));
+el.btnStart.addEventListener("click", startCombat);
+el.btnNext.addEventListener("click", proceedFromResult);
+el.btnResultNext.addEventListener("click", proceedFromResult);
+
+el.btnMenu.addEventListener("click", () => {
+  setOverlay("none");
+  setScreen("menu");
+  showToast("Menu", "info");
+  refreshContinueBtn();
+});
+el.btnInventory.addEventListener("click", () => openInventory());
+el.btnSynergies.addEventListener("click", () => openSynergiesOverlay());
+el.btnSynClose.addEventListener("click", () => { setOverlay("none"); });
+
+el.btnInvClose.addEventListener("click", ()=>{
+  setOverlay("none");
+  renderAll();
+});
+
+el.btnInvTabItems.addEventListener("click", ()=> setInventoryTab("items"));
+el.btnInvTabUnits.addEventListener("click", ()=> setInventoryTab("units"));
+
+el.btnHowTo.addEventListener("click", () => {
+  document.body.dataset.howto = (document.body.dataset.howto === "open") ? "closed" : "open";
+});
+el.btnNewGame.addEventListener("click", () => newGame());
+el.btnContinue.addEventListener("click", () => {
+  const ok = loadGame();
+  if (!ok) showToast("No save found", "bad");
+});
+
+/* ===== Init / New Game ===== */
+function newGame(){
+  clearSave();
+  S.round = 1;
+  S.gold = 10;
+  S.hp = 20;
+  S.streak = 0;
+  S.shop = [];
+  S.army = [];
+  S.augments = [];
+  S.items = [];
+  S.node = { type:"battle", isElite:false };
+  S.nextEnemyMod = null;
+  S.overlay = "none";
+  S.overlayQueue = [];
+  S.pendingEquip = null;
+
+  S.projectiles = [];
+  S.floaters = [];
+  S.P = []; S.E = [];
+  S.combatRunning = false;
+
+  // starters
+  S.army.push(makeUnit("Brawler", 1, "player"));
+  S.army.push(makeUnit("Archer", 1, "player"));
+
+  setScreen("planning");
+  setPhase("planning");
+  rerollShop(true);
+  renderAll();
+  showToast("New Game", "good");
+  saveGame();
+}
+
+function init(){
+  resizeCanvas();
+  refreshContinueBtn();
+
+  // migrate old saves if v3 doesn't exist
+  if (!localStorage.getItem(SAVE_KEY_V3)){
+    if (!tryMigrateV2()) tryMigrateV1();
+  }
+
+  setScreen("menu");
+  setPhase("planning");
+  showToast("Welcome", "info");
+  applyInventoryLayoutMode();
+  if (!rafId) rafId = requestAnimationFrame(loop);
+}
+init();
+</script>
 </body>
 </html>
