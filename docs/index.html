@@ -244,6 +244,13 @@
       align-items:center;
       justify-content:space-between;
       gap:10px;
+      min-width:0;
+    }
+    .card h4 span:first-child{
+      min-width:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
     }
     .card .badge{
       width:10px; height:10px; border-radius:999px;
@@ -251,7 +258,14 @@
       flex:0 0 auto;
       box-shadow: 0 0 0 2px rgba(0,0,0,0.25);
     }
-    .line{ font-size:12px; color:var(--muted); }
+    /* Make long trait/class text not "cut" */
+    .line{
+      font-size:12px;
+      color:var(--muted);
+      white-space: normal;
+      line-height: 1.25;
+      word-break: break-word;
+    }
 
     .armyBar{
       flex:1 1 auto;
@@ -279,9 +293,22 @@
       overflow:hidden;
       border-left: 6px solid #6aa6ff;
     }
-    .chip .t{ font-weight:1100; font-size:13px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .chip .t{ font-weight:1100; font-size:13px; display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; }
+    .chip .t span:first-child{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .chip .s{ font-size:12px; color:#cfe0ff; opacity:.95; }
-    .chip .m{ font-size:12px; color:var(--muted); }
+    /* Clamp class/trait line to 2 lines so it isn't cut weirdly */
+    .chip .m{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.25;
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding-top: 1px;
+    }
 
     .rarMini{
       font-size:11px;
@@ -292,6 +319,7 @@
       color:#cfe0ff;
       line-height:1;
       flex:0 0 auto;
+      white-space:nowrap;
     }
 
     .armyHeaderRight{
@@ -422,11 +450,12 @@
       position:relative;
       overflow:hidden;
     }
-    .choiceCard .name{ font-weight:1200; display:flex; align-items:center; justify-content:space-between; gap:10px; }
-    .choiceCard .desc{ font-size:12px; color:var(--muted); line-height:1.35; }
+    .choiceCard .name{ font-weight:1200; display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:0; }
+    .choiceCard .name span:first-child{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .choiceCard .desc{ font-size:12px; color:var(--muted); line-height:1.35; word-break:break-word; }
     .choiceCard button{ width:100%; }
 
-    /* Inventory layout */
+    /* Inventory layout: ALWAYS 2 columns, both scroll independently */
     .twoCols{
       display:grid;
       grid-template-columns: 1fr 1fr;
@@ -447,18 +476,8 @@
       padding-bottom:2px;
     }
 
-    /* Inventory tabs (auto on small screens) */
-    .invTabs{
-      display:none;
-      gap:8px;
-    }
-    .invTabs button{
-      min-height:40px;
-      padding:10px 12px;
-      flex:1 1 auto;
-    }
-    .invPane{ min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:10px; }
-    .invPane.hidden{ display:none; }
+    /* Hide old tab UI completely */
+    #invTabsWrap{ display:none !important; }
 
     .slotRow{
       display:flex; gap:6px; flex-wrap:wrap;
@@ -476,11 +495,6 @@
     }
     .slotEmpty{ opacity:0.55; }
 
-    @media (max-width: 420px){
-      .twoCols{ grid-template-columns: 1fr; }
-      .invTabs{ display:flex; }
-    }
-
     @media (max-width: 380px){
       .card{ flex-basis: 205px; }
       .chip{ min-width: 156px; }
@@ -491,7 +505,7 @@
   </style>
 </head>
 
-<body data-screen="menu" data-result="hide" data-howto="closed" data-overlay="none" data-invtab="items">
+<body data-screen="menu" data-result="hide" data-howto="closed" data-overlay="none">
   <div id="toast" role="status" aria-live="polite"></div>
 
   <!-- ===== Fullscreen overlays ===== -->
@@ -609,7 +623,8 @@
         </div>
       </div>
 
-      <div class="panel" style="padding:10px; display:none;" id="invTabsWrap">
+      <!-- old tabs kept but fully hidden via CSS -->
+      <div class="panel" style="padding:10px;" id="invTabsWrap">
         <div class="invTabs">
           <button id="btnInvTabItems" class="btnPrimary">Items</button>
           <button id="btnInvTabUnits" class="btnGhost">Units</button>
@@ -617,7 +632,7 @@
       </div>
 
       <div class="ovBody twoCols" id="invGrid">
-        <div class="panel invPane" id="invPaneItems" style="min-height:0; overflow:hidden;">
+        <div class="panel" id="invPaneItems" style="min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:10px;">
           <div class="panelTop">
             <div class="panelTitle">Items</div>
             <div class="hint" id="invCount">0</div>
@@ -625,7 +640,7 @@
           <div class="invList" id="invItems"></div>
         </div>
 
-        <div class="panel invPane" id="invPaneUnits" style="min-height:0; overflow:hidden;">
+        <div class="panel" id="invPaneUnits" style="min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:10px;">
           <div class="panelTop">
             <div class="panelTitle">Units</div>
             <div class="hint" id="invUnitsCount">0</div>
@@ -814,26 +829,23 @@ function getCSS(varName){
 
 /* ===== Definitions ===== */
 const UNIT_POOL = [
-  // Existing
   { name:"Brawler",  rarity:"Common",    cost:1, hp: 260, atk: 18, spd: 1.00, range: 18,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" },
   { name:"Knight",   rarity:"Uncommon",  cost:2, hp: 320, atk: 22, spd: 1.05, range: 18,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" },
   { name:"Archer",   rarity:"Common",    cost:1, hp: 180, atk: 26, spd: 0.95, range: 150, role:"Back",     classTag:"Ranger",  originTag:"Wilds"   },
   { name:"Mage",     rarity:"Uncommon",  cost:2, hp: 170, atk: 34, spd: 1.15, range: 160, role:"Mage",     classTag:"Mage",    originTag:"Cult"    },
   { name:"Assassin", rarity:"Rare",      cost:3, hp: 190, atk: 46, spd: 0.75, range: 22,  role:"Skirmish", classTag:"Rogue",   originTag:"Wilds"   },
 
-  // New specials (simple, readable kits)
-  { name:"Spearman",    rarity:"Uncommon",  cost:2, hp: 300, atk: 24, spd: 1.00, range: 26,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" }, // vs skirmish bonus
-  { name:"Healer",      rarity:"Uncommon",  cost:2, hp: 160, atk: 18, spd: 1.25, range: 170, role:"Mage",     classTag:"Mage",    originTag:"Cult"    }, // heal ally
-  { name:"Crossbowman", rarity:"Common",    cost:1, hp: 170, atk: 30, spd: 1.10, range: 150, role:"Back",     classTag:"Ranger",  originTag:"Kingdom" }, // heavier shot
-  { name:"Berserker",   rarity:"Rare",      cost:3, hp: 360, atk: 28, spd: 1.05, range: 18,  role:"Front",    classTag:"Warrior", originTag:"Wilds"   }, // enrage
-  { name:"Invoker",     rarity:"Rare",      cost:3, hp: 175, atk: 32, spd: 1.05, range: 170, role:"Mage",     classTag:"Mage",    originTag:"Cult"    }, // every 3rd pierce
-  { name:"Trapper",     rarity:"Rare",      cost:3, hp: 180, atk: 24, spd: 0.95, range: 160, role:"Back",     classTag:"Ranger",  originTag:"Wilds"   }, // first root
-  { name:"Warlord",     rarity:"Epic",      cost:4, hp: 460, atk: 32, spd: 1.10, range: 22,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" }, // aura DR
-  { name:"Shade",       rarity:"Legendary", cost:5, hp: 240, atk: 60, spd: 0.75, range: 22,  role:"Skirmish", classTag:"Rogue",   originTag:"Cult"    }, // blink to back
+  { name:"Spearman",    rarity:"Uncommon",  cost:2, hp: 300, atk: 24, spd: 1.00, range: 26,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" },
+  { name:"Healer",      rarity:"Uncommon",  cost:2, hp: 160, atk: 18, spd: 1.25, range: 170, role:"Mage",     classTag:"Mage",    originTag:"Cult"    },
+  { name:"Crossbowman", rarity:"Common",    cost:1, hp: 170, atk: 30, spd: 1.10, range: 150, role:"Back",     classTag:"Ranger",  originTag:"Kingdom" },
+  { name:"Berserker",   rarity:"Rare",      cost:3, hp: 360, atk: 28, spd: 1.05, range: 18,  role:"Front",    classTag:"Warrior", originTag:"Wilds"   },
+  { name:"Invoker",     rarity:"Rare",      cost:3, hp: 175, atk: 32, spd: 1.05, range: 170, role:"Mage",     classTag:"Mage",    originTag:"Cult"    },
+  { name:"Trapper",     rarity:"Rare",      cost:3, hp: 180, atk: 24, spd: 0.95, range: 160, role:"Back",     classTag:"Ranger",  originTag:"Wilds"   },
+  { name:"Warlord",     rarity:"Epic",      cost:4, hp: 460, atk: 32, spd: 1.10, range: 22,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" },
+  { name:"Shade",       rarity:"Legendary", cost:5, hp: 240, atk: 60, spd: 0.75, range: 22,  role:"Skirmish", classTag:"Rogue",   originTag:"Cult"    },
 ];
 
 const ITEMS = {
-  // Common / Uncommon
   I1:{ id:"I1", name:"Sword",        rarity:"Common",   desc:"+20% ATK",                apply:(c)=>{ c.atk = Math.round(c.atk*1.20); } },
   I2:{ id:"I2", name:"Shield",       rarity:"Common",   desc:"+25% Max HP",             apply:(c)=>{ c.maxHP = Math.round(c.maxHP*1.25); c.hp = c.maxHP; } },
   I3:{ id:"I3", name:"Bowstring",    rarity:"Uncommon", desc:"+15% atk speed (ranged)", apply:(c)=>{ if (isRangedUnit(c)) c.spd = c.spd*0.85; } },
@@ -841,13 +853,12 @@ const ITEMS = {
   I5:{ id:"I5", name:"Vamp Charm",   rarity:"Rare",     desc:"10% lifesteal",           apply:(c)=>{ c.lifesteal = Math.max(c.lifesteal||0, 0.10); } },
   I6:{ id:"I6", name:"Bomb",         rarity:"Rare",     desc:"First hit splashes",      apply:(c)=>{ c.bombReady = true; } },
 
-  // Extra (rarity spread)
   I7:{ id:"I7", name:"Iron Ring",    rarity:"Common",   desc:"+10% Max HP",             apply:(c)=>{ c.maxHP = Math.round(c.maxHP*1.10); c.hp = c.maxHP; } },
   I8:{ id:"I8", name:"Boots",        rarity:"Uncommon", desc:"+10% move speed",         apply:(c)=>{ c.moveMult = (c.moveMult||1) * 1.10; } },
   I9:{ id:"I9", name:"Chain Rune",   rarity:"Rare",     desc:"Every 4th hit chains",    apply:(c)=>{ c.chainEvery = 4; c.chainReady = 0; } },
   I10:{id:"I10",name:"Aegis Core",   rarity:"Epic",     desc:"Start with a shield",     apply:(c)=>{ c.startShield = 0.18; } },
   I11:{id:"I11",name:"Phoenix Feather",rarity:"Epic",   desc:"Revive once at 25% HP",   apply:(c)=>{ c.reviveOnce = true; } },
-  I12:{id:"I12",name:"Chrono Relic", rarity:"Legendary",desc:"Team +10% atk speed",     apply:(c)=>{ /* applied globally in applyTeamAura */ } },
+  I12:{id:"I12",name:"Chrono Relic", rarity:"Legendary",desc:"Team +10% atk speed",     apply:(c)=>{ } },
 };
 
 const AUGMENTS = {
@@ -901,8 +912,8 @@ const EVENTS = [
 
 /* ===== State ===== */
 const SAVE_KEY_V3 = "roguewar_save_v3";
-const SAVE_KEY_V2 = "roguewar_save_v2"; // legacy
-const SAVE_KEY_V1 = "roguewar_save_v1"; // legacy
+const SAVE_KEY_V2 = "roguewar_save_v2";
+const SAVE_KEY_V1 = "roguewar_save_v1";
 
 const S = {
   round: 1,
@@ -922,10 +933,8 @@ const S = {
   overlay: "none",
   overlayQueue: [],
 
-  // replace overlay context
-  pendingEquip: null, // { unitId, pickedItemType, pickedItemId, prevOverlay }
+  pendingEquip: null,
 
-  // combat
   P: [],
   E: [],
   projectiles: [],
@@ -937,12 +946,10 @@ const S = {
 };
 
 const el = {
-  // menu
   btnNewGame: document.getElementById("btnNewGame"),
   btnContinue: document.getElementById("btnContinue"),
   btnHowTo: document.getElementById("btnHowTo"),
 
-  // planning
   roundVal: document.getElementById("roundVal"),
   goldVal: document.getElementById("goldVal"),
   hpVal: document.getElementById("hpVal"),
@@ -956,7 +963,6 @@ const el = {
   shop: document.getElementById("shop"),
   armyBar: document.getElementById("armyBar"),
 
-  // battle
   battleNodePill: document.getElementById("battleNodePill"),
   battleStats: document.getElementById("battleStats"),
   btnNext: document.getElementById("btnNext"),
@@ -965,31 +971,22 @@ const el = {
   btnResultNext: document.getElementById("btnResultNext"),
   canvas: document.getElementById("battle"),
 
-  // overlays
   augmentChoices: document.getElementById("augmentChoices"),
   itemRewardCard: document.getElementById("itemRewardCard"),
   btnItemContinue: document.getElementById("btnItemContinue"),
   nodeChoices: document.getElementById("nodeChoices"),
   eventChoices: document.getElementById("eventChoices"),
 
-  // synergies
   synergyList: document.getElementById("synergyList"),
   btnSynClose: document.getElementById("btnSynClose"),
 
-  // inventory
   invItems: document.getElementById("invItems"),
   invUnits: document.getElementById("invUnits"),
   invCount: document.getElementById("invCount"),
   invUnitsCount: document.getElementById("invUnitsCount"),
   invHint: document.getElementById("invHint"),
   btnInvClose: document.getElementById("btnInvClose"),
-  invTabsWrap: document.getElementById("invTabsWrap"),
-  btnInvTabItems: document.getElementById("btnInvTabItems"),
-  btnInvTabUnits: document.getElementById("btnInvTabUnits"),
-  invPaneItems: document.getElementById("invPaneItems"),
-  invPaneUnits: document.getElementById("invPaneUnits"),
 
-  // replace overlay
   replaceSub: document.getElementById("replaceSub"),
   replaceChoices: document.getElementById("replaceChoices"),
   btnReplaceCancel: document.getElementById("btnReplaceCancel"),
@@ -1002,7 +999,6 @@ function setOverlay(name){
   S.overlay = name;
   document.body.dataset.overlay = name;
   updateButtons();
-  if (name === "inventory") applyInventoryLayoutMode();
 }
 
 function queueOverlay(name, payload=null){
@@ -1068,9 +1064,8 @@ function makeUnit(name, star=1, side="player", forcedId=null){
     range: t.range,
 
     itemSlotsMax: raritySlots(t.rarity || "Common"),
-    items: [], // array of {id,type}
+    items: [],
 
-    // runtime
     x:0,y:0, cd:0, alive:true,
     swingT:0, aimA:0,
   };
@@ -1159,7 +1154,6 @@ function loadGame(){
     return false;
   }
 }
-// migrate v2 -> v3 best-effort
 function tryMigrateV2(){
   try{
     const raw = localStorage.getItem(SAVE_KEY_V2);
@@ -1178,7 +1172,6 @@ function tryMigrateV2(){
 
     S.army = (data.army || []).map(a=>{
       const u = makeUnit(a.name, a.star, "player", a.id);
-      // v2 had single item on unit; return it into items array
       if (a.item && a.item.type){
         u.items = [{ id:rndId(), type:a.item.type }];
       } else u.items = [];
@@ -1193,7 +1186,6 @@ function tryMigrateV2(){
     return false;
   }
 }
-// v1 migration (best-effort)
 function tryMigrateV1(){
   try{
     const raw = localStorage.getItem(SAVE_KEY_V1);
@@ -1284,7 +1276,6 @@ function getTraitCounts(units){
   if (hasAug("A12")) c.Rogue++;
   return c;
 }
-
 function traitTier(name, count){
   const tiers = {
     Warrior:[2,4],
@@ -1300,12 +1291,10 @@ function traitTier(name, count){
   const nextReq = tiers[t] ?? null;
   return { tier:t, nextReq, tiers };
 }
-
 function openSynergiesOverlay(){
   setOverlay("synergies");
   renderSynergiesOverlay();
 }
-
 function renderSynergiesOverlay(){
   el.synergyList.innerHTML = "";
   const counts = getTraitCounts(S.army);
@@ -1330,7 +1319,6 @@ function renderSynergiesOverlay(){
 
 /* ===== Shop RNG (rarity odds by round) ===== */
 function rarityOddsByRound(round, isEliteNext=false){
-  // returns {Common,Uncommon,Rare,Epic,Legendary} sum=1
   let o;
   if (round <= 2){
     o = {Common:0.80, Uncommon:0.18, Rare:0.02, Epic:0.00, Legendary:0.00};
@@ -1342,24 +1330,20 @@ function rarityOddsByRound(round, isEliteNext=false){
     o = {Common:0.20, Uncommon:0.35, Rare:0.30, Epic:0.12, Legendary:0.03};
   }
 
-  // Elite modifier (if the current node is elite battle, slightly juicier shop)
   if (isEliteNext){
     const addEpic = 0.02, addLeg = 0.01;
     o.Epic += addEpic;
     o.Legendary += addLeg;
-    // take mostly from Common (and a bit from Uncommon)
     const take = addEpic + addLeg;
     const takeC = Math.min(o.Common, take * 0.75);
     o.Common -= takeC;
     o.Uncommon = Math.max(0, o.Uncommon - (take - takeC));
   }
 
-  // normalize
   const sum = Object.values(o).reduce((a,b)=>a+b,0) || 1;
   for (const k of Object.keys(o)) o[k] /= sum;
   return o;
 }
-
 function rollRarity(odds){
   let r = Math.random();
   for (const k of ["Common","Uncommon","Rare","Epic","Legendary"]){
@@ -1368,11 +1352,9 @@ function rollRarity(odds){
   }
   return "Common";
 }
-
 function pickUnitTemplateByRarity(rarity){
   const pool = UNIT_POOL.filter(u => (u.rarity || "Common") === rarity);
   if (!pool.length){
-    // fallback downwards
     const fallback = ["Legendary","Epic","Rare","Uncommon","Common"];
     for (const rr of fallback){
       const p2 = UNIT_POOL.filter(u => (u.rarity||"Common") === rr);
@@ -1489,7 +1471,6 @@ function mergeAllSafe(){
 
     const newStar = Math.min(3, chosen.star + 1);
     const nu = makeUnit(chosen.name, newStar, "player");
-    // merged unit starts with no items (items returned)
     nu.items = [];
     S.army.push(nu);
 
@@ -1577,7 +1558,6 @@ function renderArmy(){
   }
 
   for (const u of S.army){
-    const clr = getClassColor(u.role);
     const rarCol = rarityColor(u.rarity || "Common");
     const chip = document.createElement("div");
     chip.className="chip";
@@ -1621,7 +1601,6 @@ function resizeCanvas(){
 }
 window.addEventListener("resize", () => {
   resizeCanvas();
-  applyInventoryLayoutMode();
 });
 
 /* ===== Combat cloning + bonuses ===== */
@@ -1646,27 +1625,25 @@ function cloneForCombat(rosterU, side){
   c.shield = 0;
   c.shieldTimer = 0;
 
-  // special hooks
   c.chainEvery = 0;
   c.chainReady = 0;
   c.startShield = 0;
   c.reviveOnce = false;
   c.revived = false;
 
-  c.healPulseCd = 0;       // Healer
-  c.pierceCounter = 0;     // Invoker
-  c.trapUsed = false;      // Trapper
-  c.blinkCd = 0;           // Shade
-  c.auraApplied = false;   // Warlord
-  c.enrage = 0;            // Berserker
+  c.healPulseCd = 0;
+  c.pierceCounter = 0;
+  c.trapUsed = false;
+  c.blinkCd = 0;
+  c.auraApplied = false;
+  c.enrage = 0;
 
-  c.tagCd = 0;             // floater tag throttle
+  c.tagCd = 0;
 
   return c;
 }
 
 function applyTeamAura(team, enemyTeam){
-  // Legendary Chrono Relic: team wide atk speed
   const hasChrono = team.some(u => (u.items||[]).some(it => it.type === "I12"));
   if (hasChrono){
     for (const u of team){
@@ -1727,7 +1704,6 @@ function applyRunBonusesToClone(c, counts){
   if (hasAug("A7") && c.classTag === "Warrior") c.damageReduction += 0.10;
   if (hasAug("A8") && c.classTag === "Ranger") c.spd = c.spd * 0.88;
 
-  // Apply all equipped items (multi-slot)
   const arr = Array.isArray(c.items) ? c.items : [];
   for (const it of arr){
     if (!it || !it.type) continue;
@@ -1744,7 +1720,6 @@ function spawnEnemyWave(){
   const baseCount = Math.min(18, 3 + Math.floor(r/2));
   const count = S.node.isElite ? Math.min(22, baseCount + 2) : baseCount;
 
-  // enemies use rarity odds too (keeps it spicy)
   const odds = rarityOddsByRound(r, !!S.node?.isElite);
 
   let hpMult = 1.0, atkMult = 1.0;
@@ -1763,7 +1738,6 @@ function spawnEnemyWave(){
     e.maxHP = Math.round(e.maxHP * hpMult);
     e.hp = e.maxHP;
     e.atk = Math.round(e.atk * atkMult);
-    // enemies don't equip items (for now)
     e.items = [];
     S.E.push(e);
   }
@@ -1784,7 +1758,6 @@ function deployArmies(){
   });
   S.E = S.E.map(u => cloneForCombat(u, "enemy"));
 
-  // team aura (chrono relic)
   applyTeamAura(S.P, S.E);
 
   const centerLineX = W/2;
@@ -1899,7 +1872,6 @@ function deployArmies(){
   placeSide(S.P, "player");
   placeSide(S.E, "enemy");
 
-  // apply start shields (Aegis Core)
   for (const u of S.P){
     if (u.startShield && u.startShield > 0){
       const amt = u.maxHP * u.startShield;
@@ -1923,7 +1895,6 @@ function findNearest(att, enemies){
   return best;
 }
 function findWeakestBackliner(enemies){
-  // prefer ranged/mage
   const cand = enemies.filter(e=>e.alive && (isRangedUnit(e) || e.role==="Mage"));
   const list = cand.length ? cand : enemies.filter(e=>e.alive);
   if (!list.length) return null;
@@ -1982,14 +1953,12 @@ function applyDamage(att, tgt, rawDmg){
   if (!tgt.alive) return;
   let dmg = rawDmg;
 
-  // Rogue first hit bonus (synergy)
   if (att && att.firstHitReady && att.firstHitBonus > 0){
     dmg = dmg * (1 + att.firstHitBonus);
     att.firstHitReady = false;
     pushTag(att, "First Hit");
   }
 
-  // Berserker enrage: as HP drops, faster + stronger
   if (att && att.name === "Berserker"){
     const pct = 1 - (att.hp / att.maxHP);
     if (pct > 0.15){
@@ -1999,10 +1968,8 @@ function applyDamage(att, tgt, rawDmg){
     }
   }
 
-  // reduction
   dmg = dmg * (1 - (tgt.damageReduction || 0));
 
-  // shields absorb
   let absorbed = 0;
   if (tgt.shield && tgt.shield > 0){
     absorbed = Math.min(tgt.shield, dmg);
@@ -2018,7 +1985,6 @@ function applyDamage(att, tgt, rawDmg){
 
   tgt.hp = Math.max(0, tgt.hp - dmg);
 
-  // chain rune (every 4th hit chains 30% dmg)
   if (att && att.chainEvery && att.chainEvery > 0){
     att.chainReady = (att.chainReady||0) + 1;
     if (att.chainReady >= att.chainEvery){
@@ -2039,7 +2005,6 @@ function applyDamage(att, tgt, rawDmg){
     }
   }
 
-  // death / revive
   if (tgt.hp <= 0){
     if (tgt.reviveOnce && !tgt.revived){
       tgt.revived = true;
@@ -2052,7 +2017,6 @@ function applyDamage(att, tgt, rawDmg){
     }
   }
 
-  // lifesteal
   if (att && att.lifesteal && att.lifesteal > 0 && att.alive){
     const heal = dmg * att.lifesteal;
     const before = att.hp;
@@ -2061,7 +2025,6 @@ function applyDamage(att, tgt, rawDmg){
     if (actual > 0) pushHeal(att, actual);
   }
 
-  // Bomb (first hit splash)
   if (att && att.bombReady){
     const foes = (att.side === "player") ? alive(S.E) : alive(S.P);
     let near=null, best=1e18;
@@ -2083,7 +2046,6 @@ function applyDamage(att, tgt, rawDmg){
 function onKill(att, deadTarget){
   if (!att || !att.alive) return;
 
-  // Cult shield on kill
   if (att.cultTier && att.cultTier > 0){
     const pct = (att.cultTier === 2) ? 0.16 : 0.08;
     const amt = att.maxHP * pct;
@@ -2147,9 +2109,8 @@ function updateProjectiles(dt){
       applyDamage(att, tgt, p.damage);
 
       if (p.pierce){
-        // do not delete immediately; let it continue briefly to hit another nearby target
         p.ttl = 0.12;
-        p.targetId = ""; // no lock
+        p.targetId = "";
         p.pierce = false;
       } else {
         S.projectiles.splice(i,1);
@@ -2168,7 +2129,6 @@ function stepCombat(dt){
     return;
   }
 
-  // per-unit timers + regen/heal numbers
   for (const u of S.P){
     u.swingT = Math.max(0, u.swingT - dt);
     u.tagCd = Math.max(0, (u.tagCd||0) - dt);
@@ -2180,15 +2140,13 @@ function stepCombat(dt){
 
     if (u.rootT && u.rootT > 0) u.rootT -= dt;
 
-    // Wilds regen / etc
     if (u.regenPerSec && u.regenPerSec > 0 && u.alive){
       const before = u.hp;
       u.hp = Math.min(u.maxHP, u.hp + u.regenPerSec * dt);
       const healed = u.hp - before;
-      if (healed > 0 && chance(0.25)) pushHeal(u, healed); // lightly throttled
+      if (healed > 0 && chance(0.25)) pushHeal(u, healed);
     }
 
-    // Second wind (augment)
     if (hasAug("A5") && !u.secondWindUsed && u.hp > 0 && u.hp < 0.30*u.maxHP){
       const before = u.hp;
       u.hp = Math.min(u.maxHP, u.hp + 0.20*u.maxHP);
@@ -2197,7 +2155,6 @@ function stepCombat(dt){
       if (healed > 0){ pushTag(u, "Second Wind"); pushHeal(u, healed); }
     }
 
-    // Healer: pulse heal lowest ally every ~2.5s
     if (u.name === "Healer" && u.alive){
       u.healPulseCd -= dt;
       if (u.healPulseCd <= 0){
@@ -2220,7 +2177,6 @@ function stepCombat(dt){
       }
     }
 
-    // Shade blink: every ~4s teleport near weakest backliner
     if (u.name === "Shade" && u.alive){
       u.blinkCd -= dt;
       if (u.blinkCd <= 0){
@@ -2234,9 +2190,7 @@ function stepCombat(dt){
       }
     }
 
-    // Warlord aura: allies near gain extra DR
     if (u.name === "Warlord" && u.alive){
-      // applied continuously but small
       for (const a of P){
         if (!a.alive) continue;
         const dx = a.x - u.x, dy = a.y - u.y;
@@ -2266,7 +2220,6 @@ function stepCombat(dt){
       const dist = Math.sqrt(dx*dx + dy*dy);
       const inRange = dist <= u.range;
 
-      // if rooted, cannot move
       const rooted = (u.rootT && u.rootT > 0);
 
       if (!inRange && !rooted){
@@ -2285,7 +2238,6 @@ function stepCombat(dt){
         u.aimA = ang;
 
         if (isRangedUnit(u)){
-          // Trapper: first projectile roots
           let extra = {};
           if (u.name === "Trapper" && !u.trapUsed){
             u.trapUsed = true;
@@ -2293,7 +2245,6 @@ function stepCombat(dt){
             extra.rootDur = 0.7;
             pushTag(u, "Trap");
           }
-          // Invoker: every 3rd attack pierces
           if (u.name === "Invoker"){
             u.pierceCounter = (u.pierceCounter||0) + 1;
             if (u.pierceCounter >= 3){
@@ -2304,7 +2255,6 @@ function stepCombat(dt){
           }
           spawnProjectile(u, t, extra);
         } else {
-          // Spearman: bonus vs Skirmish
           let dmg = u.atk;
           if (u.name === "Spearman" && t.role === "Skirmish"){
             dmg *= 1.25;
@@ -2513,7 +2463,6 @@ function applyPermadeath(){
   const deadIds = new Set(dead.map(u => u.rosterId).filter(Boolean));
   const deadNames = dead.map(u => `${u.name} ★${u.star}`);
 
-  // return their items too (permadeath should not delete items)
   let returned = 0;
   for (const roster of S.army){
     if (deadIds.has(roster.id)){
@@ -2614,20 +2563,17 @@ function endCombat(win){
 
 /* ===== Post-battle roguelike pipeline ===== */
 function randomItemDrop(){
-  // roll item rarity first, then pick from pool
   const r = S.round;
   let odds;
   if (r <= 3) odds = {Common:0.70, Uncommon:0.25, Rare:0.05, Epic:0.00, Legendary:0.00};
   else if (r <= 7) odds = {Common:0.45, Uncommon:0.35, Rare:0.16, Epic:0.04, Legendary:0.00};
   else odds = {Common:0.30, Uncommon:0.35, Rare:0.22, Epic:0.10, Legendary:0.03};
 
-  // elite sweeter
   if (S.node.isElite){
     odds.Epic += 0.03; odds.Legendary += 0.01;
     odds.Common = Math.max(0, odds.Common - 0.03);
     odds.Uncommon = Math.max(0, odds.Uncommon - 0.01);
   }
-  // normalize
   const sum = Object.values(odds).reduce((a,b)=>a+b,0) || 1;
   for (const k of Object.keys(odds)) odds[k]/=sum;
 
@@ -2797,51 +2743,13 @@ function openEventSelect(){
   }
 }
 
-/* ===== Inventory overlay (scroll + tabs + multi-slot equip/unequip) ===== */
+/* ===== Inventory overlay (ALWAYS 2 columns + independent scrolling) ===== */
 let selectedInvItemId = null;
-
-function applyInventoryLayoutMode(){
-  const narrow = window.innerWidth <= 420;
-  if (!el.invTabsWrap) return;
-
-  if (narrow){
-    el.invTabsWrap.style.display = "block";
-    setInventoryTab(document.body.dataset.invtab || "items");
-  } else {
-    el.invTabsWrap.style.display = "none";
-    el.invPaneItems.classList.remove("hidden");
-    el.invPaneUnits.classList.remove("hidden");
-  }
-}
-
-function setInventoryTab(tab){
-  document.body.dataset.invtab = tab;
-  const narrow = window.innerWidth <= 420;
-
-  if (!narrow){
-    el.invPaneItems.classList.remove("hidden");
-    el.invPaneUnits.classList.remove("hidden");
-    return;
-  }
-
-  if (tab === "items"){
-    el.invPaneItems.classList.remove("hidden");
-    el.invPaneUnits.classList.add("hidden");
-    el.btnInvTabItems.className = "btnPrimary";
-    el.btnInvTabUnits.className = "btnGhost";
-  } else {
-    el.invPaneUnits.classList.remove("hidden");
-    el.invPaneItems.classList.add("hidden");
-    el.btnInvTabUnits.className = "btnPrimary";
-    el.btnInvTabItems.className = "btnGhost";
-  }
-}
 
 function openInventory(){
   setOverlay("inventory");
   selectedInvItemId = null;
-  el.invHint.textContent = "Tap an item, then tap a unit to equip. Unequip returns to inventory.";
-  applyInventoryLayoutMode();
+  el.invHint.textContent = "Tap an item, then tap Equip Here on a unit. Unequip returns to inventory.";
   renderInventory();
 }
 
@@ -2851,7 +2759,7 @@ function renderInventory(){
   el.invCount.textContent = `${S.items.length} item${S.items.length===1?"":"s"}`;
   el.invUnitsCount.textContent = `${S.army.length} unit${S.army.length===1?"":"s"}`;
 
-  // Items list
+  // Items column
   for (const it of S.items){
     const def = ITEMS[it.type];
     const rarCol = rarityColor(def.rarity || "Common");
@@ -2868,13 +2776,12 @@ function renderInventory(){
     btn.textContent = sel ? "Selected" : "Select";
     btn.addEventListener("click", ()=>{
       selectedInvItemId = it.id;
-      el.invHint.textContent = `Selected: ${def.name}. Now open Units and tap Equip.`;
+      el.invHint.textContent = `Selected: ${def.name} — now tap “Equip Here” on a unit.`;
       renderInventory();
     });
     card.appendChild(btn);
     el.invItems.appendChild(card);
   }
-
   if (!S.items.length){
     const empty = document.createElement("div");
     empty.className = "choiceCard";
@@ -2882,7 +2789,7 @@ function renderInventory(){
     el.invItems.appendChild(empty);
   }
 
-  // Units list (equip/unequip per slot)
+  // Units column
   for (const u of S.army){
     const card = document.createElement("div");
     card.className = "choiceCard";
@@ -2900,7 +2807,6 @@ function renderInventory(){
       ${renderSlotRowHTML(u)}
     `;
 
-    // Equip button (select item first)
     const equipBtn = document.createElement("button");
     equipBtn.className = "btnPrimary";
     equipBtn.textContent = "Equip Here";
@@ -2918,22 +2824,21 @@ function renderInventory(){
         renderInventory();
         return;
       }
-      const pickedItem = S.items[invIdx]; // keep until committed
+      const pickedItem = S.items[invIdx];
 
       const cur = Array.isArray(u.items) ? u.items : (u.items=[]);
       const maxSlots = u.itemSlotsMax || 1;
 
       if (cur.length < maxSlots){
-        // consume inventory item -> equip new slot
         S.items.splice(invIdx, 1);
         cur.push({ id:rndId(), type:pickedItem.type });
         selectedInvItemId = null;
+        el.invHint.textContent = "Equipped. Select another item to equip more.";
         showToast(`${itemLabel(pickedItem.type)} equipped to ${u.name}`, "good");
         renderAll();
         saveGame();
         renderInventory();
       } else {
-        // open replace overlay
         S.pendingEquip = {
           unitId: u.id,
           pickedItemType: pickedItem.type,
@@ -2944,7 +2849,6 @@ function renderInventory(){
       }
     });
 
-    // Unequip buttons per slot
     const unequipWrap = document.createElement("div");
     unequipWrap.style.display = "flex";
     unequipWrap.style.flexDirection = "column";
@@ -2968,7 +2872,8 @@ function renderInventory(){
         label.style.display = "flex";
         label.style.justifyContent = "space-between";
         label.style.alignItems = "center";
-        label.innerHTML = `<span>${def?.name || "Item"}</span><span style="color:${col}; font-weight:1000;">${rar}</span>`;
+        label.style.minWidth = "0";
+        label.innerHTML = `<span style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${def?.name || "Item"}</span><span style="color:${col}; font-weight:1000; margin-left:8px;">${rar}</span>`;
 
         const btn = document.createElement("button");
         btn.className = "btnGhost";
@@ -2978,6 +2883,7 @@ function renderInventory(){
           if (removed && removed.type){
             S.items.push({ id:rndId(), type: removed.type });
             selectedInvItemId = null;
+            el.invHint.textContent = "Unequipped. Select an item to equip again.";
             showToast(`Unequipped ${itemLabel(removed.type)} from ${u.name}`, "info");
             renderAll();
             saveGame();
@@ -2991,7 +2897,6 @@ function renderInventory(){
       }
     }
 
-    // Add buttons
     card.appendChild(equipBtn);
     if (curItems.length) card.appendChild(unequipWrap);
 
@@ -3047,11 +2952,6 @@ function renderReplaceOverlay(){
     card.appendChild(btn);
     el.replaceChoices.appendChild(card);
   }
-
-  const cancel = document.createElement("div");
-  cancel.className = "choiceCard";
-  cancel.innerHTML = `<div class="name">Cancel</div><div class="desc">Keep current items.</div>`;
-  el.replaceChoices.appendChild(cancel);
 }
 function commitReplace(slotIndex){
   const pe = S.pendingEquip;
@@ -3067,14 +2967,12 @@ function commitReplace(slotIndex){
     return;
   }
 
-  // return the replaced item to inventory
   const cur = Array.isArray(unit.items) ? unit.items : (unit.items=[]);
   const replaced = cur[slotIndex];
   if (replaced && replaced.type){
     S.items.push({ id:rndId(), type: replaced.type });
   }
 
-  // consume selected item
   const picked = S.items.splice(invIdx,1)[0];
   cur[slotIndex] = { id:rndId(), type: picked.type };
 
@@ -3085,7 +2983,6 @@ function commitReplace(slotIndex){
   renderAll();
   saveGame();
 
-  // back to inventory
   setOverlay("inventory");
   renderInventory();
 }
@@ -3124,9 +3021,6 @@ el.btnInvClose.addEventListener("click", ()=>{
   renderAll();
 });
 
-el.btnInvTabItems.addEventListener("click", ()=> setInventoryTab("items"));
-el.btnInvTabUnits.addEventListener("click", ()=> setInventoryTab("units"));
-
 el.btnHowTo.addEventListener("click", () => {
   document.body.dataset.howto = (document.body.dataset.howto === "open") ? "closed" : "open";
 });
@@ -3158,7 +3052,6 @@ function newGame(){
   S.P = []; S.E = [];
   S.combatRunning = false;
 
-  // starters
   S.army.push(makeUnit("Brawler", 1, "player"));
   S.army.push(makeUnit("Archer", 1, "player"));
 
@@ -3174,7 +3067,6 @@ function init(){
   resizeCanvas();
   refreshContinueBtn();
 
-  // migrate old saves if v3 doesn't exist
   if (!localStorage.getItem(SAVE_KEY_V3)){
     if (!tryMigrateV2()) tryMigrateV1();
   }
@@ -3182,7 +3074,6 @@ function init(){
   setScreen("menu");
   setPhase("planning");
   showToast("Welcome", "info");
-  applyInventoryLayoutMode();
   if (!rafId) rafId = requestAnimationFrame(loop);
 }
 init();
