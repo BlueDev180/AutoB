@@ -3,6 +3,72 @@
 ========================================================= */
 const DEBUG_STATS = false;
 
+/* =========================================================
+   SPRITES (MiniElementsHeroes)
+   - Uses docs/assets/mini-elements-heroes/*
+   - Fallback to vector shapes if assets fail to load
+========================================================= */
+
+const SPRITE_META = { frameW: 32, frameH: 32 };
+const SPRITES = {
+  // Heroes (outline)
+  sprEarthWarrior: { src: 'assets/mini-elements-heroes/outline/heroes/MiniEarthWarrior-Sheet.png', type:'hero' },
+  sprWaterKnight:  { src: 'assets/mini-elements-heroes/outline/heroes/MiniWaterKnight-Sheet.png',  type:'hero' },
+  sprWindRanger:   { src: 'assets/mini-elements-heroes/outline/heroes/MiniWindRanger-Sheet.png',   type:'hero' },
+  sprLightningMage:{ src: 'assets/mini-elements-heroes/outline/heroes/MiniLightningMage-Sheet.png',type:'hero' },
+  sprIceRogue:     { src: 'assets/mini-elements-heroes/outline/heroes/MiniIceRogue-Sheet.png',     type:'hero' },
+
+  // Effects
+  fxEarth:      { src: 'assets/mini-elements-heroes/effects/EarthEffect-Sheet.png',      type:'fx' },
+  fxWater:      { src: 'assets/mini-elements-heroes/effects/WaterEffect-Sheet.png',      type:'fx' },
+  fxWind:       { src: 'assets/mini-elements-heroes/effects/WindEffect-Sheet.png',       type:'fx' },
+  fxLightning:  { src: 'assets/mini-elements-heroes/effects/LightningEffect-Sheet.png', type:'fx' },
+  fxIce:        { src: 'assets/mini-elements-heroes/effects/IceEffect-Sheet.png',        type:'fx' },
+};
+
+const SpriteDB = {}; // key -> { img, ready, w,h, cols, rows, frameW, frameH }
+let spritesInitStarted = false;
+
+function initSprites(){
+  if (spritesInitStarted) return;
+  spritesInitStarted = true;
+
+  for (const [key, def] of Object.entries(SPRITES)){
+    const img = new Image();
+    const rec = SpriteDB[key] = {
+      key,
+      img,
+      ready:false,
+      w:0,h:0,
+      cols:0, rows:0,
+      frameW: SPRITE_META.frameW,
+      frameH: SPRITE_META.frameH,
+      type: def.type,
+    };
+    img.onload = () => {
+      rec.ready = true;
+      rec.w = img.naturalWidth || img.width;
+      rec.h = img.naturalHeight || img.height;
+      rec.cols = Math.max(1, Math.floor(rec.w / rec.frameW));
+      rec.rows = Math.max(1, Math.floor(rec.h / rec.frameH));
+    };
+    img.onerror = () => { rec.ready = false; };
+    img.src = def.src;
+  }
+}
+
+function getSprite(key){
+  const s = SpriteDB[key];
+  return (s && s.ready) ? s : null;
+}
+
+function spriteSrcRect(sprite, row, col){
+  const c = ((col % sprite.cols) + sprite.cols) % sprite.cols;
+  const r = ((row % sprite.rows) + sprite.rows) % sprite.rows;
+  return { sx: c*sprite.frameW, sy: r*sprite.frameH, sw: sprite.frameW, sh: sprite.frameH };
+}
+
+
 /* ---- iPhone error overlay ---- */
 window.addEventListener("error", (e) => {
   const box = document.createElement("pre");
@@ -81,11 +147,11 @@ const SYNERGY_EFFECTS = {
 
 /* ===== Definitions ===== */
 const UNIT_POOL = [
-  { name:"Brawler",  rarity:"Common",    cost:1, hp: 260, atk: 18, spd: 1.00, range: 18,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" },
-  { name:"Knight",   rarity:"Uncommon",  cost:2, hp: 320, atk: 22, spd: 1.05, range: 18,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" },
-  { name:"Archer",   rarity:"Common",    cost:1, hp: 180, atk: 26, spd: 0.95, range: 150, role:"Back",     classTag:"Ranger",  originTag:"Wilds"   },
-  { name:"Mage",     rarity:"Uncommon",  cost:2, hp: 170, atk: 34, spd: 1.15, range: 160, role:"Mage",     classTag:"Mage",    originTag:"Cult"    },
-  { name:"Assassin", rarity:"Rare",      cost:3, hp: 190, atk: 46, spd: 0.75, range: 22,  role:"Skirmish", classTag:"Rogue",   originTag:"Wilds"   },
+  { name:"Brawler",  rarity:"Common",    cost:1, hp: 260, atk: 18, spd: 1.00, range: 18,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" , spriteKey:"sprEarthWarrior", fxKey:"fxEarth"},
+  { name:"Knight",   rarity:"Uncommon",  cost:2, hp: 320, atk: 22, spd: 1.05, range: 18,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" , spriteKey:"sprWaterKnight", fxKey:"fxWater"},
+  { name:"Archer",   rarity:"Common",    cost:1, hp: 180, atk: 26, spd: 0.95, range: 150, role:"Back",     classTag:"Ranger",  originTag:"Wilds"   , spriteKey:"sprWindRanger", fxKey:"fxWind"},
+  { name:"Mage",     rarity:"Uncommon",  cost:2, hp: 170, atk: 34, spd: 1.15, range: 160, role:"Mage",     classTag:"Mage",    originTag:"Cult"    , spriteKey:"sprLightningMage", fxKey:"fxLightning"},
+  { name:"Assassin", rarity:"Rare",      cost:3, hp: 190, atk: 46, spd: 0.75, range: 22,  role:"Skirmish", classTag:"Rogue",   originTag:"Wilds"   , spriteKey:"sprIceRogue", fxKey:"fxIce"},
 
   { name:"Spearman",    rarity:"Uncommon",  cost:2, hp: 300, atk: 24, spd: 1.00, range: 26,  role:"Front",    classTag:"Warrior", originTag:"Kingdom" },
   { name:"Healer",      rarity:"Uncommon",  cost:2, hp: 160, atk: 18, spd: 1.25, range: 170, role:"Mage",     classTag:"Mage",    originTag:"Cult"    },
@@ -364,6 +430,9 @@ function makeUnit(name, star=1, side="player", forcedId=null){
     itemSlotsMax: raritySlots(t.rarity || "Common"),
     items: [],
 
+    spriteKey: t.spriteKey || null,
+    fxKey: t.fxKey || null,
+
     x:0,y:0, cd:0, alive:true,
     swingT:0, aimA:0,
   };
@@ -383,6 +452,8 @@ function makeOffer(template){
     classTag: template.classTag,
     originTag: template.originTag,
     itemSlotsMax: raritySlots(template.rarity || "Common"),
+    spriteKey: template.spriteKey || null,
+    fxKey: template.fxKey || null,
   };
 }
 
@@ -1661,6 +1732,7 @@ function spawnProjectile(att, target, extra={}) {
     pierce: !!extra.pierce,
     root: !!extra.root,
     rootDur: extra.rootDur || 0,
+    fxKey: att.fxKey || null,
   });
 }
 
@@ -1714,6 +1786,7 @@ function stepCombat(dt){
 
   for (const u of S.P){
     u.swingT = Math.max(0, u.swingT - dt);
+    u.moveAnimT = Math.max(0, (u.moveAnimT||0) - dt);
     u.tagCd = Math.max(0, (u.tagCd||0) - dt);
 
     if (u.shieldTimer && u.shieldTimer > 0){
@@ -1786,6 +1859,7 @@ function stepCombat(dt){
 
   for (const u of S.E){
     u.swingT = Math.max(0, u.swingT - dt);
+    u.moveAnimT = Math.max(0, (u.moveAnimT||0) - dt);
     if (u.rootT && u.rootT > 0) u.rootT -= dt;
   }
 
@@ -1811,6 +1885,7 @@ function stepCombat(dt){
         const nx = dx / (dist||1);
         const ny = dy / (dist||1);
         u.x += nx * speed * dt;
+        u.moveAnimT = 0.18;
         u.y += ny * speed * dt;
         u.x = clamp(u.x, 18, W-18);
         u.y = clamp(u.y, 18, H-18);
@@ -1915,21 +1990,31 @@ function drawSwing(u, r){
 }
 function drawProjectiles(){
   for (const p of S.projectiles){
-    ctx.save();
-    ctx.globalAlpha = 0.45;
-    ctx.strokeStyle = p.color || "#cfe0ff";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(p.x - p.vx*0.02, p.y - p.vy*0.02);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-
-    ctx.globalAlpha = 0.95;
-    ctx.fillStyle = "#e8eefc";
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
+    const fx = p.fxKey ? getSprite(p.fxKey) : null;
+    if (fx){
+      const size = 28;
+      const t = performance.now()/1000;
+      const frames = Math.min(4, fx.cols);
+      const fps = 14;
+      const col = Math.floor(t*fps) % frames;
+      const row = 0;
+      const {sx,sy,sw,sh} = spriteSrcRect(fx, row, col);
+      ctx.save();
+      ctx.globalAlpha = 0.95;
+      ctx.drawImage(fx.img, sx, sy, sw, sh, p.x - size/2, p.y - size/2, size, size);
+      ctx.restore();
+    } else {
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x - p.vx*0.02, p.y - p.vy*0.02);
+      ctx.stroke();
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
+      ctx.fill();
+    }
   }
 }
 function drawFloaters(){
@@ -1979,15 +2064,74 @@ function draw(){
   function drawUnit(u){
     const r = 14 + (u.star-1)*4;
 
-    ctx.fillStyle = u.classFill || "#6aa6ff";
-    ctx.strokeStyle = (u.side==="player") ? "#cfe0ff" : "#ffd0d9";
-    ctx.lineWidth = 2;
-    drawShape(u.x, u.y, r, u.shape);
+    // Prefer sprite if available (fallback to vector)
+    const spr = u.spriteKey ? getSprite(u.spriteKey) : null;
+    if (spr){
+      const baseSize = 38 + (u.star-1)*8;
+      const size = baseSize;
+
+      // Animation rows: 0 idle, 1 move, 2 attack
+      let row = 0;
+      if (u.swingT > 0) row = 2;
+      else if ((u.moveAnimT||0) > 0) row = 1;
+
+      let col = 0;
+      const frames = Math.min(4, spr.cols);
+      if (row === 2){
+        const swingDur = 0.18;
+        const frac = clamp(1 - (u.swingT / swingDur), 0, 0.999);
+        col = Math.floor(frac * frames);
+      } else {
+        const t = performance.now()/1000;
+        const fps = (row === 1) ? 12 : 7;
+        col = Math.floor(t*fps) % frames;
+      }
+
+      const {sx,sy,sw,sh} = spriteSrcRect(spr, row, col);
+      const dx = u.x - size/2;
+      const dy = u.y - size/2;
+
+      ctx.save();
+      // slight shadow
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.ellipse(u.x, u.y + size*0.36, size*0.32, size*0.12, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      if (u.side === 'enemy'){
+        ctx.translate(u.x, u.y);
+        ctx.scale(-1, 1);
+        ctx.drawImage(spr.img, sx, sy, sw, sh, -size/2, -size/2, size, size);
+        // enemy tint
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.globalAlpha = 0.22;
+        ctx.fillStyle = '#ff5c7a';
+        ctx.fillRect(-size/2, -size/2, size, size);
+      } else {
+        ctx.drawImage(spr.img, sx, sy, sw, sh, dx, dy, size, size);
+      }
+      ctx.restore();
+
+      // outline ring for readability
+      ctx.strokeStyle = (u.side==='player') ? '#cfe0ff' : '#ffd0d9';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(u.x, u.y, r+2, 0, Math.PI*2);
+      ctx.stroke();
+
+    } else {
+      ctx.fillStyle = u.classFill || '#6aa6ff';
+      ctx.strokeStyle = (u.side==='player') ? '#cfe0ff' : '#ffd0d9';
+      ctx.lineWidth = 2;
+      drawShape(u.x, u.y, r, u.shape);
+    }
 
     if (u.shield && u.shield > 0){
       ctx.save();
       ctx.globalAlpha = 0.25;
-      ctx.strokeStyle = "#8cc0ff";
+      ctx.strokeStyle = '#8cc0ff';
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(u.x, u.y, r+5, 0, Math.PI*2);
@@ -1997,24 +2141,24 @@ function draw(){
 
     drawSwing(u, r);
 
-    ctx.fillStyle = "#e8eefc";
+    ctx.fillStyle = '#e8eefc';
     ctx.font = `${Math.max(11, Math.floor(W/60))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
     ctx.fillText(u.name, u.x, u.y - r - 4);
 
-    ctx.fillStyle = "#cfe0ff";
+    ctx.fillStyle = '#cfe0ff';
     ctx.font = `${Math.max(10, Math.floor(W/70))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-    ctx.textBaseline = "top";
-    ctx.fillText("★".repeat(u.star), u.x, u.y + r + 2);
+    ctx.textBaseline = 'top';
+    ctx.fillText('★'.repeat(u.star), u.x, u.y + r + 2);
 
     const barW = 52 + (u.star-1)*10;
     const barH = 6;
     const x = u.x - barW/2;
     const y = u.y - r - 14;
-    ctx.fillStyle = "#1d2638";
+    ctx.fillStyle = '#1d2638';
     ctx.fillRect(x, y, barW, barH);
-    ctx.fillStyle = (u.side==="player") ? "#55d38a" : "#ff5c7a";
+    ctx.fillStyle = (u.side==='player') ? '#55d38a' : '#ff5c7a';
     ctx.fillRect(x, y, barW * (u.hp/u.maxHP), barH);
   }
 
@@ -2791,6 +2935,7 @@ function newGame(){
 }
 
 function init(){
+  initSprites();
   resizeCanvas();
   refreshContinueBtn();
 
