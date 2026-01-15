@@ -2074,6 +2074,60 @@ function draw(){
   ctx.stroke();
   ctx.globalAlpha = 1;
 
+  // ===== Dynamic battlefield camera =====
+  // Scale + center the active combat area so units don't look tiny on tall screens.
+  // We compute a bounding box around alive units (and moving visuals) and zoom in.
+  // Capped to keep pixel-art readable.
+  function computeCamera(){
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let any = false;
+
+    const consider = (x,y)=>{
+      if (!isFinite(x) || !isFinite(y)) return;
+      any = true;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    };
+
+    for (const u of S.P) if (u.alive) consider(u.x, u.y);
+    for (const u of S.E) if (u.alive) consider(u.x, u.y);
+    for (const p of S.projectiles) consider(p.x, p.y);
+    for (const f of S.floaters) consider(f.x, f.y);
+
+    if (!any){
+      return { scale: 1, tx: 0, ty: 0 };
+    }
+
+    // Add padding so HP bars/names don't clip.
+    const pad = 70;
+    minX -= pad; maxX += pad;
+    minY -= pad; maxY += pad;
+
+    const bw = Math.max(1, maxX - minX);
+    const bh = Math.max(1, maxY - minY);
+
+    // Screen margin (leave a little breathing room).
+    const m = Math.max(18, Math.floor(Math.min(W,H) * 0.05));
+    const sx = (W - 2*m) / bw;
+    const sy = (H - 2*m) / bh;
+    let scale = Math.min(sx, sy);
+
+    // Only zoom in (never zoom out), and cap.
+    scale = clamp(scale, 1, 2.35);
+
+    const tx = (W - bw*scale)/2 - minX*scale;
+    const ty = (H - bh*scale)/2 - minY*scale;
+    return { scale, tx, ty };
+  }
+
+  const cam = computeCamera();
+
+  // Draw combat layer with camera transform
+  ctx.save();
+  ctx.setTransform(cam.scale, 0, 0, cam.scale, cam.tx, cam.ty);
+
   drawProjectiles();
 
   function drawUnit(u){
@@ -2159,6 +2213,8 @@ function draw(){
   for (const u of S.E) if (u.alive) drawUnit(u);
 
   drawFloaters();
+
+  ctx.restore();
 }
 
 /* ===== Main loop ===== */
