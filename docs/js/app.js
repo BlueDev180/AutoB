@@ -2076,9 +2076,19 @@ function draw(){
 
   // ===== Dynamic battlefield camera =====
   // Scale + center the active combat area so units don't look tiny on tall screens.
-  // We compute a bounding box around alive units (and moving visuals) and zoom in.
+  // Uses smoothing and ignores fast-changing elements (floaters/projectiles) to avoid jitter.
   // Capped to keep pixel-art readable.
-  function computeCamera(){
+
+  if (!S._cam) S._cam = { scale: 1, tx: 0, ty: 0 };
+
+  const lerp = (a,b,t)=>a+(b-a)*t;
+  const approach = (a,b,maxD)=>{
+    const d = b - a;
+    if (Math.abs(d) <= maxD) return b;
+    return a + Math.sign(d) * maxD;
+  };
+
+  function computeCameraTarget(){
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     let any = false;
 
@@ -2091,17 +2101,16 @@ function draw(){
       if (y > maxY) maxY = y;
     };
 
+    // Only units affect the camera. (Projectiles/floaters jitter too much.)
     for (const u of S.P) if (u.alive) consider(u.x, u.y);
     for (const u of S.E) if (u.alive) consider(u.x, u.y);
-    for (const p of S.projectiles) consider(p.x, p.y);
-    for (const f of S.floaters) consider(f.x, f.y);
 
     if (!any){
       return { scale: 1, tx: 0, ty: 0 };
     }
 
     // Add padding so HP bars/names don't clip.
-    const pad = 70;
+    const pad = 120;
     minX -= pad; maxX += pad;
     minY -= pad; maxY += pad;
 
@@ -2115,14 +2124,24 @@ function draw(){
     let scale = Math.min(sx, sy);
 
     // Only zoom in (never zoom out), and cap.
-    scale = clamp(scale, 1, 2.35);
+    scale = clamp(scale, 1, 2.15);
 
     const tx = (W - bw*scale)/2 - minX*scale;
     const ty = (H - bh*scale)/2 - minY*scale;
     return { scale, tx, ty };
   }
 
-  const cam = computeCamera();
+  // Smooth toward target camera (reduces shake).
+  const camT = computeCameraTarget();
+  const cam = S._cam;
+  // dt isn't available here; use conservative per-frame smoothing.
+  cam.scale = lerp(cam.scale, camT.scale, 0.08);
+  cam.tx    = lerp(cam.tx,    camT.tx,    0.10);
+  cam.ty    = lerp(cam.ty,    camT.ty,    0.10);
+  // Clamp max movement per frame for extra stability.
+  cam.tx = approach(cam.tx, camT.tx, 45);
+  cam.ty = approach(cam.ty, camT.ty, 45);
+  cam.scale = approach(cam.scale, camT.scale, 0.06);
 
   // Draw combat layer with camera transform
   ctx.save();
@@ -2188,25 +2207,29 @@ function draw(){
 
     drawSwing(u, r);
 
+    // HP bar + name (space them so they never overlap)
+    const barW = 52 + (u.star-1)*10;
+    const barH = 6;
+    const barX = u.x - barW/2;
+    const barY = u.y - r - 18; // a bit higher so name can sit above
+
+    ctx.fillStyle = "#1d2638";
+    ctx.fillRect(barX, barY, barW, barH);
+    ctx.fillStyle = (u.side==="player") ? "#55d38a" : "#ff5c7a";
+    ctx.fillRect(barX, barY, barW * (u.hp/u.maxHP), barH);
+
     ctx.fillStyle = "#e8eefc";
     ctx.font = `${Math.max(11, Math.floor(W/60))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
-    ctx.fillText(u.name, u.x, u.y - r - 4);
+    ctx.fillText(u.name, u.x, barY - 2);
 
     ctx.fillStyle = "#cfe0ff";
     ctx.font = `${Math.max(10, Math.floor(W/70))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
     ctx.textBaseline = "top";
     ctx.fillText("★".repeat(u.star), u.x, u.y + r + 2);
 
-    const barW = 52 + (u.star-1)*10;
-    const barH = 6;
-    const x = u.x - barW/2;
-    const y = u.y - r - 14;
-    ctx.fillStyle = "#1d2638";
-    ctx.fillRect(x, y, barW, barH);
-    ctx.fillStyle = (u.side==="player") ? "#55d38a" : "#ff5c7a";
-    ctx.fillRect(x, y, barW * (u.hp/u.maxHP), barH);
+    // (HP bar drawn above, before name)
   }
 
   for (const u of S.P) if (u.alive) drawUnit(u);
