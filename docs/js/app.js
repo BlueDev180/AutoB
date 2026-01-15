@@ -69,9 +69,8 @@ function getCSS(varName){
 // Typical sheet sizes in this pack are 320x256 => 10 cols x 8 rows.
 const SPRITE_META = { frameW: 32, frameH: 32, cols: 10, rows: 8 };
 
-// Minifolks Humans PNGs are also sprite sheets (not single-frame).
-// Common size is 352x224 => 11 cols x 7 rows.
-const HUMAN_SHEET_META = { frameW: 32, frameH: 32, cols: 11, rows: 7 };
+// MinifolksHumans are individual PNGs (not sprite sheets).
+// Treat as static images so we never sample blank/transparent frames.
 
 const HERO_FILES = {
   earth:      "MiniEarthWarrior-Sheet.png",
@@ -107,6 +106,16 @@ function _spritePaths(rel){
     `assets/${rel}`,
     `assets/mini-elements-heroes/${rel}`,
   ];
+}
+
+function _metaFromImg(img, fallbackMeta){
+  const fw = (fallbackMeta && fallbackMeta.frameW) || SPRITE_META.frameW;
+  const fh = (fallbackMeta && fallbackMeta.frameH) || SPRITE_META.frameH;
+  const w = (img && (img.naturalWidth || img.width)) || 0;
+  const h = (img && (img.naturalHeight || img.height)) || 0;
+  const cols = Math.max(1, Math.floor(w / fw) || (fallbackMeta && fallbackMeta.cols) || SPRITE_META.cols);
+  const rows = Math.max(1, Math.floor(h / fh) || (fallbackMeta && fallbackMeta.rows) || SPRITE_META.rows);
+  return { frameW: fw, frameH: fh, cols, rows };
 }
 
 
@@ -149,30 +158,30 @@ function initSprites(){
 
     jobs.push(
       loadImageWithFallback(_spritePaths(`outline/heroes/${file}`))
-        .then(img => (SpriteDB[pKey] = { img, type: 'sheet', meta: SPRITE_META }))
+        .then(img => (SpriteDB[pKey] = { img, type: 'sheet', meta: _metaFromImg(img, SPRITE_META) }))
     );
 
     jobs.push(
       loadImageWithFallback(_spritePaths(`without-outline/heroes/${file}`))
-        .then(img => (SpriteDB[eKey] = { img, type: 'sheet', meta: SPRITE_META }))
+        .then(img => (SpriteDB[eKey] = { img, type: 'sheet', meta: _metaFromImg(img, SPRITE_META) }))
     );
   }
 
   
 
-  // MinifolksHumans (sprite sheets)
+  // MinifolksHumans (static PNGs)
   for (const [hKey, file] of Object.entries(HUMAN_FILES)){
     const pKey = `p_human_${hKey}`;
     const eKey = `e_human_${hKey}`;
 
     jobs.push(
       loadImageWithFallback(_humanPaths(`outline/${file}`))
-        .then(img => (SpriteDB[pKey] = { img, type: 'sheet', meta: HUMAN_SHEET_META }))
+        .then(img => (SpriteDB[pKey] = { img, type: 'static' }))
     );
 
     jobs.push(
       loadImageWithFallback(_humanPaths(`without-outline/${file}`))
-        .then(img => (SpriteDB[eKey] = { img, type: 'sheet', meta: HUMAN_SHEET_META }))
+        .then(img => (SpriteDB[eKey] = { img, type: 'static' }))
     );
   }
 
@@ -2254,8 +2263,11 @@ function draw(){
           // Sheet sprite
           const meta = entry.meta || SPRITE_META;
           const moved = (u._px != null) ? (Math.hypot(u.x - u._px, u.y - u._py) > 0.35) : false;
-          const row = (u.swingT && u.swingT > 0) ? 2 : (moved ? 1 : 0);
-          const frame = Math.floor((S.animT * 8) % meta.cols);
+          const safeCols = Math.max(1, meta.cols || 1);
+          const safeRows = Math.max(1, meta.rows || 1);
+          let row = (u.swingT && u.swingT > 0) ? 2 : (moved ? 1 : 0);
+          if (row >= safeRows) row = safeRows - 1;
+          const frame = Math.floor((S.animT * 8) % safeCols);
 
           const fw = meta.frameW;
           const fh = meta.frameH;
