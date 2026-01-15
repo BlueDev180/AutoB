@@ -65,7 +65,13 @@ function getCSS(varName){
    - Fallback to vector shapes if sprites fail to load.
 ========================================================= */
 
-const SPRITE_META = { frameW: 32, frameH: 32, cols: 4, rows: 3 };
+// MiniElementsHeroes sheets are 32x32 frames.
+// Typical sheet sizes in this pack are 320x256 => 10 cols x 8 rows.
+const SPRITE_META = { frameW: 32, frameH: 32, cols: 10, rows: 8 };
+
+// Minifolks Humans PNGs are also sprite sheets (not single-frame).
+// Common size is 352x224 => 11 cols x 7 rows.
+const HUMAN_SHEET_META = { frameW: 32, frameH: 32, cols: 11, rows: 7 };
 
 const HERO_FILES = {
   earth:      "MiniEarthWarrior-Sheet.png",
@@ -154,19 +160,19 @@ function initSprites(){
 
   
 
-  // MinifolksHumans (static PNGs)
+  // MinifolksHumans (sprite sheets)
   for (const [hKey, file] of Object.entries(HUMAN_FILES)){
     const pKey = `p_human_${hKey}`;
     const eKey = `e_human_${hKey}`;
 
     jobs.push(
       loadImageWithFallback(_humanPaths(`outline/${file}`))
-        .then(img => (SpriteDB[pKey] = { img, type: 'static' }))
+        .then(img => (SpriteDB[pKey] = { img, type: 'sheet', meta: HUMAN_SHEET_META }))
     );
 
     jobs.push(
       loadImageWithFallback(_humanPaths(`without-outline/${file}`))
-        .then(img => (SpriteDB[eKey] = { img, type: 'static' }))
+        .then(img => (SpriteDB[eKey] = { img, type: 'sheet', meta: HUMAN_SHEET_META }))
     );
   }
 
@@ -2220,6 +2226,8 @@ function draw(){
 
   function drawUnit(u){
     const r = 14 + (u.star-1)*4;
+    // Visual half-size used for UI placement (sprites can be larger than collision radius)
+    let visHalf = r;
 
     // Sprite render (fallback to shapes)
     let drewSprite = false;
@@ -2234,6 +2242,7 @@ function draw(){
           const scale = (1 + (u.star-1) * 0.10);
           const dw = px * scale;
           const dh = px * scale;
+          visHalf = dh/2;
 
           ctx.save();
           ctx.imageSmoothingEnabled = false;
@@ -2257,6 +2266,7 @@ function draw(){
           const scale = (1 + (u.star-1) * 0.08);
           const dw = px * scale;
           const dh = px * scale;
+          visHalf = dh/2;
 
           ctx.save();
           ctx.imageSmoothingEnabled = false;
@@ -2284,7 +2294,7 @@ function draw(){
       ctx.strokeStyle = "#8cc0ff";
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(u.x, u.y, r+5, 0, Math.PI*2);
+      ctx.arc(u.x, u.y, visHalf+5, 0, Math.PI*2);
       ctx.stroke();
       ctx.restore();
     }
@@ -2295,7 +2305,7 @@ function draw(){
     const barW = 52 + (u.star-1)*10;
     const barH = 6;
     const barX = u.x - barW/2;
-    const barY = u.y - r - 18; // a bit higher so name can sit above
+    const barY = u.y - visHalf - 18; // based on visible sprite size
 
     ctx.fillStyle = "#1d2638";
     ctx.fillRect(barX, barY, barW, barH);
@@ -2311,7 +2321,7 @@ function draw(){
     ctx.fillStyle = "#cfe0ff";
     ctx.font = `${Math.max(10, Math.floor(W/70))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
     ctx.textBaseline = "top";
-    ctx.fillText("★".repeat(u.star), u.x, u.y + r + 2);
+    ctx.fillText("★".repeat(u.star), u.x, u.y + visHalf + 2);
 
     // (HP bar drawn above, before name)
   }
