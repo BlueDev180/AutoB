@@ -1,0 +1,9 @@
+{
+  "pack": "MiniElementsHeroes",
+  "heroFrame": {"w": 32, "h": 32},
+  "recommendedVariant": "outline",
+  "notes": [
+    "Hero sheets appear to use a 32x32 grid.",
+    "Map animations by row/column once you choose a convention (idle/walk/attack/etc)."
+  ]
+}
