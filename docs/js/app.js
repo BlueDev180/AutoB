@@ -75,7 +75,23 @@ const HERO_FILES = {
   ice:        "MiniIceSwordswoman-Sheet.png",
 };
 
-const SpriteDB = {}; // key -> { img }
+const HUMAN_FILES = {
+  sword:    'MiniSwordMan.png',
+  shield:   'MiniShieldMan.png',
+  spear:    'MiniSpearMan.png',
+  halberd:  'MiniHalberdMan.png',
+  archer:   'MiniArcherMan.png',
+  crossbow: 'MiniCrossBowMan.png',
+  mage:     'MiniMage.png',
+  archmage: 'MiniArchMage.png',
+  king:     'MiniKingMan.png',
+  prince:   'MiniPrinceMan.png',
+  horse:    'MiniHorseMan.png',
+  cavalier: 'MiniCavalierMan.png',
+};
+
+
+const SpriteDB = {}; // key -> { img, type: 'sheet'|'static', meta?: {frameW,frameH,cols,rows} }
 let spritesReady = false;
 let spritesInitStarted = false;
 
@@ -84,6 +100,15 @@ function _spritePaths(rel){
   return [
     `assets/${rel}`,
     `assets/mini-elements-heroes/${rel}`,
+  ];
+}
+
+
+function _humanPaths(rel){
+  // rel like: 'outline/MiniSwordMan.png'
+  return [
+    `assets/minifolks-humans/${rel}`,
+    `assets/minifolks-humans/${rel}`.replace('minifolks-humans','MinifolksHumans'),
   ];
 }
 
@@ -118,12 +143,30 @@ function initSprites(){
 
     jobs.push(
       loadImageWithFallback(_spritePaths(`outline/heroes/${file}`))
-        .then(img => (SpriteDB[pKey] = { img }))
+        .then(img => (SpriteDB[pKey] = { img, type: 'sheet', meta: SPRITE_META }))
     );
 
     jobs.push(
       loadImageWithFallback(_spritePaths(`without-outline/heroes/${file}`))
-        .then(img => (SpriteDB[eKey] = { img }))
+        .then(img => (SpriteDB[eKey] = { img, type: 'sheet', meta: SPRITE_META }))
+    );
+  }
+
+  
+
+  // MinifolksHumans (static PNGs)
+  for (const [hKey, file] of Object.entries(HUMAN_FILES)){
+    const pKey = `p_human_${hKey}`;
+    const eKey = `e_human_${hKey}`;
+
+    jobs.push(
+      loadImageWithFallback(_humanPaths(`outline/${file}`))
+        .then(img => (SpriteDB[pKey] = { img, type: 'static' }))
+    );
+
+    jobs.push(
+      loadImageWithFallback(_humanPaths(`without-outline/${file}`))
+        .then(img => (SpriteDB[eKey] = { img, type: 'static' }))
     );
   }
 
@@ -148,12 +191,38 @@ function spriteElementForUnit(u){
   return keys[idx];
 }
 
+function humanSpriteBaseForUnit(u){
+  const n = String(u.name||'').toLowerCase();
+  if (n.includes('warlord')) return 'king';
+  if (n.includes('knight')) return 'shield';
+  if (n.includes('brawler')) return 'sword';
+  if (n.includes('berserker')) return 'halberd';
+  if (n.includes('spearman')) return 'spear';
+  if (n.includes('crossbow')) return 'crossbow';
+  if (n.includes('trapper')) return 'crossbow';
+  if (n.includes('archer')) return 'archer';
+  if (n.includes('invoker') || n.includes('archmage')) return 'archmage';
+  if (n.includes('healer')) return 'mage';
+  if (n.includes('mage') && !n.includes('arch')) return 'mage';
+  if (n.includes('assassin')) return 'prince';
+  if (n.includes('shade')) return 'cavalier';
+  return null;
+}
+
 function spriteKeyForUnit(u){
+  // Prefer MinifolksHumans silhouettes (clear per unit type)
+  const h = humanSpriteBaseForUnit(u);
+  if (h){
+    const key = (u.side === 'player' ? 'p_human_' : 'e_human_') + h;
+    if (SpriteDB[key]) return key;
+  }
+
+  // Fallback: MiniElementsHeroes elemental sheets (varied by hash)
   const elKey = spriteElementForUnit(u);
   return (u.side === 'player' ? 'p_' : 'e_') + elKey;
 }
 
-/* =========================================================
+/* =========================================================/* =========================================================
    SYNERGY BREAKPOINTS + EFFECT TABLES
 ========================================================= */
 const TRAIT_BREAKPOINTS = {
@@ -2159,28 +2228,43 @@ function draw(){
       const entry = SpriteDB[k];
       const img = entry && entry.img;
       if (img && img.complete && img.naturalWidth){
-        // Row: 0 idle, 1 move, 2 attack (best-effort)
-        const moved = (u._px != null) ? (Math.hypot(u.x - u._px, u.y - u._py) > 0.35) : false;
-        const row = (u.swingT && u.swingT > 0) ? 2 : (moved ? 1 : 0);
-        const frame = Math.floor((S.animT * 8) % SPRITE_META.cols);
+        if (entry.type === 'static'){
+          // Static PNG (single frame)
+          const px = (r * 2.35);
+          const scale = (1 + (u.star-1) * 0.10);
+          const dw = px * scale;
+          const dh = px * scale;
 
-        const fw = SPRITE_META.frameW;
-        const fh = SPRITE_META.frameH;
-        const sx = frame * fw;
-        const sy = row * fh;
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          ctx.globalAlpha = 1;
+          ctx.drawImage(img, u.x - dw/2, u.y - dh/2, dw, dh);
+          ctx.restore();
+          drewSprite = true;
+        } else {
+          // Sheet sprite
+          const meta = entry.meta || SPRITE_META;
+          const moved = (u._px != null) ? (Math.hypot(u.x - u._px, u.y - u._py) > 0.35) : false;
+          const row = (u.swingT && u.swingT > 0) ? 2 : (moved ? 1 : 0);
+          const frame = Math.floor((S.animT * 8) % meta.cols);
 
-        // Scale with star (slightly) and canvas width
-        const px = (r * 2.15);
-        const scale = (1 + (u.star-1) * 0.08);
-        const dw = px * scale;
-        const dh = px * scale;
+          const fw = meta.frameW;
+          const fh = meta.frameH;
+          const sx = frame * fw;
+          const sy = row * fh;
 
-        ctx.save();
-        ctx.imageSmoothingEnabled = false;
-        ctx.globalAlpha = 1;
-        ctx.drawImage(img, sx, sy, fw, fh, u.x - dw/2, u.y - dh/2, dw, dh);
-        ctx.restore();
-        drewSprite = true;
+          const px = (r * 2.15);
+          const scale = (1 + (u.star-1) * 0.08);
+          const dw = px * scale;
+          const dh = px * scale;
+
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          ctx.globalAlpha = 1;
+          ctx.drawImage(img, sx, sy, fw, fh, u.x - dw/2, u.y - dh/2, dw, dh);
+          ctx.restore();
+          drewSprite = true;
+        }
       }
     }
 
