@@ -214,7 +214,7 @@ function initSprites(){
       loadImageWithFallback(_spritePaths(`outline/heroes/${file}`))
         .then(img => {
           const meta = _metaFromImg(img, SPRITE_META);
-          const frames = _buildNonEmptyFrames(img, meta);
+          const frames = _computeNonEmptyFrames(img, meta);
           SpriteDB[pKey] = { img, type: 'sheet', meta, frames };
         })
     );
@@ -223,7 +223,7 @@ function initSprites(){
       loadImageWithFallback(_spritePaths(`without-outline/heroes/${file}`))
         .then(img => {
           const meta = _metaFromImg(img, SPRITE_META);
-          const frames = _buildNonEmptyFrames(img, meta);
+          const frames = _computeNonEmptyFrames(img, meta);
           SpriteDB[eKey] = { img, type: 'sheet', meta, frames };
         })
     );
@@ -240,7 +240,7 @@ function initSprites(){
       loadImageWithFallback(_humanPaths(`outline/${file}`))
         .then(img => {
           const meta = _metaFromImg(img, SPRITE_META);
-          const frames = _buildNonEmptyFrames(img, meta);
+          const frames = _computeNonEmptyFrames(img, meta);
           SpriteDB[pKey] = { img, type: 'sheet', meta, frames };
         })
     );
@@ -249,7 +249,7 @@ function initSprites(){
       loadImageWithFallback(_humanPaths(`without-outline/${file}`))
         .then(img => {
           const meta = _metaFromImg(img, SPRITE_META);
-          const frames = _buildNonEmptyFrames(img, meta);
+  const frames = _computeNonEmptyFrames(img, meta);
           SpriteDB[eKey] = { img, type: 'sheet', meta, frames };
         })
     );
