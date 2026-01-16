@@ -312,16 +312,30 @@ function humanSpriteBaseForUnit(u){
 }
 
 function spriteKeyForUnit(u){
-  // Prefer MinifolksHumans silhouettes (clear per unit type)
-  const h = humanSpriteBaseForUnit(u);
-  if (h){
-    const key = (u.side === 'player' ? 'p_human_' : 'e_human_') + h;
-    if (SpriteDB[key]) return key;
-  }
+  // Use BOTH packs so units don't look identical.
+  // We persist a preferred pack per unit (u.spritePack), but still fall back gracefully.
+  const sidePrefix = (u.side === 'player' ? 'p_' : 'e_');
 
-  // Fallback: MiniElementsHeroes elemental sheets (varied by hash)
-  const elKey = spriteElementForUnit(u);
-  return (u.side === 'player' ? 'p_' : 'e_') + elKey;
+  const tryElements = () => {
+    const elKey = spriteElementForUnit(u);
+    const k = sidePrefix + elKey;
+    return SpriteDB[k] ? k : null;
+  };
+  const tryHumans = () => {
+    const h = humanSpriteBaseForUnit(u);
+    if (!h) return null;
+    const k = sidePrefix + 'human_' + h;
+    return SpriteDB[k] ? k : null;
+  };
+
+  // If a unit already has a chosen pack, honour it first.
+  if (u.spritePack === 'elements') return tryElements() || tryHumans() || sidePrefix + spriteElementForUnit(u);
+  if (u.spritePack === 'human')    return tryHumans() || tryElements() || sidePrefix + spriteElementForUnit(u);
+
+  // Otherwise choose deterministically per unit so duplicates alternate.
+  const pick = hashToIndex(`${u.name}|${u.id}|${u.side}`, 2);
+  if (pick === 0) return tryElements() || tryHumans() || sidePrefix + spriteElementForUnit(u);
+  return tryHumans() || tryElements() || sidePrefix + spriteElementForUnit(u);
 }
 
 /* =========================================================/* =========================================================
@@ -611,8 +625,9 @@ function makeUnit(name, star=1, side="player", forcedId=null){
   const atkMult = 1 + (star-1)*0.60;
   const maxHP = Math.round(t.hp * hpMult);
   const clr = getClassColor(t.role);
+  const id = forcedId || rndId();
   return {
-    id: forcedId || rndId(),
+    id,
     name: t.name,
     cost: t.cost,
     rarity: t.rarity || "Common",
@@ -637,6 +652,11 @@ function makeUnit(name, star=1, side="player", forcedId=null){
 
     x:0,y:0, cd:0, alive:true,
     swingT:0, aimA:0,
+
+    // Sprite selection (persisted so a given unit keeps its look)
+    // 'elements' -> MiniElementsHeroes sheets, 'human' -> Minifolks Humans
+    spritePack: (hashToIndex(`${t.name}|${id}|${side}`, 2) === 0) ? 'elements' : 'human',
+    spriteSeed: hashToIndex(`${id}|${t.name}`, 999999),
   };
 }
 
@@ -676,6 +696,8 @@ function serializeState(){
       items: (u.items || []).slice(),
       classTag:u.classTag,
       originTag:u.originTag,
+      spritePack: u.spritePack || null,
+      spriteSeed: u.spriteSeed || null,
     })),
   };
 }
@@ -746,6 +768,8 @@ function loadGame(){
       u.items = Array.isArray(a.items) ? a.items : [];
       u.classTag = a.classTag || u.classTag;
       u.originTag = a.originTag || u.originTag;
+      if (a.spritePack) u.spritePack = a.spritePack;
+      if (a.spriteSeed) u.spriteSeed = a.spriteSeed;
       return u;
     });
 
