@@ -176,12 +176,12 @@ function initSprites(){
 
     jobs.push(
       loadImageWithFallback(_humanPaths(`outline/${file}`))
-        .then(img => (SpriteDB[pKey] = { img, type: 'static' }))
+        .then(img => (SpriteDB[pKey] = { img, type: 'sheet', meta: _metaFromImg(img, SPRITE_META) }))
     );
 
     jobs.push(
       loadImageWithFallback(_humanPaths(`without-outline/${file}`))
-        .then(img => (SpriteDB[eKey] = { img, type: 'static' }))
+        .then(img => (SpriteDB[eKey] = { img, type: 'sheet', meta: _metaFromImg(img, SPRITE_META) }))
     );
   }
 
@@ -2260,19 +2260,20 @@ function draw(){
           ctx.restore();
           drewSprite = true;
         } else {
-          // Sheet sprite
+          // Sheet sprite (use a stable per-unit frame so packs with different layouts still look right)
           const meta = entry.meta || SPRITE_META;
-          const moved = (u._px != null) ? (Math.hypot(u.x - u._px, u.y - u._py) > 0.35) : false;
           const safeCols = Math.max(1, meta.cols || 1);
           const safeRows = Math.max(1, meta.rows || 1);
-          let row = (u.swingT && u.swingT > 0) ? 2 : (moved ? 1 : 0);
-          if (row >= safeRows) row = safeRows - 1;
-          const frame = Math.floor((S.animT * 8) % safeCols);
+
+          // Stable seed per unit to avoid blinking / random tiles
+          if (u._sprSeed == null) u._sprSeed = hashToIndex(`${u.name}|${u.id}|${u.team}`, safeCols);
+          const frame = (u._sprSeed % safeCols);
+          const row = 0; // keep a consistent idle row across packs
 
           const fw = meta.frameW;
           const fh = meta.frameH;
           const sx = frame * fw;
-          const sy = row * fh;
+          const sy = (row % safeRows) * fh;
 
           const px = (r * 2.15);
           const scale = (1 + (u.star-1) * 0.08);
@@ -2317,7 +2318,7 @@ function draw(){
     const barW = 52 + (u.star-1)*10;
     const barH = 6;
     const barX = u.x - barW/2;
-    const barY = u.y - visHalf - 18; // based on visible sprite size
+    const barY = u.y - visHalf - 22; // based on visible sprite size
 
     ctx.fillStyle = "#1d2638";
     ctx.fillRect(barX, barY, barW, barH);
@@ -2328,7 +2329,7 @@ function draw(){
     ctx.font = `${Math.max(11, Math.floor(W/60))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
-    ctx.fillText(u.name, u.x, barY - 2);
+    ctx.fillText(u.name, u.x, barY - 4);
 
     ctx.fillStyle = "#cfe0ff";
     ctx.font = `${Math.max(10, Math.floor(W/70))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
