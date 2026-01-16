@@ -118,6 +118,60 @@ function _metaFromImg(img, fallbackMeta){
   return { frameW: fw, frameH: fh, cols, rows };
 }
 
+// Stable hash for per-unit frame selection (avoids visual flicker)
+function _hash32(str){
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++){
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0);
+}
+
+// Build a list of non-empty frames for a sheet (prevents "invisible" units when frame 0 is blank)
+function _computeNonEmptyFrames(img, meta){
+  const fw = meta.frameW, fh = meta.frameH;
+  const cols = Math.max(1, meta.cols|0);
+  const rows = Math.max(1, meta.rows|0);
+
+  // Offscreen canvas for a cheap alpha probe per frame
+  const c = document.createElement('canvas');
+  c.width = fw;
+  c.height = fh;
+  const cx = c.getContext('2d', { willReadFrequently: true });
+
+  const good = [];
+  // sample a small cross at the centre; if any pixel has alpha, frame counts as non-empty
+  const sx = (fw/2)|0, sy = (fh/2)|0;
+  const samplePts = [
+    [sx, sy],
+    [Math.max(0,sx-3), sy],
+    [Math.min(fw-1,sx+3), sy],
+    [sx, Math.max(0,sy-3)],
+    [sx, Math.min(fh-1,sy+3)],
+  ];
+
+  for (let r = 0; r < rows; r++){
+    for (let col = 0; col < cols; col++){
+      cx.clearRect(0,0,fw,fh);
+      cx.drawImage(img, col*fw, r*fh, fw, fh, 0, 0, fw, fh);
+      const data = cx.getImageData(0,0,fw,fh).data;
+      let any = false;
+      for (const [px,py] of samplePts){
+        const idx = (py*fw + px) * 4 + 3;
+        if (data[idx] > 10){ any = true; break; }
+      }
+      if (any) good.push(r*cols + col);
+    }
+  }
+
+  // If we somehow found none, fall back to all frames (better than disappearing)
+  if (!good.length){
+    for (let i = 0; i < cols*rows; i++) good.push(i);
+  }
+  return good;
+}
+
 
 function _humanPaths(rel){
   // rel like: 'outline/MiniSwordMan.png'
@@ -158,12 +212,20 @@ function initSprites(){
 
     jobs.push(
       loadImageWithFallback(_spritePaths(`outline/heroes/${file}`))
-        .then(img => (SpriteDB[pKey] = { img, type: 'sheet', meta: _metaFromImg(img, SPRITE_META) }))
+        .then(img => {
+          const meta = _metaFromImg(img, SPRITE_META);
+          const frames = _buildNonEmptyFrames(img, meta);
+          SpriteDB[pKey] = { img, type: 'sheet', meta, frames };
+        })
     );
 
     jobs.push(
       loadImageWithFallback(_spritePaths(`without-outline/heroes/${file}`))
-        .then(img => (SpriteDB[eKey] = { img, type: 'sheet', meta: _metaFromImg(img, SPRITE_META) }))
+        .then(img => {
+          const meta = _metaFromImg(img, SPRITE_META);
+          const frames = _buildNonEmptyFrames(img, meta);
+          SpriteDB[eKey] = { img, type: 'sheet', meta, frames };
+        })
     );
   }
 
@@ -176,12 +238,20 @@ function initSprites(){
 
     jobs.push(
       loadImageWithFallback(_humanPaths(`outline/${file}`))
-        .then(img => (SpriteDB[pKey] = { img, type: 'sheet', meta: _metaFromImg(img, SPRITE_META) }))
+        .then(img => {
+          const meta = _metaFromImg(img, SPRITE_META);
+          const frames = _buildNonEmptyFrames(img, meta);
+          SpriteDB[pKey] = { img, type: 'sheet', meta, frames };
+        })
     );
 
     jobs.push(
       loadImageWithFallback(_humanPaths(`without-outline/${file}`))
-        .then(img => (SpriteDB[eKey] = { img, type: 'sheet', meta: _metaFromImg(img, SPRITE_META) }))
+        .then(img => {
+          const meta = _metaFromImg(img, SPRITE_META);
+          const frames = _buildNonEmptyFrames(img, meta);
+          SpriteDB[eKey] = { img, type: 'sheet', meta, frames };
+        })
     );
   }
 
@@ -2261,19 +2331,27 @@ function draw(){
           drewSprite = true;
         } else {
           // Sheet sprite (use a stable per-unit frame so packs with different layouts still look right)
-          const meta = entry.meta || SPRITE_META;
-          const safeCols = Math.max(1, meta.cols || 1);
-          const safeRows = Math.max(1, meta.rows || 1);
+          const meta = entry.meta || _metaFromImg(img, SPRITE_META);
+          const fw = meta.frameW || 32;
+          const fh = meta.frameH || 32;
+          const cols = Math.max(1, meta.cols || Math.floor((img.naturalWidth||fw)/fw));
+          const rows = Math.max(1, meta.rows || Math.floor((img.naturalHeight||fh)/fh));
 
-          // Stable seed per unit to avoid blinking / random tiles
-          if (u._sprSeed == null) u._sprSeed = hashToIndex(`${u.name}|${u.id}|${u.team}`, safeCols);
-          const frame = (u._sprSeed % safeCols);
-          const row = 0; // keep a consistent idle row across packs
+          // Prefer frames that are not fully transparent. Precomputed at load time.
+          const frames = (entry.frames && entry.frames.length) ? entry.frames : null;
+          const frameCount = frames ? frames.length : (cols * rows);
 
-          const fw = meta.frameW;
-          const fh = meta.frameH;
+          if (u._sprFrame == null){
+            const h = _hash32(`${u.name}|${u.id}|${u.team}`);
+            u._sprFrame = (h % Math.max(1, frameCount));
+          }
+
+          const flatIdx = frames ? frames[u._sprFrame] : u._sprFrame;
+          const frame = (flatIdx % cols);
+          const row = Math.floor(flatIdx / cols) % rows;
+
           const sx = frame * fw;
-          const sy = (row % safeRows) * fh;
+          const sy = row * fh;
 
           const px = (r * 2.15);
           const scale = (1 + (u.star-1) * 0.08);
