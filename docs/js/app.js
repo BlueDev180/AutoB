@@ -172,6 +172,19 @@ function _computeNonEmptyFrames(img, meta){
   return good;
 }
 
+function _buildFrameRows(frames, cols){
+  // Map row -> sorted list of frame indices within that row.
+  const rows = {};
+  for (const fi of frames){
+    const r = Math.floor(fi / cols);
+    (rows[r] ||= []).push(fi);
+  }
+  for (const r in rows){
+    rows[r].sort((a,b)=> (a%cols)-(b%cols));
+  }
+  return rows;
+}
+
 
 function _humanPaths(rel){
   // rel like: 'outline/MiniSwordMan.png'
@@ -215,7 +228,8 @@ function initSprites(){
         .then(img => {
           const meta = _metaFromImg(img, SPRITE_META);
           const frames = _computeNonEmptyFrames(img, meta);
-          SpriteDB[pKey] = { img, type: 'sheet', meta, frames };
+          const frameRows = _buildFrameRows(frames, meta.cols);
+          SpriteDB[pKey] = { img, type: 'sheet', meta, frames, frameRows };
         })
     );
 
@@ -224,7 +238,8 @@ function initSprites(){
         .then(img => {
           const meta = _metaFromImg(img, SPRITE_META);
           const frames = _computeNonEmptyFrames(img, meta);
-          SpriteDB[eKey] = { img, type: 'sheet', meta, frames };
+          const frameRows = _buildFrameRows(frames, meta.cols);
+          SpriteDB[eKey] = { img, type: 'sheet', meta, frames, frameRows };
         })
     );
   }
@@ -241,7 +256,8 @@ function initSprites(){
         .then(img => {
           const meta = _metaFromImg(img, SPRITE_META);
           const frames = _computeNonEmptyFrames(img, meta);
-          SpriteDB[pKey] = { img, type: 'sheet', meta, frames };
+          const frameRows = _buildFrameRows(frames, meta.cols);
+          SpriteDB[pKey] = { img, type: 'sheet', meta, frames, frameRows };
         })
     );
 
@@ -249,8 +265,9 @@ function initSprites(){
       loadImageWithFallback(_humanPaths(`without-outline/${file}`))
         .then(img => {
           const meta = _metaFromImg(img, SPRITE_META);
-  const frames = _computeNonEmptyFrames(img, meta);
-          SpriteDB[eKey] = { img, type: 'sheet', meta, frames };
+          const frames = _computeNonEmptyFrames(img, meta);
+          const frameRows = _buildFrameRows(frames, meta.cols);
+          SpriteDB[eKey] = { img, type: 'sheet', meta, frames, frameRows };
         })
     );
   }
@@ -1916,6 +1933,9 @@ function spawnProjectile(att, target, extra={}) {
     root: !!extra.root,
     rootDur: extra.rootDur || 0,
   });
+
+  // Used by sprite animation: briefly treat as "attacking" for ranged units.
+  att._shotAt = S.animT || 0;
 }
 
 function updateProjectiles(dt){
@@ -2103,6 +2123,11 @@ function stepCombat(dt){
 
         u.cd = u.spd;
       }
+
+      // Animation hints for sprite sheets (read by renderer)
+      u._moving = (!inRange && !rooted);
+      const shotAgo = (S.animT || 0) - (u._shotAt || -999);
+      u._attacking = (u.swingT > 0) || (shotAgo >= 0 && shotAgo < 0.18);
     }
   }
 
@@ -2341,12 +2366,40 @@ function draw(){
           const frames = (entry.frames && entry.frames.length) ? entry.frames : null;
           const frameCount = frames ? frames.length : (cols * rows);
 
+          // Stable base pick per unit (fallback if we can't animate)
           if (u._sprFrame == null){
             const h = _hash32(`${u.name}|${u.id}|${u.team}`);
             u._sprFrame = (h % Math.max(1, frameCount));
           }
 
-          const flatIdx = frames ? frames[u._sprFrame] : u._sprFrame;
+          // Animation (best-effort):
+          // - Row 0: idle/walk
+          // - Row 1: attack (if present)
+          // If those rows don't exist, we fall back to the stable frame.
+          let flatIdx;
+          const frameRows = entry.frameRows || (frames ? _buildFrameRows(frames, cols) : null);
+          const hasRow0 = frameRows && frameRows[0] && frameRows[0].length;
+          const hasRow1 = frameRows && frameRows[1] && frameRows[1].length;
+          const wantsAttack = !!u._attacking;
+          const wantsMove = !!u._moving;
+
+          if (frameRows && (hasRow0 || hasRow1)){
+            const useRow = (wantsAttack && hasRow1) ? 1 : 0;
+            const list = (frameRows[useRow] && frameRows[useRow].length) ? frameRows[useRow] : (hasRow0 ? frameRows[0] : frameRows[1]);
+            if (list && list.length){
+              const fps = wantsAttack ? 12 : (wantsMove ? 10 : 0);
+              if (fps > 0 && list.length > 1){
+                const idx = Math.floor((S.animT || 0) * fps) % list.length;
+                flatIdx = list[idx];
+              } else {
+                flatIdx = list[0];
+              }
+            }
+          }
+          if (flatIdx == null){
+            flatIdx = frames ? frames[u._sprFrame] : u._sprFrame;
+          }
+
           const frame = (flatIdx % cols);
           const row = Math.floor(flatIdx / cols) % rows;
 
@@ -2392,11 +2445,12 @@ function draw(){
 
     drawSwing(u, r);
 
-    // HP bar + name (space them so they never overlap)
+    // HP bar + name (keep them close to the sprite, regardless of asset scale)
     const barW = 52 + (u.star-1)*10;
     const barH = 6;
     const barX = u.x - barW/2;
-    const barY = u.y - visHalf - 22; // based on visible sprite size
+    const spriteTop = u.y - (visHalf || 16);
+    const barY = spriteTop - 10;
 
     ctx.fillStyle = "#1d2638";
     ctx.fillRect(barX, barY, barW, barH);
