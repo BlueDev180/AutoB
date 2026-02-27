@@ -367,24 +367,155 @@ const UNIT_POOL = [
 ];
 
 const ITEMS = {
-  I1:{ id:"I1", name:"Sword",        rarity:"Common",   desc:"+20% ATK",                apply:(c)=>{ c.atk = Math.round(c.atk*1.20); } },
-  I2:{ id:"I2", name:"Shield",       rarity:"Common",   desc:"+25% Max HP",             apply:(c)=>{ c.maxHP = Math.round(c.maxHP*1.25); c.hp = c.maxHP; } },
-  I3:{ id:"I3", name:"Bowstring",    rarity:"Uncommon", desc:"+15% atk speed (ranged)", apply:(c)=>{ if (isRangedUnit(c)) c.spd = c.spd*0.85; } },
-  I4:{ id:"I4", name:"Scope",        rarity:"Uncommon", desc:"+30 range",               apply:(c)=>{ c.range += 30; } },
-  I5:{ id:"I5", name:"Vamp Charm",   rarity:"Rare",     desc:"10% lifesteal",           apply:(c)=>{ c.lifesteal = Math.max(c.lifesteal||0, 0.10); } },
-  I6:{ id:"I6", name:"Bomb",         rarity:"Rare",     desc:"First hit splashes",      apply:(c)=>{ c.bombReady = true; } },
-
-  I7:{ id:"I7", name:"Iron Ring",    rarity:"Common",   desc:"+10% Max HP",             apply:(c)=>{ c.maxHP = Math.round(c.maxHP*1.10); c.hp = c.maxHP; } },
-  I8:{ id:"I8", name:"Boots",        rarity:"Uncommon", desc:"+10% move speed",         apply:(c)=>{ c.moveMult = (c.moveMult||1) * 1.10; } },
-  I9:{ id:"I9", name:"Chain Rune",   rarity:"Rare",     desc:"Every 4th hit chains",    apply:(c)=>{ c.chainEvery = 4; c.chainReady = 0; } },
-  I10:{id:"I10",name:"Aegis Core",   rarity:"Epic",     desc:"Start with a shield",     apply:(c)=>{ c.startShield = 0.18; } },
-  I11:{id:"I11",name:"Phoenix Feather",rarity:"Epic",   desc:"Revive once at 25% HP",   apply:(c)=>{ c.reviveOnce = true; } },
-
-  /* Team-wide item buff metadata (shown in Bonuses modal). */
-  I12:{id:"I12",name:"Chrono Relic", rarity:"Legendary",desc:"Team +10% atk speed",
-      teamBuff:{ key:"atkSpeed", value:0.10, label:"Team +10% attack speed" },
-      apply:(c)=>{ } },
+  I1:{
+    name:"Sword",
+    rarity:"Common",
+    maxTier:1,
+    tiers:[
+      {
+        desc:"+20% ATK",
+        apply(c){ c.atk = Math.round(c.atk*1.20); }
+      }
+    ]
+  },
+  I2:{
+    name:"Shield",
+    rarity:"Common",
+    maxTier:1,
+    tiers:[
+      {
+        desc:"+25% Max HP",
+        apply(c){ c.maxHP = Math.round(c.maxHP*1.25); c.hp = c.maxHP; }
+      }
+    ]
+  },
+  I3:{
+    name:"Bowstring",
+    rarity:"Uncommon",
+    maxTier:1,
+    tiers:[
+      {
+        desc:"+15% atk speed (ranged)",
+        apply(c){ if (isRangedUnit(c)) c.spd = c.spd*0.85; }
+      }
+    ]
+  },
+  I4:{
+    name:"Scope",
+    rarity:"Uncommon",
+    maxTier:1,
+    tiers:[
+      {
+        desc:"+30 range",
+        apply(c){ c.range += 30; }
+      }
+    ]
+  },
+  I5:{
+    name:"Vamp Charm",
+    rarity:"Rare",
+    maxTier:1,
+    tiers:[
+      {
+        desc:"10% lifesteal",
+        apply(c){ c.lifesteal = Math.max(c.lifesteal||0, 0.10); }
+      }
+    ]
+  },
+  I6:{
+    name:"Bomb",
+    rarity:"Rare",
+    maxTier:1,
+    tiers:[
+      {
+        desc:"First hit splashes",
+        apply(c){ c.bombReady = true; }
+      }
+    ]
+  },
+  I7:{
+    name:"Iron Ring",
+    rarity:"Common",
+    maxTier:1,
+    tiers:[
+      {
+        desc:"+10% Max HP",
+        apply(c){ c.maxHP = Math.round(c.maxHP*1.10); c.hp = c.maxHP; }
+      }
+    ]
+  },
+  I8:{
+    name:"Boots",
+    rarity:"Uncommon",
+    maxTier:1,
+    tiers:[
+      {
+        desc:"+10% move speed",
+        apply(c){ c.moveMult = (c.moveMult||1) * 1.10; }
+      }
+    ]
+  },
+  I9:{
+    name:"Chain Rune",
+    rarity:"Rare",
+    maxTier:1,
+    tiers:[
+      {
+        desc:"Every 4th hit chains",
+        apply(c){ c.chainEvery = 4; c.chainReady = 0; }
+      }
+    ]
+  },
+  I10:{
+    name:"Aegis Core",
+    rarity:"Epic",
+    maxTier:1,
+    tiers:[
+      {
+        desc:"Start with a shield",
+        apply(c){ c.startShield = 0.18; }
+      }
+    ]
+  },
+  I11:{
+    name:"Phoenix Feather",
+    rarity:"Epic",
+    maxTier:1,
+    tiers:[
+      {
+        desc:"Revive once at 25% HP",
+        apply(c){ c.reviveOnce = true; }
+      }
+    ]
+  },
+  I12:{
+    name:"Chrono Relic",
+    rarity:"Legendary",
+    maxTier:1,
+    tiers:[
+      {
+        desc:"Team +10% atk speed",
+        apply(c){ }
+      }
+    ],
+    teamBuff:{ key:"atkSpeed", value:0.10, label:"Team +10% attack speed" }
+  }
 };
+
+const ITEM_TIER_LABELS = ["I", "II", "III"];
+function getItemTier(def, tier){
+  if (!def) return null;
+  const tiers = def.tiers || [];
+  if (!tiers.length) return null;
+  const idx = Math.min(Math.max((tier||1)-1, 0), tiers.length-1);
+  return tiers[idx];
+}
+function itemDesc(type, tier){
+  const def = ITEMS[type];
+  const info = getItemTier(def, tier);
+  if (info && info.desc) return info.desc;
+  return def && def.desc ? def.desc : "";
+}
 
 /* ===== Augments (trait crests removed; stackables uncapped) ===== */
 const AUGMENTS = {
