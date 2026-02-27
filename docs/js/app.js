@@ -2497,33 +2497,8 @@ function loop(t){
 
 /* ===== Permadeath ===== */
 function applyPermadeath(){
-  const dead = S.P.filter(u => !u.alive || u.hp <= 0);
-  if (!dead.length) return;
-
-  const deadIds = new Set(dead.map(u => u.rosterId).filter(Boolean));
-  const deadNames = dead.map(u => `${u.name} ★${u.star}`);
-
-  let returned = 0;
-  for (const roster of S.army){
-    if (deadIds.has(roster.id)){
-      const arr = Array.isArray(roster.items) ? roster.items : [];
-      for (const it of arr){
-        if (it && it.type){
-          S.items.push({ id:rndId(), type: it.type });
-          returned++;
-        }
-      }
-      roster.items = [];
-    }
-  }
-
-  S.army = S.army.filter(u => !deadIds.has(u.id));
-
-  const extra = returned ? ` • returned ${returned} item${returned>1?"s":""}` : "";
-  if (deadNames.length === 1) showToast(`${deadNames[0]} died${extra}`, "bad");
-  else if (deadNames.length > 1) showToast(`Units lost: ${deadNames.join(", ")}${extra}`, "bad");
-
-  if (S.overlay === "inventory") renderInventory();
+  // Permadeath disabled: keep roster intact and simply heal units between battles.
+  return;
 }
 
 /* ===== Battle flow ===== */
