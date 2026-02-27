@@ -2721,11 +2721,18 @@ function openNodeSelect(){
   setOverlay("node");
   el.nodeChoices.innerHTML = "";
 
-  const nodes = [
+  const pool = [
     { type:"battle", isElite:false, title:"Battle", desc:"Normal fight." },
     { type:"battle", isElite:true,  title:"Elite",  desc:"Harder enemies. Guaranteed item + augment on win." },
     { type:"event",  isElite:false, title:"Event",  desc:"Pick one risk/reward outcome." },
   ];
+
+  const nodes = [];
+  const temp = pool.slice();
+  while(nodes.length < 2 && temp.length){
+    const idx = Math.floor(Math.random() * temp.length);
+    nodes.push(temp.splice(idx,1)[0]);
+  }
 
   for (const n of nodes){
     const card = document.createElement("div");
