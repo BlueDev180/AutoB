@@ -370,6 +370,7 @@ const ITEMS = {
   I1:{
     name:"Sword",
     rarity:"Common",
+    desc:"+20% ATK",
     maxTier:1,
     tiers:[
       {
@@ -381,6 +382,7 @@ const ITEMS = {
   I2:{
     name:"Shield",
     rarity:"Common",
+    desc:"+25% Max HP",
     maxTier:1,
     tiers:[
       {
@@ -392,6 +394,7 @@ const ITEMS = {
   I3:{
     name:"Bowstring",
     rarity:"Uncommon",
+    desc:"+15% atk speed (ranged)",
     maxTier:1,
     tiers:[
       {
@@ -403,6 +406,7 @@ const ITEMS = {
   I4:{
     name:"Scope",
     rarity:"Uncommon",
+    desc:"+30 range",
     maxTier:1,
     tiers:[
       {
@@ -414,6 +418,7 @@ const ITEMS = {
   I5:{
     name:"Vamp Charm",
     rarity:"Rare",
+    desc:"10% lifesteal",
     maxTier:1,
     tiers:[
       {
@@ -425,6 +430,7 @@ const ITEMS = {
   I6:{
     name:"Bomb",
     rarity:"Rare",
+    desc:"First hit splashes",
     maxTier:1,
     tiers:[
       {
@@ -436,6 +442,7 @@ const ITEMS = {
   I7:{
     name:"Iron Ring",
     rarity:"Common",
+    desc:"+10% Max HP",
     maxTier:1,
     tiers:[
       {
@@ -447,6 +454,7 @@ const ITEMS = {
   I8:{
     name:"Boots",
     rarity:"Uncommon",
+    desc:"+10% move speed",
     maxTier:1,
     tiers:[
       {
@@ -458,6 +466,7 @@ const ITEMS = {
   I9:{
     name:"Chain Rune",
     rarity:"Rare",
+    desc:"Every 4th hit chains",
     maxTier:1,
     tiers:[
       {
@@ -469,6 +478,7 @@ const ITEMS = {
   I10:{
     name:"Aegis Core",
     rarity:"Epic",
+    desc:"Start with a shield",
     maxTier:1,
     tiers:[
       {
@@ -480,6 +490,7 @@ const ITEMS = {
   I11:{
     name:"Phoenix Feather",
     rarity:"Epic",
+    desc:"Revive once at 25% HP",
     maxTier:1,
     tiers:[
       {
@@ -491,6 +502,7 @@ const ITEMS = {
   I12:{
     name:"Chrono Relic",
     rarity:"Legendary",
+    desc:"Team +10% atk speed",
     maxTier:1,
     tiers:[
       {
