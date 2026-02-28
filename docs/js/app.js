@@ -368,149 +368,137 @@ const UNIT_POOL = [
 
 const ITEMS = {
   I1:{
-    name:"Sword",
-    rarity:"Common",
-    desc:"+20% ATK",
-    maxTier:1,
+    name:"Sword", rarity:"Common", desc:"+20% ATK", maxTier:3,
     tiers:[
-      {
-        desc:"+20% ATK",
-        apply(c){ c.atk = Math.round(c.atk*1.20); }
-      }
+      { desc:"+20% ATK",
+        apply(c){ c.atk = Math.round(c.atk*1.20); } },
+      { desc:"+45% ATK · 8% lifesteal",
+        apply(c){ c.atk = Math.round(c.atk*1.45); c.lifesteal = Math.max(c.lifesteal||0, 0.08); } },
+      { desc:"+80% ATK · 18% lifesteal · +50% first-hit bonus",
+        apply(c){ c.atk = Math.round(c.atk*1.80); c.lifesteal = Math.max(c.lifesteal||0, 0.18); c.firstHitBonus = Math.max(c.firstHitBonus||0, 0.50); } },
     ]
   },
   I2:{
-    name:"Shield",
-    rarity:"Common",
-    desc:"+25% Max HP",
-    maxTier:1,
+    name:"Shield", rarity:"Common", desc:"+25% Max HP", maxTier:3,
     tiers:[
-      {
-        desc:"+25% Max HP",
-        apply(c){ c.maxHP = Math.round(c.maxHP*1.25); c.hp = c.maxHP; }
-      }
+      { desc:"+25% Max HP",
+        apply(c){ c.maxHP = Math.round(c.maxHP*1.25); c.hp = c.maxHP; } },
+      { desc:"+55% Max HP · 10% damage reduction",
+        apply(c){ c.maxHP = Math.round(c.maxHP*1.55); c.hp = c.maxHP; c.damageReduction = Math.min(0.65,(c.damageReduction||0)+0.10); } },
+      { desc:"+90% Max HP · 18% damage reduction · start with 12% shield",
+        apply(c){ c.maxHP = Math.round(c.maxHP*1.90); c.hp = c.maxHP; c.damageReduction = Math.min(0.65,(c.damageReduction||0)+0.18); c.startShield = Math.max(c.startShield||0, 0.12); } },
     ]
   },
   I3:{
-    name:"Bowstring",
-    rarity:"Uncommon",
-    desc:"+15% atk speed (ranged)",
-    maxTier:1,
+    name:"Bowstring", rarity:"Uncommon", desc:"+15% atk speed (ranged)", maxTier:3,
     tiers:[
-      {
-        desc:"+15% atk speed (ranged)",
-        apply(c){ if (isRangedUnit(c)) c.spd = c.spd*0.85; }
-      }
+      { desc:"+15% atk speed (ranged)",
+        apply(c){ if (isRangedUnit(c)) c.spd = c.spd*0.85; } },
+      { desc:"+32% atk speed · +25 range (ranged)",
+        apply(c){ if (isRangedUnit(c)){ c.spd = c.spd*0.68; c.range += 25; } } },
+      { desc:"+55% atk speed · +50 range · pierce every 2nd hit (ranged)",
+        apply(c){ if (isRangedUnit(c)){ c.spd = c.spd*0.45; c.range += 50; c.pierceEvery = 2; } } },
     ]
   },
   I4:{
-    name:"Scope",
-    rarity:"Uncommon",
-    desc:"+30 range",
-    maxTier:1,
+    name:"Scope", rarity:"Uncommon", desc:"+30 range", maxTier:3,
     tiers:[
-      {
-        desc:"+30 range",
-        apply(c){ c.range += 30; }
-      }
+      { desc:"+30 range",
+        apply(c){ c.range += 30; } },
+      { desc:"+70 range · +12% atk speed",
+        apply(c){ c.range += 70; c.spd = c.spd*0.88; } },
+      { desc:"+120 range · +25% atk speed · +40% first-hit bonus",
+        apply(c){ c.range += 120; c.spd = c.spd*0.75; c.firstHitBonus = Math.max(c.firstHitBonus||0, 0.40); } },
     ]
   },
   I5:{
-    name:"Vamp Charm",
-    rarity:"Rare",
-    desc:"10% lifesteal",
-    maxTier:1,
+    name:"Vamp Charm", rarity:"Rare", desc:"10% lifesteal", maxTier:3,
     tiers:[
-      {
-        desc:"10% lifesteal",
-        apply(c){ c.lifesteal = Math.max(c.lifesteal||0, 0.10); }
-      }
+      { desc:"10% lifesteal",
+        apply(c){ c.lifesteal = Math.max(c.lifesteal||0, 0.10); } },
+      { desc:"24% lifesteal",
+        apply(c){ c.lifesteal = Math.max(c.lifesteal||0, 0.24); } },
+      { desc:"40% lifesteal · start with 12% HP shield",
+        apply(c){ c.lifesteal = Math.max(c.lifesteal||0, 0.40); c.startShield = Math.max(c.startShield||0, 0.12); } },
     ]
   },
   I6:{
-    name:"Bomb",
-    rarity:"Rare",
-    desc:"First hit splashes",
-    maxTier:1,
+    name:"Bomb", rarity:"Rare", desc:"First hit splashes", maxTier:3,
     tiers:[
-      {
-        desc:"First hit splashes",
-        apply(c){ c.bombReady = true; }
-      }
+      { desc:"First hit splashes",
+        apply(c){ c.bombReady = true; } },
+      { desc:"First 3 hits splash",
+        apply(c){ c.bombCharges = Math.max(c.bombCharges||0, 3); } },
+      { desc:"Every 2nd hit splashes",
+        apply(c){ c.bombEvery = 2; c.bombCounter = 0; } },
     ]
   },
   I7:{
-    name:"Iron Ring",
-    rarity:"Common",
-    desc:"+10% Max HP",
-    maxTier:1,
+    name:"Iron Ring", rarity:"Common", desc:"+10% Max HP", maxTier:3,
     tiers:[
-      {
-        desc:"+10% Max HP",
-        apply(c){ c.maxHP = Math.round(c.maxHP*1.10); c.hp = c.maxHP; }
-      }
+      { desc:"+10% Max HP",
+        apply(c){ c.maxHP = Math.round(c.maxHP*1.10); c.hp = c.maxHP; } },
+      { desc:"+25% Max HP · 1% HP regen/sec",
+        apply(c){ c.maxHP = Math.round(c.maxHP*1.25); c.hp = c.maxHP; c.regenPerSec = (c.regenPerSec||0) + c.maxHP*0.010; } },
+      { desc:"+45% Max HP · 2% HP regen/sec · start with 8% shield",
+        apply(c){ c.maxHP = Math.round(c.maxHP*1.45); c.hp = c.maxHP; c.regenPerSec = (c.regenPerSec||0) + c.maxHP*0.020; c.startShield = Math.max(c.startShield||0, 0.08); } },
     ]
   },
   I8:{
-    name:"Boots",
-    rarity:"Uncommon",
-    desc:"+10% move speed",
-    maxTier:1,
+    name:"Boots", rarity:"Uncommon", desc:"+10% move speed", maxTier:3,
     tiers:[
-      {
-        desc:"+10% move speed",
-        apply(c){ c.moveMult = (c.moveMult||1) * 1.10; }
-      }
+      { desc:"+10% move speed",
+        apply(c){ c.moveMult = (c.moveMult||1)*1.10; } },
+      { desc:"+25% move speed · +10% first-hit bonus",
+        apply(c){ c.moveMult = (c.moveMult||1)*1.25; c.firstHitBonus = Math.max(c.firstHitBonus||0, 0.10); } },
+      { desc:"+45% move speed · +25% first-hit bonus · 6% lifesteal",
+        apply(c){ c.moveMult = (c.moveMult||1)*1.45; c.firstHitBonus = Math.max(c.firstHitBonus||0, 0.25); c.lifesteal = Math.max(c.lifesteal||0, 0.06); } },
     ]
   },
   I9:{
-    name:"Chain Rune",
-    rarity:"Rare",
-    desc:"Every 4th hit chains",
-    maxTier:1,
+    name:"Chain Rune", rarity:"Rare", desc:"Every 4th hit chains", maxTier:3,
     tiers:[
-      {
-        desc:"Every 4th hit chains",
-        apply(c){ c.chainEvery = 4; c.chainReady = 0; }
-      }
+      { desc:"Every 4th hit chains (1 target)",
+        apply(c){ c.chainEvery = 4; c.chainReady = 0; c.chainTargets = 1; } },
+      { desc:"Every 3rd hit chains (2 targets)",
+        apply(c){ c.chainEvery = 3; c.chainReady = 0; c.chainTargets = 2; } },
+      { desc:"Every 2nd hit chains (3 targets) · +30% chain dmg",
+        apply(c){ c.chainEvery = 2; c.chainReady = 0; c.chainTargets = 3; c.chainDmgMult = 1.30; } },
     ]
   },
   I10:{
-    name:"Aegis Core",
-    rarity:"Epic",
-    desc:"Start with a shield",
-    maxTier:1,
+    name:"Aegis Core", rarity:"Epic", desc:"Start with a shield", maxTier:3,
     tiers:[
-      {
-        desc:"Start with a shield",
-        apply(c){ c.startShield = 0.18; }
-      }
+      { desc:"Start with 18% HP shield",
+        apply(c){ c.startShield = Math.max(c.startShield||0, 0.18); } },
+      { desc:"Start with 36% HP shield · refreshes on kill",
+        apply(c){ c.startShield = Math.max(c.startShield||0, 0.36); c.shieldRefreshOnKill = true; } },
+      { desc:"Start with 55% HP shield · refreshes on kill · +10% ATK",
+        apply(c){ c.startShield = Math.max(c.startShield||0, 0.55); c.shieldRefreshOnKill = true; c.atk = Math.round(c.atk*1.10); } },
     ]
   },
   I11:{
-    name:"Phoenix Feather",
-    rarity:"Epic",
-    desc:"Revive once at 25% HP",
-    maxTier:1,
+    name:"Phoenix Feather", rarity:"Epic", desc:"Revive once at 25% HP", maxTier:3,
     tiers:[
-      {
-        desc:"Revive once at 25% HP",
-        apply(c){ c.reviveOnce = true; }
-      }
+      { desc:"Revive once at 25% HP",
+        apply(c){ c.reviveCount = Math.max(c.reviveCount||0, 1); c.reviveHpPct = Math.max(c.reviveHpPct||0, 0.25); } },
+      { desc:"Revive twice at 40% HP",
+        apply(c){ c.reviveCount = Math.max(c.reviveCount||0, 2); c.reviveHpPct = Math.max(c.reviveHpPct||0, 0.40); } },
+      { desc:"Revive 3× at 55% HP · +20% ATK each revive",
+        apply(c){ c.reviveCount = Math.max(c.reviveCount||0, 3); c.reviveHpPct = Math.max(c.reviveHpPct||0, 0.55); c.reviveBonusAtk = 0.20; } },
     ]
   },
   I12:{
-    name:"Chrono Relic",
-    rarity:"Legendary",
-    desc:"Team +10% atk speed",
-    maxTier:1,
+    name:"Chrono Relic", rarity:"Legendary", desc:"Team +10% atk speed", maxTier:3,
     tiers:[
-      {
-        desc:"Team +10% atk speed",
-        apply(c){ }
-      }
+      { desc:"Team +10% atk speed",
+        apply(c){ } },
+      { desc:"Team +22% atk speed · +10% ATK",
+        apply(c){ c.atk = Math.round(c.atk*1.10); } },
+      { desc:"Team +38% atk speed · +18% ATK · +15% Max HP",
+        apply(c){ c.atk = Math.round(c.atk*1.18); c.maxHP = Math.round(c.maxHP*1.15); c.hp = c.maxHP; } },
     ],
-    teamBuff:{ key:"atkSpeed", value:0.10, label:"Team +10% attack speed" }
+    teamBuff:{ key:"atkSpeed", value:0.10, label:"Team atk speed (Chrono Relic)" }
   }
 };
 
@@ -524,9 +512,58 @@ function getItemTier(def, tier){
 }
 function itemDesc(type, tier){
   const def = ITEMS[type];
-  const info = getItemTier(def, tier);
+  const info = getItemTier(def, tier || 1);
   if (info && info.desc) return info.desc;
   return def && def.desc ? def.desc : "";
+}
+function itemTierLabel(tier){ return ["I","II","III"][(tier||1)-1] || "I"; }
+
+/* ===== Item Merge System ===== */
+function getMergeCandidates(){
+  // Returns map: "type:tier" -> [{item, idx}]
+  const map = {};
+  for (let i=0; i<S.items.length; i++){
+    const it = S.items[i];
+    if (!it || !it.type) continue;
+    const def = ITEMS[it.type];
+    if (!def) continue;
+    const t = it.tier || 1;
+    if (t >= (def.maxTier||3)) continue; // already max tier
+    const key = it.type + ":" + t;
+    (map[key] = map[key]||[]).push({ item:it, idx:i });
+  }
+  // only return groups with 2+
+  const out = {};
+  for (const [k,v] of Object.entries(map)){
+    if (v.length >= 2) out[k] = v;
+  }
+  return out;
+}
+
+function mergeItems(type, tier){
+  const def = ITEMS[type];
+  if (!def) return null;
+  const t = tier || 1;
+  if (t >= (def.maxTier||3)){ showToast("Already max tier!", "bad"); return null; }
+  // Find 2 items of this type+tier in S.items
+  const indices = [];
+  for (let i=0; i<S.items.length && indices.length<2; i++){
+    const it = S.items[i];
+    if (it && it.type === type && (it.tier||1) === t) indices.push(i);
+  }
+  if (indices.length < 2){ showToast("Need 2 of the same item & tier to merge", "bad"); return null; }
+  // Remove both (high index first)
+  indices.sort((a,b)=>b-a);
+  for (const idx of indices) S.items.splice(idx,1);
+  // Add upgraded item
+  const upgraded = { id:rndId(), type, tier: t+1 };
+  S.items.push(upgraded);
+  const newDesc = itemDesc(type, t+1);
+  showToast(`Merged ${def.name} ${itemTierLabel(t)}+${itemTierLabel(t)} → ${itemTierLabel(t+1)}! ${newDesc}`, "good");
+  renderAll();
+  saveGame();
+  renderInventory();
+  return upgraded;
 }
 
 /* ===== Augments (trait crests removed; stackables uncapped) ===== */
@@ -922,7 +959,7 @@ function tryMigrateV2(){
     S.army = (data.army || []).map(a=>{
       const u = makeUnit(a.name, a.star, "player", a.id);
       if (a.item && a.item.type){
-        u.items = [{ id:rndId(), type:a.item.type }];
+        u.items = [{ id:rndId(), type:a.item.type, tier: a.item.tier||1 }];
       } else u.items = [];
       return u;
     });
@@ -1114,7 +1151,13 @@ function collectTeamItemBuffs(){
       const key = tb.key || tb.label || def.name;
       const cur = agg.get(key) || { key, label: tb.label || def.name, value: 0, stacks: 0 };
       cur.stacks += 1;
-      cur.value += Number(tb.value || 0);
+      // I12 value scales with tier
+      if (it.type === "I12"){
+        const t = it.tier || 1;
+        cur.value += t === 3 ? 0.38 : t === 2 ? 0.22 : 0.10;
+      } else {
+        cur.value += Number(tb.value || 0);
+      }
       agg.set(key, cur);
     }
   }
@@ -1295,7 +1338,7 @@ function renderSlotRowHTML(unit){
   let html = `<div class="slotRow">`;
   for (let i=0;i<max;i++){
     if (have[i] && have[i].type){
-      html += `<span class="slotPill">${itemLabel(have[i].type)}</span>`;
+      const _st = have[i].tier||1; html += `<span class="slotPill">${itemLabel(have[i].type)}${_st>1?" "+itemTierLabel(_st):""}</span>`;
     } else {
       html += `<span class="slotPill slotEmpty">—</span>`;
     }
@@ -1340,7 +1383,7 @@ function mergeAllSafe(){
       const arr = Array.isArray(cu.items) ? cu.items : [];
       for (const it of arr){
         if (it && it.type){
-          S.items.push({ id:rndId(), type: it.type });
+          S.items.push({ id:rndId(), type: it.type, tier: it.tier||1 });
           returnedThisMerge++;
         }
       }
@@ -1512,9 +1555,19 @@ function initCombatFields(c){
 
   c.chainEvery = 0;
   c.chainReady = 0;
+  c.chainTargets = 1;
+  c.chainDmgMult = 1.0;
   c.startShield = 0;
+  c.shieldRefreshOnKill = false;
   c.reviveOnce = false;
   c.revived = false;
+  c.reviveCount = 0;
+  c.reviveHpPct = 0.25;
+  c.reviveBonusAtk = 0;
+  c.bombCharges = 0;
+  c.bombEvery = 0;
+  c.bombCounter = 0;
+  c.pierceEvery = 0;
 
   c.healPulseCd = 0;
   c.pierceCounter = 0;
@@ -1541,16 +1594,19 @@ function cloneForCombat(rosterU, side){
 }
 
 function computeTeamAuraFromRoster(army){
-  let chronoStacks = 0;
+  let atkSpeedBonus = 0;
   for (const u of army){
     const arr = Array.isArray(u.items) ? u.items : [];
     for (const it of arr){
-      if (it && it.type === "I12") chronoStacks++;
+      if (it && it.type === "I12"){
+        const t = it.tier || 1;
+        atkSpeedBonus += t === 3 ? 0.38 : t === 2 ? 0.22 : 0.10;
+      }
     }
   }
   return {
-    chronoStacks,
-    atkSpeedBonus: 0.10 * chronoStacks,  // +10% each
+    chronoStacks: 0,  // legacy compat
+    atkSpeedBonus,
   };
 }
 
@@ -1654,7 +1710,8 @@ function computeCombatStatsFromRoster(rosterUnit, traitCounts, teamAura){
   for (const it of arr){
     if (!it || !it.type) continue;
     const def = ITEMS[it.type];
-    if (def && def.apply) def.apply(c);
+    const tierData = getItemTier(def, it.tier || 1);
+    if (tierData && tierData.apply) tierData.apply(c);
   }
 
   c.maxHP = Math.max(1, c.maxHP|0);
@@ -1989,26 +2046,38 @@ function applyDamage(att, tgt, rawDmg){
     if (att.chainReady >= att.chainEvery){
       att.chainReady = 0;
       const foes = (att.side === "player") ? alive(S.E) : alive(S.P);
-      let near=null, best=1e18;
-      for (const f of foes){
-        if (f.id === tgt.id) continue;
-        const dx = f.x - tgt.x;
-        const dy = f.y - tgt.y;
-        const d = dx*dx + dy*dy;
-        if (d < best){ best=d; near=f; }
-      }
-      if (near && best <= (80*80)){
-        pushTag(att, "Chain");
-        applyDamage(att, near, dmg * 0.30);
+      // sort by proximity to target, skip the target itself
+      const sorted = foes.filter(f => f.id !== tgt.id).sort((a,b)=>{
+        const da = (a.x-tgt.x)**2+(a.y-tgt.y)**2;
+        const db = (b.x-tgt.x)**2+(b.y-tgt.y)**2;
+        return da-db;
+      });
+      const targets = att.chainTargets || 1;
+      const chainDmg = dmg * 0.30 * (att.chainDmgMult || 1.0);
+      let chained = 0;
+      for (const f of sorted){
+        if (chained >= targets) break;
+        const d = (f.x-tgt.x)**2+(f.y-tgt.y)**2;
+        if (d <= (100*100)){
+          if (chained === 0) pushTag(att, "Chain");
+          applyDamage(att, f, chainDmg);
+          chained++;
+        }
       }
     }
   }
 
   if (tgt.hp <= 0){
-    if (tgt.reviveOnce && !tgt.revived){
-      tgt.revived = true;
-      tgt.hp = Math.max(1, Math.round(tgt.maxHP * 0.25));
-      pushTag(tgt, "Revive");
+    const revCap = (tgt.reviveCount || 0) || (tgt.reviveOnce && !tgt.revived ? 1 : 0);
+    if (revCap > 0 && !tgt._revivesUsed){ tgt._revivesUsed = 0; }
+    const usedRevives = tgt._revivesUsed || 0;
+    if (revCap > 0 && usedRevives < revCap){
+      tgt._revivesUsed = usedRevives + 1;
+      tgt.revived = true; // compat
+      const hpPct = tgt.reviveHpPct || 0.25;
+      tgt.hp = Math.max(1, Math.round(tgt.maxHP * hpPct));
+      if (tgt.reviveBonusAtk) tgt.atk = Math.round(tgt.atk * (1 + tgt.reviveBonusAtk));
+      pushTag(tgt, "Revive!");
       pushHeal(tgt, tgt.hp);
     } else {
       tgt.alive = false;
@@ -2024,21 +2093,24 @@ function applyDamage(att, tgt, rawDmg){
     if (actual > 0) pushHeal(att, actual);
   }
 
-  if (att && att.bombReady){
+  // Bomb splash logic (bombReady / bombCharges / bombEvery)
+  let doSplash = false;
+  if (att && att.bombReady){ doSplash = true; att.bombReady = false; }
+  if (att && att.bombCharges > 0){ doSplash = true; att.bombCharges--; }
+  if (att && att.bombEvery > 0){ att.bombCounter = (att.bombCounter||0)+1; if (att.bombCounter >= att.bombEvery){ att.bombCounter = 0; doSplash = true; } }
+  if (doSplash){
     const foes = (att.side === "player") ? alive(S.E) : alive(S.P);
     let near=null, best=1e18;
     for (const f of foes){
       if (f.id === tgt.id) continue;
-      const dx = f.x - tgt.x;
-      const dy = f.y - tgt.y;
+      const dx = f.x - tgt.x; const dy = f.y - tgt.y;
       const d = dx*dx + dy*dy;
       if (d < best){ best=d; near=f; }
     }
     if (near && best <= (50*50)){
       pushTag(att, "Splash");
-      applyDamage(att, near, dmg * 0.35);
+      applyDamage(att, near, dmg * 0.40);
     }
-    att.bombReady = false;
   }
 }
 
@@ -2049,6 +2121,13 @@ function onKill(att){
     att.shield = Math.max(att.shield || 0, amt);
     att.shieldTimer = att.cultShieldDur || 2.0;
     pushTag(att, "Cult");
+    pushShield(att, amt);
+  }
+  if (att.shieldRefreshOnKill && att.startShield > 0){
+    const amt = att.maxHP * att.startShield;
+    att.shield = Math.max(att.shield || 0, amt);
+    att.shieldTimer = Math.max(att.shieldTimer||0, 2.0);
+    pushTag(att, "Shield+");
     pushShield(att, amt);
   }
 }
@@ -2245,9 +2324,10 @@ function stepCombat(dt){
             extra.rootDur = 0.7;
             pushTag(u, "Trap");
           }
-          if (u.name === "Invoker"){
+          if (u.name === "Invoker" || (u.pierceEvery && u.pierceEvery > 0)){
+            const pEvery = u.pierceEvery || 3;
             u.pierceCounter = (u.pierceCounter||0) + 1;
-            if (u.pierceCounter >= 3){
+            if (u.pierceCounter >= pEvery){
               u.pierceCounter = 0;
               extra.pierce = true;
               pushTag(u, "Pierce");
@@ -2738,7 +2818,7 @@ function randomItemDrop(){
   const rar = rollRarity(odds);
   const pool = Object.keys(ITEMS).filter(id => (ITEMS[id].rarity||"Common") === rar);
   const id = pool.length ? pick(pool) : pick(Object.keys(ITEMS));
-  return { id:rndId(), type:id };
+  return { id:rndId(), type:id, tier:1 };
 }
 
 function beginPostBattleFlow(){
@@ -2982,13 +3062,15 @@ function renderEquippedSection(u){
     for (const it of arr){
       const def = ITEMS[it.type];
       const rarCol = rarityColor(def?.rarity || "Common");
+      const itTier = it.tier || 1;
+      const tierBadge = itTier > 1 ? ` <span class="tierBadge">${itemTierLabel(itTier)}</span>` : "";
       chips += `<span class="equipChip" style="border-color:${rarCol};">
-        <span class="txt">${def?.name || "Item"}</span>
+        <span class="txt">${def?.name || "Item"}${tierBadge}</span>
       </span>`;
     }
   }
 
-  const fx = arr.map(it => itemDesc(it.type)).filter(Boolean).join("; ");
+  const fx = arr.map(it => itemDesc(it.type, it.tier||1)).filter(Boolean).join("; ");
   const fxLine = fx ? `<div class="equipFxLine">${fx}</div>` : ``;
 
   return `
@@ -3027,7 +3109,7 @@ function equipSelectedToUnit(u){
 
   // equip directly
   const pickedItem = S.items.splice(sel.idx, 1)[0];
-  (u.items ||= []).push({ id:rndId(), type:pickedItem.type });
+  (u.items ||= []).push({ id:rndId(), type:pickedItem.type, tier:pickedItem.tier||1 });
 
   showToast(`Equipped ${itemLabel(pickedItem.type)} → ${u.name}`, "good");
   clearInvSelection(false);
@@ -3057,13 +3139,20 @@ function renderInventory(){
     card.style.borderColor = sel ? "rgba(106,166,255,0.95)" : "rgba(42,58,99,0.95)";
     if (sel) card.style.boxShadow = "0 0 0 2px rgba(106,166,255,0.18) inset";
 
+    const itTier = it.tier || 1;
+    const tierStr = itTier > 1 ? ` <span class="tierBadge">${itemTierLabel(itTier)}</span>` : "";
+    const desc = itemDesc(it.type, itTier);
+    const isMaxTier = itTier >= (def.maxTier||3);
     card.innerHTML = `
       <div class="name">
-        <span>${def.name}</span>
+        <span>${def.name}${tierStr}</span>
         <span class="rarMini" style="border-color:${rarCol}; color:${rarCol};">${def.rarity||"Common"}</span>
       </div>
-      <div class="desc">${def.desc}</div>
+      <div class="desc">${desc}</div>
     `;
+
+    const btnRow = document.createElement("div");
+    btnRow.style.display = "flex"; btnRow.style.gap = "6px"; btnRow.style.flexWrap = "wrap";
 
     const btn = document.createElement("button");
     btn.className = sel ? "btnPrimary" : "";
@@ -3071,12 +3160,28 @@ function renderInventory(){
     btn.addEventListener("click", ()=>{
       selectedInvItemId = it.id;
       selectedInvItemType = it.type;
-      el.invHint.textContent = `Selected: ${def.name} — tap a unit to equip.`;
-      showToast(`Selected ${def.name}`, "info");
+      el.invHint.textContent = `Selected: ${def.name} ${itemTierLabel(itTier)} — tap a unit to equip.`;
+      showToast(`Selected ${def.name} ${itemTierLabel(itTier)}`, "info");
       renderInventory();
     });
+    btnRow.appendChild(btn);
 
-    card.appendChild(btn);
+    // Merge button: show if 2+ of same type+tier exist and not max tier
+    if (!isMaxTier){
+      const sameCount = S.items.filter(x => x && x.type===it.type && (x.tier||1)===itTier).length;
+      if (sameCount >= 2){
+        const mergeBtn = document.createElement("button");
+        mergeBtn.className = "btnPrimary";
+        mergeBtn.style.background = "linear-gradient(135deg,#a855f7,#7c3aed)";
+        mergeBtn.textContent = `Merge → ${itemTierLabel(itTier+1)}`;
+        mergeBtn.addEventListener("click", ()=>{
+          mergeItems(it.type, itTier);
+        });
+        btnRow.appendChild(mergeBtn);
+      }
+    }
+
+    card.appendChild(btnRow);
     el.invItems.appendChild(card);
   }
   if (!S.items.length){
@@ -3176,7 +3281,7 @@ function renderInventory(){
         for (let i=arr.length-1;i>=0;i--){
           const it = arr[i];
           if (it && it.type){
-            S.items.push({ id:rndId(), type: it.type });
+            S.items.push({ id:rndId(), type: it.type, tier: it.tier||1 });
             returned++;
           }
           arr.splice(i,1);
@@ -3271,11 +3376,11 @@ function commitReplace(slotIndex){
   const cur = Array.isArray(unit.items) ? unit.items : (unit.items=[]);
   const replaced = cur[slotIndex];
   if (replaced && replaced.type){
-    S.items.push({ id:rndId(), type: replaced.type });
+    S.items.push({ id:rndId(), type: replaced.type, tier: replaced.tier||1 });
   }
 
   const picked = S.items.splice(invIdx,1)[0];
-  cur[slotIndex] = { id:rndId(), type: picked.type };
+  cur[slotIndex] = { id:rndId(), type: picked.type, tier: picked.tier||1 };
 
   showToast(`Equipped ${itemLabel(picked.type)} → ${unit.name}`, "good");
 

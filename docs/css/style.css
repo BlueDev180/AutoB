@@ -618,6 +618,18 @@
       text-overflow:ellipsis;
       white-space:nowrap;
     }
+    .tierBadge{
+      display:inline-block;
+      font-size:10px;
+      font-weight:800;
+      padding:1px 5px;
+      border-radius:999px;
+      background:linear-gradient(135deg,#a855f7,#7c3aed);
+      color:#fff;
+      line-height:1.4;
+      vertical-align:middle;
+      margin-left:4px;
+    }
     .equipFxLine{
       font-size:12px;
       color:var(--muted);
