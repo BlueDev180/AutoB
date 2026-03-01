@@ -501,13 +501,6 @@
       -webkit-overflow-scrolling:touch;
       align-items: stretch;
     }
-    @media(min-width:600px){
-      .twoCols{
-        display:grid;
-        grid-template-columns: 1fr 1fr;
-        overflow:hidden;
-      }
-    }
     .invList{
       min-height:0;
       flex:1 1 auto;
