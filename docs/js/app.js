@@ -3426,7 +3426,12 @@ el.btnSynClose.addEventListener("click", () => { setOverlay("none"); });
 el.btnBonusesClose.addEventListener("click", () => { setOverlay("none"); });
 
 document.getElementById("btnInvInfo").addEventListener("click", ()=>{
-  showToast("Select an item → tap a unit to equip. 2× same item+tier = Merge. Unequip returns items.", "info");
+  clearTimeout(toastTimer);
+  toastEl.classList.remove("good","bad","show");
+  toastEl.textContent = "Select an item → tap a unit to equip. 2× same item+tier = Merge. Unequip returns items to inventory.";
+  void toastEl.offsetWidth;
+  toastEl.classList.add("show");
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 4000);
 });
 el.btnInvClose.addEventListener("click", ()=>{
   setOverlay("none");
