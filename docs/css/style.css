@@ -492,13 +492,21 @@
 
     /* Inventory layout: ALWAYS 2 columns, both scroll independently */
     .twoCols{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
+      display:flex;
+      flex-direction:column;
       gap:12px;
       min-height:0;
       flex:1 1 auto;
-      overflow:hidden;
+      overflow:auto;
+      -webkit-overflow-scrolling:touch;
       align-items: stretch;
+    }
+    @media(min-width:600px){
+      .twoCols{
+        display:grid;
+        grid-template-columns: 1fr 1fr;
+        overflow:hidden;
+      }
     }
     .invList{
       min-height:0;
@@ -539,7 +547,8 @@
       gap:10px;
       min-height:86px;
     }
-    #ovInventory .choiceCard.invUnit{ min-height:144px; }
+    #ovInventory .choiceCard.invUnit{ min-height:auto; }
+    #ovInventory #invPaneItems, #ovInventory #invPaneUnits{ max-height:none; overflow:visible; }
     #ovInventory .choiceCard .name{ font-size:14px; line-height:1.2; }
     #ovInventory .choiceCard .name span:first-child{
       white-space: normal;
