@@ -3425,6 +3425,9 @@ el.btnBonuses.addEventListener("click", () => openBonusesOverlay());
 el.btnSynClose.addEventListener("click", () => { setOverlay("none"); });
 el.btnBonusesClose.addEventListener("click", () => { setOverlay("none"); });
 
+document.getElementById("btnInvInfo").addEventListener("click", ()=>{
+  showToast("Select an item → tap a unit to equip. 2× same item+tier = Merge. Unequip returns items.", "info");
+});
 el.btnInvClose.addEventListener("click", ()=>{
   setOverlay("none");
   renderAll();

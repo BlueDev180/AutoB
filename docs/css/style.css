@@ -642,6 +642,13 @@
       text-overflow:ellipsis;
       white-space:nowrap;
     }
+    .btnInvInfo{
+      display:inline-flex; align-items:center; justify-content:center;
+      width:20px; height:20px; border-radius:50%;
+      background:rgba(106,166,255,0.15); border:1px solid rgba(106,166,255,0.4);
+      color:#6aa6ff; font-size:12px; font-weight:800;
+      padding:0; cursor:pointer; vertical-align:middle; margin-left:6px;
+    }
     .tierBadge{
       display:inline-block;
       font-size:10px;
