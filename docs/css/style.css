@@ -644,10 +644,11 @@
     }
     .btnInvInfo{
       display:inline-flex; align-items:center; justify-content:center;
-      width:20px; height:20px; border-radius:50%;
+      width:28px; height:28px; border-radius:50%;
       background:rgba(106,166,255,0.15); border:1px solid rgba(106,166,255,0.4);
-      color:#6aa6ff; font-size:12px; font-weight:800;
+      color:#6aa6ff; font-size:13px; font-weight:800;
       padding:0; cursor:pointer; vertical-align:middle; margin-left:6px;
+      pointer-events:all; position:relative; z-index:1; touch-action:manipulation;
     }
     .tierBadge{
       display:inline-block;
