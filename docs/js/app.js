@@ -3425,15 +3425,19 @@ el.btnBonuses.addEventListener("click", () => openBonusesOverlay());
 el.btnSynClose.addEventListener("click", () => { setOverlay("none"); });
 el.btnBonusesClose.addEventListener("click", () => { setOverlay("none"); });
 
-document.addEventListener("click", (e)=>{
-  if (!e.target.closest("#btnInvInfo")) return;
+function showInvInfo(){
   clearTimeout(toastTimer);
   toastEl.classList.remove("good","bad","show");
   toastEl.textContent = "Select an item → tap a unit to equip. 2× same item+tier = Merge. Unequip returns items.";
   void toastEl.offsetWidth;
   toastEl.classList.add("show");
   toastTimer = setTimeout(() => toastEl.classList.remove("show"), 4000);
-});
+}
+(function(){
+  const btn = document.getElementById("btnInvInfo");
+  btn.addEventListener("click", showInvInfo);
+  btn.addEventListener("touchend", (e)=>{ e.preventDefault(); showInvInfo(); });
+})();
 el.btnInvClose.addEventListener("click", ()=>{
   setOverlay("none");
   renderAll();
