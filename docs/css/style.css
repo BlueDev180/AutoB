@@ -533,7 +533,9 @@
     .slotEmpty{ opacity:0.55; }
 
     /* ===== Inventory readability: make cards roomier + clamp text cleanly ===== */
-    #ovInventory .panel{ padding:12px; border-radius:16px; }
+    #ovInventory .panel{ padding:10px 12px; border-radius:16px; overflow:visible; }
+    #ovInventory .ovHeader{ overflow:visible; flex-wrap:nowrap; }
+    #ovInventory .ovHeader > button{ flex-shrink:0; min-width:60px; }
     #ovInventory .choiceCard{
       padding:16px 14px;
       border-radius:16px;
