@@ -540,8 +540,9 @@
       gap:10px;
       min-height:86px;
     }
-    #ovInventory .choiceCard.invUnit{ min-height:auto; }
+    #ovInventory .choiceCard.invUnit{ min-height:auto; overflow:visible; }
     #ovInventory #invPaneItems, #ovInventory #invPaneUnits{ max-height:none; overflow:visible; }
+    #ovInventory .choiceCard{ overflow:visible; }
     #ovInventory .choiceCard .name{ font-size:14px; line-height:1.2; }
     #ovInventory .choiceCard .name span:first-child{
       white-space: normal;
