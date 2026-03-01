@@ -540,9 +540,13 @@
       gap:10px;
       min-height:86px;
     }
-    #ovInventory .choiceCard.invUnit{ min-height:auto; overflow:visible; }
-    #ovInventory #invPaneItems, #ovInventory #invPaneUnits{ max-height:none; overflow:visible; }
-    #ovInventory .choiceCard{ overflow:visible; }
+    /* Inventory: full scrollable page, no clipping */
+    #ovInventory .ovCard{ overflow:auto; -webkit-overflow-scrolling:touch; }
+    #ovInventory .ovBody{ overflow:visible; flex:none; }
+    #ovInventory #invGrid{ overflow:visible; flex:none; }
+    #ovInventory #invPaneItems, #ovInventory #invPaneUnits{ overflow:visible; max-height:none; flex:none; }
+    #ovInventory .invList{ overflow:visible; flex:none; }
+    #ovInventory .choiceCard{ overflow:visible; min-height:auto; }
     #ovInventory .choiceCard .name{ font-size:14px; line-height:1.2; }
     #ovInventory .choiceCard .name span:first-child{
       white-space: normal;
